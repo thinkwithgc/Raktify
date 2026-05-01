@@ -4,6 +4,9 @@ const cors = require('cors');
 const env = require('./config/env');
 const logger = require('./config/logger');
 const healthRouter = require('./routes/health');
+const authRouter = require('./routes/auth');
+const onboardingRouter = require('./routes/onboarding');
+const institutionsRouter = require('./routes/institutions');
 
 function createApp() {
   const app = express();
@@ -25,6 +28,9 @@ function createApp() {
   });
 
   app.use('/health', healthRouter);
+  app.use('/auth', authRouter);
+  app.use('/onboarding', onboardingRouter);
+  app.use('/institutions', institutionsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });
