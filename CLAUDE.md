@@ -2,6 +2,39 @@
 
 This is a **life-critical** healthcare system. Read this whole file before touching code.
 
+## Phase status
+
+| Phase | Status | Smoke test | Notes |
+|-------|--------|------------|-------|
+| 0 — Infrastructure | ✅ done | `node scripts/smoke_test.js` | commit `1a8ee3e` |
+| 1 — DB foundation  | ✅ done (18/18) | `node scripts/smoke_test_phase1_full.js` | 30 migrations, 34 tables, 100 triggers, 71 RLS policies — commit `1a8ee3e` |
+| 2 — Auth + onboarding | ✅ done (21/21) | `node scripts/smoke_test_phase2.js` | OTP, TOTP, MoU eSign — commit `c3b758c` |
+| 3 — Donor reg + passport | 🚧 scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
+| 4 — Inventory + TTI | pending | | |
+| 5 — Request engine + matching | pending | | |
+| 6 — Notifications + WhatsApp + Lookback | pending | | |
+| 7 — Frontend (React PWA) | pending | | |
+| 8 — Admin + reporting + deploy | pending | | |
+
+## Phase 3 handoff (where the scaffold leaves off)
+
+**Working in Phase 3 today:**
+- `GET  /donors/eligibility/questions` — returns DRAFT bank
+- `POST /donors/register` — web flow, validates, runs duplicate detection, creates donor + platform_user
+- `POST /donors/:id/consent` — donor-self only (DB trigger enforces)
+- `POST /donors/:id/availability` — donor-self only
+- `POST /donors/:id/blood-group/verify` — `blood_bank` role only; writes the only field used in matching
+- `GET  /donors/:id/passport` — assembles profile + donations + clearance verdict (no field-level TTI)
+- `GET  /donors/me` — convenience self-passport
+- `POST /donors/merge` — returns 501 (stubbed)
+
+**TODO before Phase 3 is "done":**
+1. **WhatsApp bot registration** (`registration_source='WAB'`) — needs MSG91 DLT templates + bot conversation state machine. Defer to Phase 6 (notifications) since both depend on MSG91.
+2. **QR-code camp registration** (`registration_source='QRC'`) — wire `registration_camp_id` → look up camp + pre-fill location. Schema is already there, only the route handler is missing.
+3. **Donor merge** (`POST /donors/merge`) — `services/donors/merge.js` documents the design. Blocked on medical-advisor confirmation of deferral merge semantics (worst-case vs strictest deferral_until).
+4. **Pre-screening enforcement** — `services/donors/eligibility.js` has the DRAFT bank but `/donors/register` only soft-checks. Wire into the live decline path AFTER medical advisor signs off the question text + temporary deferral days.
+5. **Donor mobile re-verification** — `donors.mobile_verified` is set to FALSE by `register`. The OTP verify path should flip it TRUE on first successful verification of a donor whose donor row exists.
+
 ## Source of truth
 The single, complete spec is `docs/BloodConnect_Master_Prompt.md`. The 8 phases (0 → 8) are independent specs. **Each phase is meant to be executed in a fresh agent session.** Do not skip phases. Do not invent fields, tables, statuses, or workflow steps that are not in the spec — if you find a gap, surface it; do not paper over it.
 

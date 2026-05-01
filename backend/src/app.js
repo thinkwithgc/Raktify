@@ -7,6 +7,7 @@ const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const onboardingRouter = require('./routes/onboarding');
 const institutionsRouter = require('./routes/institutions');
+const donorsRouter = require('./routes/donors');
 
 function createApp() {
   const app = express();
@@ -31,6 +32,7 @@ function createApp() {
   app.use('/auth', authRouter);
   app.use('/onboarding', onboardingRouter);
   app.use('/institutions', institutionsRouter);
+  app.use('/donors', donorsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });
