@@ -1,0 +1,72 @@
+/**
+ * Donor matching — finds activatable donors when inventory falls short.
+ *
+ * Spec §7 step 3:
+ *   Query donors WHERE
+ *     blood_group_verified IN (compatible groups)
+ *     AND deferral_status = 'A'
+ *     AND is_available = TRUE
+ *     AND mobile_verified = TRUE
+ *     AND consent_data_use = TRUE
+ *     AND next_eligible_date <= CURRENT_DATE
+ *     AND village_id.district_id IN (request hospital district initially)
+ *   ORDER BY reliability_score DESC, ST_Distance(donor coords, hospital coords) ASC
+ *
+ * Distance fallback: when latitude/longitude aren't both present on the donor
+ * row (consent-gated), we sort by reliability_score only. Spec acknowledges
+ * this is an explicit design choice — geo coords require donor consent.
+ */
+
+async function findActivatableDonors(client, { districtId, compatibleGroupIds, limit }) {
+  if (compatibleGroupIds.length === 0) return [];
+
+  const r = await client.query(
+    `SELECT d.id, d.full_name, d.blood_group_verified, d.reliability_score,
+            d.village_id, d.latitude, d.longitude, d.preferred_contact_channel,
+            d.preferred_language, d.whatsapp_opted_in, d.sms_opted_in,
+            v.district_id AS donor_district_id
+       FROM donors d
+  LEFT JOIN villages v ON v.id = d.village_id
+      WHERE d.blood_group_verified = ANY($2)
+        AND d.deferral_status = 'A'
+        AND d.is_available = TRUE
+        AND d.mobile_verified = TRUE
+        AND d.consent_data_use = TRUE
+        AND (d.next_eligible_date IS NULL OR d.next_eligible_date <= CURRENT_DATE)
+        AND d.is_active = TRUE
+        AND (v.district_id = $1 OR v.district_id IS NULL)
+   ORDER BY d.reliability_score DESC, d.created_at ASC
+      LIMIT $3`,
+    [districtId, compatibleGroupIds, limit],
+  );
+  return r.rows;
+}
+
+async function createAlerts(client, { requestId, donors, channelDefault = 'WA' }) {
+  if (donors.length === 0) return 0;
+
+  const values = [];
+  const placeholders = donors
+    .map((d, i) => {
+      const base = i * 4;
+      values.push(
+        requestId,
+        d.id,
+        d.preferred_contact_channel || channelDefault,
+        `score=${d.reliability_score}`,
+      );
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+    })
+    .join(', ');
+
+  const r = await client.query(
+    `INSERT INTO donor_alerts (request_id, donor_id, channel, match_reason)
+     VALUES ${placeholders}
+     ON CONFLICT (request_id, donor_id) DO NOTHING
+  RETURNING id`,
+    values,
+  );
+  return r.rowCount;
+}
+
+module.exports = { findActivatableDonors, createAlerts };

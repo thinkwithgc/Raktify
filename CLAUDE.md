@@ -11,7 +11,7 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | 2 — Auth + onboarding | ✅ done (21/21) | `node scripts/smoke_test_phase2.js` | OTP, TOTP, MoU eSign — commit `c3b758c` |
 | 3 — Donor reg + passport | ✅ scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
 | 4 — Inventory + TTI | ✅ core (17/17) | `node scripts/smoke_test_phase4.js` | See **Phase 4 status** below |
-| 5 — Request engine + matching | pending | | |
+| 5 — Request engine + matching | ✅ core (20/20) | `node scripts/smoke_test_phase5.js` | See **Phase 5 status** below |
 | 6 — Notifications + WhatsApp + Lookback | pending | | |
 | 7 — Frontend (React PWA) | pending | | |
 | 8 — Admin + reporting + deploy | pending | | |
@@ -52,6 +52,37 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 2. **Scheduled jobs** (spec §6 jobs table): `expiry_alert_job`, `auto_expire_job`, `o_negative_conservation`, `stale_reservation_release`, `eligibility_reminder_job`, `planned_request_upgrade`, `dho_alert_job`, `annual_donor_checkup`. Need a cron runner — `node-cron` or external scheduler. Defer to Phase 6 (notifications) since most of these emit notifications.
 3. **WhatsApp opening-stock parser** — depends on MSG91 + DLT (Phase 6).
 4. **Volunteer-guided screening UI** — Phase 7 (frontend).
+
+## Phase 5 status (core done)
+
+**Working today:**
+- `POST /requests`              Tier 1 OH — auto-assigns coordinator, runs matching synchronously, returns matched bag count + fallback flag.
+- `POST /requests/guest`        Tier 2 GH — coordinator on behalf of non-onboarded hospital. Same auto-assign + match flow.
+- `POST /requests/community`    Tier 3 CR — gated; max URGENT; awaits coordinator verify before donor activation.
+- `POST /requests/citizen`      Tier 4 CI — donor self-service. Same gating as Tier 3.
+- `POST /requests/:id/match`    Re-trigger match (coordinator/admin). 409 if Tier 3/4 unverified.
+- `POST /requests/:id/cancel`   Releases reservations and marks CA.
+- `GET  /coordinator/requests`  District-scoped queue, ordered by urgency.
+- `POST /coordinator/requests/:id/accept|claim|verify|noshow|close`
+- `POST /coordinator/requests/:id/thread` + `GET /coordinator/requests/:id/thread`
+
+**Matching engine (`services/matching`):**
+- compatibility lookup pulls allowed donor groups from `compatibility_matrix` (DRAFT until medical advisor signs off — see Phase 1)
+- inventory selection: same-group preferred → fallback group → FIFO by expiry
+- bag reservation under `RE` status with `reserved_for_request_id`
+- donor alert creation when inventory insufficient AND `donor_activation_required=TRUE`
+- ring-1 escalation_log row stamped on every match attempt
+- the whole orchestrator runs under elevated `system` actor_role so audit_log records the system as the side-effect actor (RLS migration 220/221 permits)
+
+**Escalation engine (`services/escalation`):**
+- ring 2/3/4/5 widening logic implemented; the SCHEDULED job that calls escalateRequest() lands in Phase 6 (cron)
+- ring 4 DHO contact + ring 5 ngo_admin voice call rely on MSG91 (deferred)
+
+**Deferrable for Phase 5 wrap-up:**
+1. **Adjacent-states table** — `services/escalation/index.js` ring 3 currently approximates "adjacent" by union of all active states. Needs a real adjacency table or a polygon-based query for production.
+2. **NMC registry check** — Tier 2 GH stores `guest_nmc_check_status='PE'`. Wire async NMC API check in Phase 6.
+3. **Distance-based donor sort** — `findActivatableDonors` sorts by reliability_score; spec calls for `ST_Distance` when both donor and hospital have lat/lng. Add when PostGIS is enabled (post-go-live decision).
+4. **Hospital-self-service crossmatch flow** — POST /requests/:id/confirm-crossmatch from hospital role (currently bundled into coordinator close).
 
 ## Source of truth
 The single, complete spec is `docs/BloodConnect_Master_Prompt.md`. The 8 phases (0 → 8) are independent specs. **Each phase is meant to be executed in a fresh agent session.** Do not skip phases. Do not invent fields, tables, statuses, or workflow steps that are not in the spec — if you find a gap, surface it; do not paper over it.
