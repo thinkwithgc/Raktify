@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-migrations:
+    name: Lint + migration dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root deps
+        run: npm install --no-audit --no-fund
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+
+      - name: Lint backend
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Migration dry-run
+        run: npm run migrate:dry
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder

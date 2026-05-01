@@ -1,0 +1,42 @@
+{
+  "name": "bloodconnect",
+  "version": "0.1.0",
+  "description": "BloodConnect monorepo — Choudhari EduHealth India Foundation",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "lint": "npm --workspace backend run lint",
+    "format": "npm --workspace backend run format",
+    "format:check": "npm --workspace backend run format:check",
+    "migrate": "node scripts/run_migrations.js up",
+    "migrate:status": "node scripts/run_migrations.js status",
+    "migrate:dry": "node scripts/run_migrations.js dry-run",
+    "lgd:import": "node scripts/import_lgd.js",
+    "smoke": "node scripts/smoke_test.js",
+    "verify": "npm run lint && npm run format:check && npm run migrate:status && npm run smoke",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.8.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1"
+  },
+  "lint-staged": {
+    "backend/src/**/*.js": [
+      "prettier --write",
+      "eslint --fix --config backend/eslint.config.js"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "@bloodconnect/frontend",
+  "version": "0.1.0",
+  "description": "BloodConnect React frontend (Phase 7)",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"Frontend scaffold lands in Phase 7\" && exit 0"
+  }
+}

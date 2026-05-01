@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Local dev artifacts
+.local-storage/
+.outbox/
+local-kms-key.bin
+*.dump
+*.bak
+
+# OneDrive sync turds
+~$*
+.tmp.driveupload/
+
+# Frontend
+frontend/dist/
+.parcel-cache/
+
+# Cached LGD downloads (large)
+data/lgd/*.csv
+data/lgd/*.zip
+
+# Claude Code per-user settings
+.claude/settings.local.json
