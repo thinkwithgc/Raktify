@@ -9,8 +9,8 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | 0 — Infrastructure | ✅ done | `node scripts/smoke_test.js` | commit `1a8ee3e` |
 | 1 — DB foundation  | ✅ done (18/18) | `node scripts/smoke_test_phase1_full.js` | 30 migrations, 34 tables, 100 triggers, 71 RLS policies — commit `1a8ee3e` |
 | 2 — Auth + onboarding | ✅ done (21/21) | `node scripts/smoke_test_phase2.js` | OTP, TOTP, MoU eSign — commit `c3b758c` |
-| 3 — Donor reg + passport | 🚧 scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
-| 4 — Inventory + TTI | pending | | |
+| 3 — Donor reg + passport | ✅ scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
+| 4 — Inventory + TTI | ✅ core (17/17) | `node scripts/smoke_test_phase4.js` | See **Phase 4 status** below |
 | 5 — Request engine + matching | pending | | |
 | 6 — Notifications + WhatsApp + Lookback | pending | | |
 | 7 — Frontend (React PWA) | pending | | |
@@ -33,7 +33,25 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 2. **QR-code camp registration** (`registration_source='QRC'`) — wire `registration_camp_id` → look up camp + pre-fill location. Schema is already there, only the route handler is missing.
 3. **Donor merge** (`POST /donors/merge`) — `services/donors/merge.js` documents the design. Blocked on medical-advisor confirmation of deferral merge semantics (worst-case vs strictest deferral_until).
 4. **Pre-screening enforcement** — `services/donors/eligibility.js` has the DRAFT bank but `/donors/register` only soft-checks. Wire into the live decline path AFTER medical advisor signs off the question text + temporary deferral days.
-5. **Donor mobile re-verification** — `donors.mobile_verified` is set to FALSE by `register`. The OTP verify path should flip it TRUE on first successful verification of a donor whose donor row exists.
+5. ~~**Donor mobile re-verification**~~ — ✅ done in `auth.js` POST /auth/otp/verify (Phase 4 batch).
+
+## Phase 4 status (core done, deferrable items remain)
+
+**Working today:**
+- `POST /donations` — blood_bank only; runs `validateDonation()` (deferral, gap, Hb/gender, blood-group-verified) before INSERT; trigger creates QA bag.
+- `GET  /donations/:id` — full donation+screening+bag join
+- `POST /donations/:id/screening` — TTI panel; sets `verification_required=TRUE` when any RR
+- `POST /donations/:id/screening/verify` — 4-eyes (different user from `entered_by`); flips clearance to CL or IN; cascades trigger lookback + bag recall
+- `GET  /inventory` — bag list, blood_bank-scoped or admin
+- `GET  /inventory/availability` — district-scoped counts (hospitals + coordinators see counts, never bag IDs)
+- `POST /inventory/:id/recall` — manual recall by blood_bank or admin
+- `POST /inventory/opening-stock` — legacy WB stock entry (currently rides on a seed donation; see TODO)
+
+**Deferrable items for Phase 4 wrap-up:**
+1. **Synthetic legacy donor** — opening-stock currently piggybacks on the BB's first verified donation_id. A clean implementation creates a per-institution synthetic donor (mobile `+91-LEGACY-<inst>`, hidden from matching, `is_legacy_synthetic` flag). Schema needs a boolean column on donors or a tag on donation_history.
+2. **Scheduled jobs** (spec §6 jobs table): `expiry_alert_job`, `auto_expire_job`, `o_negative_conservation`, `stale_reservation_release`, `eligibility_reminder_job`, `planned_request_upgrade`, `dho_alert_job`, `annual_donor_checkup`. Need a cron runner — `node-cron` or external scheduler. Defer to Phase 6 (notifications) since most of these emit notifications.
+3. **WhatsApp opening-stock parser** — depends on MSG91 + DLT (Phase 6).
+4. **Volunteer-guided screening UI** — Phase 7 (frontend).
 
 ## Source of truth
 The single, complete spec is `docs/BloodConnect_Master_Prompt.md`. The 8 phases (0 → 8) are independent specs. **Each phase is meant to be executed in a fresh agent session.** Do not skip phases. Do not invent fields, tables, statuses, or workflow steps that are not in the spec — if you find a gap, surface it; do not paper over it.

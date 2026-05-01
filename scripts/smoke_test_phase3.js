@@ -144,7 +144,7 @@ async function main() {
         full_name: 'Smoke Donor One',
         date_of_birth: dob,
         gender: 'M',
-        abha_id: '12345678901234567',
+        abha_id: `1${RUN_TAG}${'0'.repeat(10)}`.slice(0, 17),
         aadhaar_last4: '1234',
         preferred_language: 'mr',
         pincode: '444601',
@@ -163,7 +163,7 @@ async function main() {
         full_name: 'Different Person',
         date_of_birth: '1985-01-01',
         gender: 'F',
-        abha_id: '12345678901234567',
+        abha_id: `1${RUN_TAG}${'0'.repeat(10)}`.slice(0, 17),
         registration_source: 'WEB',
       },
     });

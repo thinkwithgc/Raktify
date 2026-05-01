@@ -84,6 +84,24 @@ router.post('/register', async (req, res) => {
   const mobile = normaliseIndianMobile(data.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
 
+  // QR camp validation: if registration_source='QRC', registration_camp_id is
+  // required and must point to a planned/live camp.
+  if (data.registration_source === 'QRC') {
+    if (!data.registration_camp_id) {
+      return res.status(400).json({ error: 'qr_registration_requires_camp_id' });
+    }
+    const { pool } = require('../config/db');
+    const campR = await pool.query(`SELECT id, status FROM donation_camps WHERE id = $1`, [
+      data.registration_camp_id,
+    ]);
+    if (campR.rowCount === 0) {
+      return res.status(400).json({ error: 'camp_not_found' });
+    }
+    if (!['PL', 'LV'].includes(campR.rows[0].status)) {
+      return res.status(409).json({ error: 'camp_not_active', status: campR.rows[0].status });
+    }
+  }
+
   // Quick eligibility soft-check using the DRAFT bank — informational only.
   const screening = data.prescreening_answers
     ? eligibility.evaluate(data.prescreening_answers)

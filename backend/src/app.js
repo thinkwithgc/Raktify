@@ -8,6 +8,8 @@ const authRouter = require('./routes/auth');
 const onboardingRouter = require('./routes/onboarding');
 const institutionsRouter = require('./routes/institutions');
 const donorsRouter = require('./routes/donors');
+const donationsRouter = require('./routes/donations');
+const inventoryRouter = require('./routes/inventory');
 
 function createApp() {
   const app = express();
@@ -33,6 +35,8 @@ function createApp() {
   app.use('/onboarding', onboardingRouter);
   app.use('/institutions', institutionsRouter);
   app.use('/donors', donorsRouter);
+  app.use('/donations', donationsRouter);
+  app.use('/inventory', inventoryRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

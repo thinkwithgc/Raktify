@@ -188,6 +188,20 @@ router.post('/otp/verify', async (req, res) => {
     [u.id],
   );
 
+  // Donor mobile re-verification (Phase 3 cleanup): if a donor row is paired
+  // to this platform_user and mobile_verified is still FALSE, set it TRUE.
+  // The donors table has its own mobile_verified flag (not on platform_users).
+  if (u.role === 'donor') {
+    await pool.query(
+      `UPDATE donors
+          SET mobile_verified = TRUE,
+              mobile_verified_at = clock_timestamp()
+        WHERE platform_user_id = $1
+          AND mobile_verified = FALSE`,
+      [u.id],
+    );
+  }
+
   const token = sign({ sub: u.id, role: u.role, sid: sessionId, inst: u.institution_id });
   res.json({
     token,
