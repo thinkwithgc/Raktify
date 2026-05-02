@@ -13,6 +13,9 @@ const donationsRouter = require('./routes/donations');
 const inventoryRouter = require('./routes/inventory');
 const requestsRouter = require('./routes/requests');
 const coordinatorRouter = require('./routes/coordinator');
+const lookbackRouter = require('./routes/lookback');
+const webhooksRouter = require('./routes/webhooks');
+const adminRouter = require('./routes/admin');
 
 function createApp() {
   const app = express();
@@ -42,6 +45,9 @@ function createApp() {
   app.use('/inventory', inventoryRouter);
   app.use('/requests', requestsRouter);
   app.use('/coordinator', coordinatorRouter);
+  app.use('/lookback', lookbackRouter);
+  app.use('/webhooks', webhooksRouter);
+  app.use('/admin', adminRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

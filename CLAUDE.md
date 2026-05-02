@@ -12,7 +12,7 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | 3 — Donor reg + passport | ✅ scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
 | 4 — Inventory + TTI | ✅ core (17/17) | `node scripts/smoke_test_phase4.js` | See **Phase 4 status** below |
 | 5 — Request engine + matching | ✅ core (20/20) | `node scripts/smoke_test_phase5.js` | See **Phase 5 status** below |
-| 6 — Notifications + WhatsApp + Lookback | pending | | |
+| 6 — Notifications + WhatsApp + Lookback | ✅ core (19/19) | `node scripts/smoke_test_phase6.js` | See **Phase 6 status** below |
 | 7 — Frontend (React PWA) | pending | | |
 | 8 — Admin + reporting + deploy | pending | | |
 
@@ -83,6 +83,45 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 2. **NMC registry check** — Tier 2 GH stores `guest_nmc_check_status='PE'`. Wire async NMC API check in Phase 6.
 3. **Distance-based donor sort** — `findActivatableDonors` sorts by reliability_score; spec calls for `ST_Distance` when both donor and hospital have lat/lng. Add when PostGIS is enabled (post-go-live decision).
 4. **Hospital-self-service crossmatch flow** — POST /requests/:id/confirm-crossmatch from hospital role (currently bundled into coordinator close).
+
+## Phase 6 status (core done)
+
+**Working today:**
+- `GET  /lookback`                       open-cases queue (ngo_admin)
+- `GET  /lookback/donor/:donor_id`       all rows for a donor
+- `GET  /lookback/:id`                   detail
+- `POST /lookback/:id/contact-hospital`  records hospital contact
+- `POST /lookback/:id/dho-notify`        records DHO notification (mandatory for HIV/HBsAg)
+- `POST /lookback/:id/close`             closure with outcome notes; HIV/HBsAg blocked w/o DHO notify
+- `POST /webhooks/msg91/delivery`        delivery-status webhook → updates `notification_log.delivery_status`; `delivery_status='OP'` propagates to `donors.{whatsapp,sms}_opted_in` via the existing trigger
+- `POST /webhooks/whatsapp/incoming`     bot dispatcher (registration state machine + BB inventory parser)
+- `GET  /admin/jobs`                     list registered scheduler jobs
+- `POST /admin/jobs/run`                 super_admin manual trigger
+
+**Notification chokepoint** (`services/notifications/index.js`):
+- now persists ONE `notification_log` row per send (real bug fixed mid-Phase-6 — outbox-only previously)
+- resolves recipientId (UUID or +91 mobile) to `recipient_donor_id` / `recipient_user_id` / `recipient_institution_id` / `recipient_external_mobile`
+- elevates to `system` actor_role for the log INSERT so RLS permits
+
+**Scheduler** (`services/scheduler/`):
+- `node-cron` registration; `SCHEDULER_ENABLED=true` to enable in dev (default off so smoke tests don't fight a parallel tick)
+- 6 jobs implemented: `auto_expire`, `stale_reservation_release`, `planned_request_upgrade`, `eligibility_reminder`, `escalate_overdue`, `bot_session_cleanup`
+- Manual run via `POST /admin/jobs/run` (super_admin) for ops + tests
+
+**WhatsApp bot** (`services/whatsapp/bot.js`):
+- registration state machine: IDLE → NAME → DOB → GENDER → VILLAGE → CONSENT → COMPLETE
+- BB staff: parses `UPDATE B+ 4 O+ 2` messages (intent only — does not auto-apply WB stock yet; replies with admin link)
+- session state in `bot_sessions` table (1h TTL, cleanup job included)
+
+**Migrations added:** 230 (bot_sessions), 240 (RLS allows `system` to SELECT donors+platform_users for delivery routing).
+
+**Deferrable for Phase 6 wrap-up:**
+1. **MSG91 provider live wiring** — DLT auth key + templates pending. Console provider works for dev/CI; flipping `NOTIFICATIONS_PROVIDER=msg91` is a one-env change.
+2. **Opt-in / DND enforcement** — chokepoint accepts `emergencyOverride` and writes `was_dnd_overridden`, but doesn't yet check `donors.{whatsapp,sms}_opted_in` or DND hours window. Wire when MSG91 lands.
+3. **Fallback chain** (WA → SM → CA on Critical) — schema + parent_notification_id column ready; logic deferred.
+4. **WhatsApp bot WB inventory auto-apply** — currently logs intent + replies with admin-confirm link. Auto-apply needs the synthetic-legacy-donor work from Phase 4 deferrables.
+5. **DHO contact** (ring 4 escalation) — `escalate_overdue` job stamps the row but the WhatsApp+voice send is deferred to MSG91 wiring.
+6. **Annual donor checkup** + **expiry alert** + **o_negative conservation** + **dho_alert** jobs — schemas exist, jobs not implemented yet (mostly notification-emitting; defer with MSG91).
 
 ## Source of truth
 The single, complete spec is `docs/BloodConnect_Master_Prompt.md`. The 8 phases (0 → 8) are independent specs. **Each phase is meant to be executed in a fresh agent session.** Do not skip phases. Do not invent fields, tables, statuses, or workflow steps that are not in the spec — if you find a gap, surface it; do not paper over it.
