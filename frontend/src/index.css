@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+    font-family:
+      'Inter', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .rk-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold
+           transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .rk-button-primary {
+    @apply rk-button bg-rk-700 text-white hover:bg-rk-900;
+  }
+  .rk-button-secondary {
+    @apply rk-button border border-slate-300 bg-white text-slate-800 hover:bg-slate-50;
+  }
+  .rk-input {
+    @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2
+           text-base outline-none ring-rk-700 focus:border-rk-700 focus:ring-2;
+  }
+  .rk-card {
+    @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200;
+  }
+  .rk-label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+  }
+}

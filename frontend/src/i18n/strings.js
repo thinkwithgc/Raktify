@@ -1,0 +1,284 @@
+// Spec §7: default Marathi, switchable. Strings live here keyed by feature.
+// This is intentionally hand-rolled rather than i18next — the Phase-7 starter
+// only needs a couple of screens. Swap for i18next when the screen count grows.
+
+const STORAGE_KEY = 'rk.lang';
+
+export const SUPPORTED = ['mr', 'hi', 'en'];
+
+export function detectInitialLang() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored && SUPPORTED.includes(stored)) return stored;
+  const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  return SUPPORTED.includes(nav) ? nav : 'mr';
+}
+
+export function setLang(lang) {
+  if (!SUPPORTED.includes(lang)) return;
+  localStorage.setItem(STORAGE_KEY, lang);
+  document.documentElement.lang = lang;
+}
+
+const dict = {
+  mr: {
+    app_name: 'Raktify',
+    tagline: 'रक्त दान करा. जीव वाचवा.',
+    role_donor: 'मी रक्तदाता आहे',
+    role_staff: 'रुग्णालय / ब्लड बँक / समन्वयक',
+    // Landing page
+    lp_eyebrow: 'भारताचे ऐच्छिक रक्तदान जाळे',
+    lp_headline_a: 'गरजूंसाठी',
+    lp_headline_b: 'वेळेवर रक्त.',
+    lp_subhead:
+      'Raktify हे एक मोफत व्यासपीठ आहे जे भारतभर ऐच्छिक रक्तदाते, रुग्णालये आणि रक्तपेढ्या जोडते — जेणेकरून कोणतीही विनंती अनुत्तरित राहणार नाही.',
+    lp_cta_donor: 'रक्तदाता व्हा',
+    lp_cta_login: 'लॉग इन करा',
+    lp_cta_staff: 'रुग्णालय / रक्तपेढी प्रवेश',
+    lp_reassure: 'मोफत · २ मिनिटांत नोंदणी · कधीही रद्द करा',
+    lp_card_live: 'थेट विनंती',
+    lp_card_matched: 'जुळले',
+    lp_card_alerted: '३ रक्तदात्यांना सूचना',
+    lp_card_critical: 'अत्यावश्यक',
+    lp_how_title: 'हे कसे चालते',
+    lp_how_sub: 'नोंदणीपासून जुळवणीपर्यंत तीन सोप्या पायऱ्या.',
+    lp_step1_title: 'काही मिनिटांत नोंदणी',
+    lp_step1_body:
+      'थोडक्यात आरोग्य तपासणी करा आणि तुम्ही कधी उपलब्ध आहात ते सांगा. मराठी, हिंदी किंवा इंग्रजीत.',
+    lp_step2_title: 'रुग्णालय विनंती करते',
+    lp_step2_body:
+      'रुग्णाला रक्ताची गरज असताना, विनंती लगेच स्थानिक समन्वयकाकडे पाठवली जाते.',
+    lp_step3_title: 'आम्ही जुळवतो — गोपनीयतेने',
+    lp_step3_body:
+      'सुसंगत रक्तदाते आणि तपासलेला साठा जुळवला जातो. तुमचा मोबाइल नंबर रुग्णालयांना कधीही दिसत नाही.',
+    lp_trust_title: 'सुरक्षितता आणि गोपनीयतेसाठी बनवलेले',
+    lp_trust1_title: 'तुमचा नंबर खाजगी राहतो',
+    lp_trust1_body:
+      'रुग्णालयांना रक्तदात्याचे संपर्क तपशील कधीही दिसत नाहीत. प्रत्येक संवाद समन्वयकामार्फत होतो.',
+    lp_trust2_title: 'प्रयोगशाळेत तपासलेला रक्तगट',
+    lp_trust2_body:
+      'जुळवणीसाठी फक्त रक्तपेढीने तपासलेला रक्तगट वापरला जातो — स्वतः सांगितलेला अंदाज नाही.',
+    lp_trust3_title: 'प्रत्येक कृतीची नोंद',
+    lp_trust3_body: 'प्रत्येक बदलाची छेडछाड-स्पष्ट नोंद सुरुवातीपासून शेवटपर्यंत ठेवली जाते.',
+    lp_final_title: 'एक जीव वाचवायला तयार आहात?',
+    lp_final_body: 'नोंदणीला फक्त दोन मिनिटे लागतात. आज एक रक्तदाता व्हा.',
+    lp_footer_org: 'चौधरी एज्युहेल्थ इंडिया फाउंडेशन',
+    enter_mobile: 'मोबाइल नंबर',
+    send_otp: 'OTP पाठवा',
+    enter_otp: '6-अंकी OTP',
+    verify_otp: 'पुष्टी करा',
+    available_today: 'आज उपलब्ध आहे',
+    not_available_today: 'सध्या उपलब्ध नाही',
+    next_eligible: 'पुढील पात्र तारीख',
+    total_donations: 'एकूण रक्तदान',
+    blood_group: 'रक्तगट',
+    unverified: 'अप्रमाणित',
+    logout: 'बाहेर पडा',
+    queue_title: 'विनंती रांग',
+    raise_request: 'नवीन विनंती',
+    units: 'युनिट्स',
+    urgency: 'तात्काळता',
+    back: 'मागे',
+    submit: 'सबमिट',
+    // common UI
+    accept: 'स्वीकार करा',
+    cancel: 'रद्द करा',
+    confirm: 'पुष्टी करा',
+    sign_in: 'साइन इन करा',
+    loading: 'लोड होत आहे…',
+    no_records: 'कोणत्याही नोंदी नाहीत',
+    open: 'उघडा',
+    // coord queue / detail
+    open_count: 'खुले',
+    raised_ago: 'पासून उठवली',
+    // hospital
+    my_requests: 'माझ्या विनंत्या',
+    raise_new: 'नवीन उभारा',
+    confirm_crossmatch: 'क्रॉसमॅच पुष्टी करा',
+    // BB
+    inventory: 'इन्व्हेंटरी',
+    record_donation: 'दान नोंदवा',
+    tti_screening: 'TTI तपासणी',
+    opening_stock: 'सुरुवातीचा साठा',
+    donor_lookup: 'दात्याचा शोध',
+    // outbox
+    pending_sync_one: '१ बदल सिंक होण्याच्या प्रतीक्षेत',
+    pending_sync_many: '{n} बदल सिंक होण्याच्या प्रतीक्षेत',
+    retry: 'पुन्हा प्रयत्न करा',
+    will_sync_when_online: 'ऑनलाइन झाल्यावर सिंक होईल',
+  },
+  hi: {
+    app_name: 'Raktify',
+    tagline: 'रक्तदान करें. जीवन बचाएँ.',
+    role_donor: 'मैं रक्तदाता हूँ',
+    role_staff: 'अस्पताल / ब्लड बैंक / समन्वयक',
+    // Landing page
+    lp_eyebrow: 'भारत का स्वैच्छिक रक्तदान नेटवर्क',
+    lp_headline_a: 'ज़रूरतमंदों के लिए',
+    lp_headline_b: 'सही समय पर रक्त.',
+    lp_subhead:
+      'Raktify एक मुफ़्त मंच है जो भारत भर में स्वैच्छिक रक्तदाताओं, अस्पतालों और ब्लड बैंकों को जोड़ता है — ताकि कोई भी अनुरोध अनुत्तरित न रहे.',
+    lp_cta_donor: 'रक्तदाता बनें',
+    lp_cta_login: 'लॉग इन करें',
+    lp_cta_staff: 'अस्पताल / ब्लड बैंक लॉगिन',
+    lp_reassure: 'मुफ़्त · 2 मिनट में पंजीकरण · कभी भी रद्द करें',
+    lp_card_live: 'लाइव अनुरोध',
+    lp_card_matched: 'मिलान हुआ',
+    lp_card_alerted: '3 रक्तदाताओं को सूचना',
+    lp_card_critical: 'अत्यावश्यक',
+    lp_how_title: 'यह कैसे काम करता है',
+    lp_how_sub: 'पंजीकरण से मिलान तक तीन आसान चरण.',
+    lp_step1_title: 'मिनटों में पंजीकरण',
+    lp_step1_body:
+      'एक छोटी स्वास्थ्य जाँच करें और बताएं कि आप कब उपलब्ध हैं. मराठी, हिंदी या अंग्रेज़ी में.',
+    lp_step2_title: 'अस्पताल अनुरोध करता है',
+    lp_step2_body:
+      'जब किसी मरीज़ को रक्त चाहिए, अनुरोध तुरंत स्थानीय समन्वयक को भेजा जाता है.',
+    lp_step3_title: 'हम मिलान करते हैं — निजी तौर पर',
+    lp_step3_body:
+      'संगत रक्तदाता और सत्यापित स्टॉक का मिलान होता है. आपका मोबाइल नंबर अस्पतालों को कभी नहीं दिखता.',
+    lp_trust_title: 'सुरक्षा और निजता के लिए बनाया गया',
+    lp_trust1_title: 'आपका नंबर निजी रहता है',
+    lp_trust1_body:
+      'अस्पतालों को रक्तदाता का संपर्क विवरण कभी नहीं दिखता. हर बातचीत समन्वयक के ज़रिए होती है.',
+    lp_trust2_title: 'प्रयोगशाला-सत्यापित रक्त समूह',
+    lp_trust2_body:
+      'मिलान के लिए केवल ब्लड बैंक द्वारा सत्यापित समूह उपयोग होता है — स्वयं बताया अनुमान नहीं.',
+    lp_trust3_title: 'हर क्रिया का ऑडिट',
+    lp_trust3_body: 'हर बदलाव का छेड़छाड़-स्पष्ट रिकॉर्ड शुरू से अंत तक रखा जाता है.',
+    lp_final_title: 'एक जान बचाने के लिए तैयार हैं?',
+    lp_final_body: 'पंजीकरण में बस दो मिनट लगते हैं. आज एक रक्तदाता बनें.',
+    lp_footer_org: 'चौधरी एज्युहेल्थ इंडिया फाउंडेशन',
+    enter_mobile: 'मोबाइल नंबर',
+    send_otp: 'OTP भेजें',
+    enter_otp: '6-अंकीय OTP',
+    verify_otp: 'सत्यापित करें',
+    available_today: 'आज उपलब्ध हूँ',
+    not_available_today: 'अभी उपलब्ध नहीं',
+    next_eligible: 'अगली पात्रता तिथि',
+    total_donations: 'कुल रक्तदान',
+    blood_group: 'रक्त समूह',
+    unverified: 'अप्रमाणित',
+    logout: 'लॉगआउट',
+    queue_title: 'अनुरोध सूची',
+    raise_request: 'नया अनुरोध',
+    units: 'यूनिट',
+    urgency: 'अत्यावश्यकता',
+    back: 'पीछे',
+    submit: 'सबमिट',
+    accept: 'स्वीकार करें',
+    cancel: 'रद्द करें',
+    confirm: 'पुष्टि करें',
+    sign_in: 'साइन इन करें',
+    loading: 'लोड हो रहा है…',
+    no_records: 'कोई रिकॉर्ड नहीं',
+    open: 'खोलें',
+    open_count: 'खुले',
+    raised_ago: 'पहले उठाया',
+    my_requests: 'मेरे अनुरोध',
+    raise_new: 'नया उठाएँ',
+    confirm_crossmatch: 'क्रॉसमैच पुष्टि करें',
+    inventory: 'इन्वेंटरी',
+    record_donation: 'दान दर्ज करें',
+    tti_screening: 'TTI जाँच',
+    opening_stock: 'प्रारंभिक स्टॉक',
+    donor_lookup: 'दाता खोज',
+    pending_sync_one: '1 बदलाव सिंक होने की प्रतीक्षा में',
+    pending_sync_many: '{n} बदलाव सिंक होने की प्रतीक्षा में',
+    retry: 'पुनः प्रयास करें',
+    will_sync_when_online: 'ऑनलाइन होने पर सिंक होगा',
+  },
+  en: {
+    app_name: 'Raktify',
+    tagline: 'Donate blood. Save lives.',
+    role_donor: 'I am a donor',
+    role_staff: 'Hospital / Blood Bank / Coordinator',
+    // Landing page
+    lp_eyebrow: "India's voluntary blood network",
+    lp_headline_a: 'The right blood,',
+    lp_headline_b: 'right on time.',
+    lp_subhead:
+      'Raktify is a free platform that links voluntary donors, hospitals, and blood banks across India — so no request goes unanswered.',
+    lp_cta_donor: 'Become a donor',
+    lp_cta_login: 'Log in',
+    lp_cta_staff: 'Hospital / blood bank sign-in',
+    lp_reassure: 'Free · 2-minute sign-up · opt out anytime',
+    lp_card_live: 'Live request',
+    lp_card_matched: 'Matched',
+    lp_card_alerted: '3 donors alerted',
+    lp_card_critical: 'Critical',
+    lp_how_title: 'How it works',
+    lp_how_sub: 'Three simple steps from sign-up to a matched donation.',
+    lp_step1_title: 'Register in minutes',
+    lp_step1_body:
+      'Answer a short health check and set when you are available. In Marathi, Hindi, or English.',
+    lp_step2_title: 'A hospital raises a request',
+    lp_step2_body:
+      'When a patient needs blood, the request is routed to a local coordinator instantly.',
+    lp_step3_title: 'We match — privately',
+    lp_step3_body:
+      'Compatible donors and verified inventory are matched. Your mobile number is never shown to hospitals.',
+    lp_trust_title: 'Built for safety and privacy',
+    lp_trust1_title: 'Your number stays private',
+    lp_trust1_body:
+      'Hospitals never see donor contact details. Every conversation goes through a coordinator.',
+    lp_trust2_title: 'Lab-verified blood groups',
+    lp_trust2_body:
+      'Only blood-bank-verified groups are used for matching — never self-reported guesses.',
+    lp_trust3_title: 'Every action audited',
+    lp_trust3_body:
+      'A tamper-evident audit trail records every change from end to end.',
+    lp_final_title: 'Ready to save a life?',
+    lp_final_body: 'It takes two minutes to register. Become a donor today.',
+    lp_footer_org: 'Choudhari EduHealth India Foundation',
+    enter_mobile: 'Mobile number',
+    send_otp: 'Send OTP',
+    enter_otp: '6-digit OTP',
+    verify_otp: 'Verify',
+    available_today: 'Available today',
+    not_available_today: 'Not available right now',
+    next_eligible: 'Next eligible',
+    total_donations: 'Total donations',
+    blood_group: 'Blood group',
+    unverified: 'Unverified',
+    logout: 'Log out',
+    queue_title: 'Request queue',
+    raise_request: 'Raise request',
+    units: 'units',
+    urgency: 'Urgency',
+    back: 'Back',
+    submit: 'Submit',
+    accept: 'Accept',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    sign_in: 'Sign in',
+    loading: 'Loading…',
+    no_records: 'No records',
+    open: 'Open',
+    open_count: 'open',
+    raised_ago: 'ago',
+    my_requests: 'My requests',
+    raise_new: 'Raise new',
+    confirm_crossmatch: 'Confirm crossmatch',
+    inventory: 'Inventory',
+    record_donation: 'Record donation',
+    tti_screening: 'TTI screening',
+    opening_stock: 'Opening stock',
+    donor_lookup: 'Donor lookup',
+    pending_sync_one: '1 change waiting to sync',
+    pending_sync_many: '{n} changes waiting to sync',
+    retry: 'Retry',
+    will_sync_when_online: 'will sync when you’re back online',
+  },
+};
+
+export function tFor(lang) {
+  const table = dict[lang] || dict.en;
+  return (key, vars) => {
+    const raw = table[key] ?? dict.en[key] ?? key;
+    if (!vars) return raw;
+    return Object.keys(vars).reduce(
+      (acc, k) => acc.replace(new RegExp(`\\{${k}\\}`, 'g'), String(vars[k])),
+      raw,
+    );
+  };
+}

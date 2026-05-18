@@ -1,0 +1,138 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
+
+import { Header } from '../../components/Header.jsx';
+import { apiRequest } from '../../lib/api.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
+import { useT } from '../../i18n/useT.js';
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  totp_code: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
+});
+
+export function StaffLogin() {
+  const { t } = useT();
+  const { setSession } = useAuth();
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({ email: '', password: '', totp_code: '' });
+  const [needTotp, setNeedTotp] = useState(false);
+  const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
+
+  function update(k, v) {
+    setForm((prev) => ({ ...prev, [k]: v }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    const payload = {
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+      ...(form.totp_code ? { totp_code: form.totp_code } : {}),
+    };
+    const parsed = loginSchema.safeParse(payload);
+    if (!parsed.success) {
+      setError('invalid_input');
+      return;
+    }
+    setPending(true);
+    try {
+      const r = await apiRequest('POST', '/auth/institutional/login', parsed.data);
+      setSession(r);
+      const dest =
+        r.role === 'hospital'
+          ? '/hospital'
+          : r.role === 'blood_bank'
+            ? '/bb'
+            : r.role === 'ngo_admin' || r.role === 'super_admin'
+              ? '/admin'
+              : r.role === 'coordinator'
+                ? '/coordinator'
+                : '/';
+      navigate(dest, { replace: true });
+    } catch (err) {
+      const code = err?.response?.data?.error;
+      if (code === 'totp_required') {
+        setNeedTotp(true);
+        setError('totp_required');
+      } else {
+        setError(code || 'login_failed');
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="min-h-full">
+      <Header />
+      <main className="mx-auto max-w-md px-4 py-10">
+        <form className="rk-card space-y-4" onSubmit={submit}>
+          <h1 className="text-xl font-semibold text-rk-700">{t('role_staff')}</h1>
+
+          <div>
+            <label className="rk-label" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              className="rk-input"
+              value={form.email}
+              onChange={(e) => update('email', e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="rk-label" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              className="rk-input"
+              value={form.password}
+              onChange={(e) => update('password', e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+
+          {needTotp ? (
+            <div>
+              <label className="rk-label" htmlFor="totp">
+                Authenticator code
+              </label>
+              <input
+                id="totp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="rk-input tracking-[0.5em] text-center"
+                value={form.totp_code}
+                onChange={(e) => update('totp_code', e.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+          ) : null}
+
+          <button type="submit" className="rk-button-primary w-full" disabled={pending}>
+            {pending ? '…' : 'Sign in'}
+          </button>
+
+          {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+        </form>
+      </main>
+    </div>
+  );
+}
