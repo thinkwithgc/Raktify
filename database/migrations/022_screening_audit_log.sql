@@ -76,14 +76,14 @@ DECLARE
   v_now               TIMESTAMPTZ := clock_timestamp();
   v_row_hash          CHAR(64);
 BEGIN
-  BEGIN v_actor_user_id := nullif(current_setting('bloodconnect.actor_user_id', TRUE), '')::uuid;
+  BEGIN v_actor_user_id := nullif(current_setting('raktify.actor_user_id', TRUE), '')::uuid;
         EXCEPTION WHEN OTHERS THEN v_actor_user_id := NULL; END;
-  v_actor_role        := nullif(current_setting('bloodconnect.actor_role', TRUE), '');
-  BEGIN v_actor_institution := nullif(current_setting('bloodconnect.actor_institution_id', TRUE), '')::uuid;
+  v_actor_role        := nullif(current_setting('raktify.actor_role', TRUE), '');
+  BEGIN v_actor_institution := nullif(current_setting('raktify.actor_institution_id', TRUE), '')::uuid;
         EXCEPTION WHEN OTHERS THEN v_actor_institution := NULL; END;
-  v_actor_ip      := nullif(current_setting('bloodconnect.actor_ip_address', TRUE), '');
-  v_session_id    := nullif(current_setting('bloodconnect.actor_session_id', TRUE), '');
-  v_access_reason := nullif(current_setting('bloodconnect.access_reason', TRUE), '');
+  v_actor_ip      := nullif(current_setting('raktify.actor_ip_address', TRUE), '');
+  v_session_id    := nullif(current_setting('raktify.actor_session_id', TRUE), '');
+  v_access_reason := nullif(current_setting('raktify.access_reason', TRUE), '');
 
   IF v_access_reason IS NULL OR length(trim(v_access_reason)) = 0 THEN
     RAISE EXCEPTION 'screening_audit: access_reason GUC is required to access TTI data';

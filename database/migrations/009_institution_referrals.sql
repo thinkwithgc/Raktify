@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 009: institution_referrals — donor-initiated blood-bank referrals.
 --
--- A donor at a non-onboarded hospital encounters BloodConnect and refers
+-- A donor at a non-onboarded hospital encounters Raktify and refers
 -- their hospital/blood-bank for onboarding. Multiple donors can refer the
 -- same institution; the first one creates the referral, subsequent ones
 -- are added as co-referrers (referrer_donor_ids[]).

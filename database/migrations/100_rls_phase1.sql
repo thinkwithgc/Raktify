@@ -43,25 +43,25 @@ ALTER TABLE platform_users ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY pu_self_select ON platform_users FOR SELECT TO app_user
   USING (
-    id::text = current_setting('bloodconnect.actor_user_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin')
+    id::text = current_setting('raktify.actor_user_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin')
   );
 
 CREATE POLICY pu_self_update ON platform_users FOR UPDATE TO app_user
   USING (
-    id::text = current_setting('bloodconnect.actor_user_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin')
+    id::text = current_setting('raktify.actor_user_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin')
   )
   WITH CHECK (
-    id::text = current_setting('bloodconnect.actor_user_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin')
+    id::text = current_setting('raktify.actor_user_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin')
   );
 
 -- INSERT: only ngo_admin/super_admin can create users; donor self-registration
--- is performed by an unauthenticated route that runs SET LOCAL bloodconnect.actor_role='registration'.
+-- is performed by an unauthenticated route that runs SET LOCAL raktify.actor_role='registration'.
 CREATE POLICY pu_admin_insert ON platform_users FOR INSERT TO app_user
   WITH CHECK (
-    current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin','registration')
+    current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin','registration')
   );
 
 -- ── institutions ──────────────────────────────────────────────────────────
@@ -70,34 +70,34 @@ ALTER TABLE institutions ENABLE ROW LEVEL SECURITY;
 -- Read your own institution; ngo_admin/super_admin read all.
 CREATE POLICY inst_self_or_admin_select ON institutions FOR SELECT TO app_user
   USING (
-    id::text = current_setting('bloodconnect.actor_institution_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin')
+    id::text = current_setting('raktify.actor_institution_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin')
   );
 
 -- Apply (public onboarding flow): allowed when role='onboarding'.
 CREATE POLICY inst_onboarding_insert ON institutions FOR INSERT TO app_user
   WITH CHECK (
-    current_setting('bloodconnect.actor_role', TRUE) IN ('onboarding','ngo_admin','super_admin')
+    current_setting('raktify.actor_role', TRUE) IN ('onboarding','ngo_admin','super_admin')
   );
 
 -- Update: ngo_admin/super_admin only. Self-edit will be added in Phase 2 with
 -- a narrower policy on a defined whitelist of fields (display_name, contact, etc.).
 CREATE POLICY inst_admin_update ON institutions FOR UPDATE TO app_user
-  USING (current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin'))
-  WITH CHECK (current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin'));
+  USING (current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin'))
+  WITH CHECK (current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin'));
 
 -- ── mou_versions ──────────────────────────────────────────────────────────
 ALTER TABLE mou_versions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY mou_own_or_admin_select ON mou_versions FOR SELECT TO app_user
   USING (
-    institution_id::text = current_setting('bloodconnect.actor_institution_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin')
+    institution_id::text = current_setting('raktify.actor_institution_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin')
   );
 
 CREATE POLICY mou_admin_insert ON mou_versions FOR INSERT TO app_user
   WITH CHECK (
-    current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin','onboarding')
+    current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin','onboarding')
   );
 
 -- mou_versions is intentionally append-only via app_user. No UPDATE/DELETE policy

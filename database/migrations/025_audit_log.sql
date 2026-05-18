@@ -13,12 +13,12 @@
 --
 -- Session context: the generic trigger reads three session GUC variables
 -- set by the API on each connection acquire:
---   bloodconnect.actor_user_id
---   bloodconnect.actor_role
---   bloodconnect.actor_institution_id
---   bloodconnect.actor_session_id
---   bloodconnect.actor_ip_address
---   bloodconnect.change_reason
+--   raktify.actor_user_id
+--   raktify.actor_role
+--   raktify.actor_institution_id
+--   raktify.actor_session_id
+--   raktify.actor_ip_address
+--   raktify.change_reason
 -- The middleware in backend/src/middleware/rlsContext.js (Phase 2) sets these
 -- via SET LOCAL on every transaction.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -115,14 +115,14 @@ DECLARE
   v_row_hash          CHAR(64);
 BEGIN
   -- Read session context. Missing values → 'system' actor.
-  BEGIN v_actor_user_id := nullif(current_setting('bloodconnect.actor_user_id', TRUE), '')::uuid;
+  BEGIN v_actor_user_id := nullif(current_setting('raktify.actor_user_id', TRUE), '')::uuid;
         EXCEPTION WHEN OTHERS THEN v_actor_user_id := NULL; END;
-  v_actor_role        := nullif(current_setting('bloodconnect.actor_role', TRUE), '');
-  BEGIN v_actor_institution := nullif(current_setting('bloodconnect.actor_institution_id', TRUE), '')::uuid;
+  v_actor_role        := nullif(current_setting('raktify.actor_role', TRUE), '');
+  BEGIN v_actor_institution := nullif(current_setting('raktify.actor_institution_id', TRUE), '')::uuid;
         EXCEPTION WHEN OTHERS THEN v_actor_institution := NULL; END;
-  v_actor_ip          := nullif(current_setting('bloodconnect.actor_ip_address', TRUE), '');
-  v_session_id        := nullif(current_setting('bloodconnect.actor_session_id', TRUE), '');
-  v_change_reason     := nullif(current_setting('bloodconnect.change_reason', TRUE), '');
+  v_actor_ip          := nullif(current_setting('raktify.actor_ip_address', TRUE), '');
+  v_session_id        := nullif(current_setting('raktify.actor_session_id', TRUE), '');
+  v_change_reason     := nullif(current_setting('raktify.change_reason', TRUE), '');
 
   IF v_actor_user_id IS NULL AND v_actor_role IS NULL THEN
     v_actor_role := 'system';

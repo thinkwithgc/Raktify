@@ -46,8 +46,8 @@ DECLARE
   v_actor_uid  UUID;
 BEGIN
   IF NEW.consent_data_use IS DISTINCT FROM OLD.consent_data_use THEN
-    v_actor_role := nullif(current_setting('bloodconnect.actor_role', TRUE), '');
-    BEGIN v_actor_uid := nullif(current_setting('bloodconnect.actor_user_id', TRUE), '')::uuid;
+    v_actor_role := nullif(current_setting('raktify.actor_role', TRUE), '');
+    BEGIN v_actor_uid := nullif(current_setting('raktify.actor_user_id', TRUE), '')::uuid;
           EXCEPTION WHEN OTHERS THEN v_actor_uid := NULL; END;
 
     IF NEW.consent_data_use = TRUE THEN

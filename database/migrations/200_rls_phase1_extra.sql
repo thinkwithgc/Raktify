@@ -11,20 +11,20 @@
 --   ngo_admin      — read all except screening_audit_log
 --   super_admin    — read all; never UPDATE/DELETE on audit_log or screening_audit_log
 --
--- Pattern — current_setting('bloodconnect.actor_role', TRUE) is the role,
--- 'bloodconnect.actor_user_id' is the user, 'bloodconnect.actor_institution_id'
+-- Pattern — current_setting('raktify.actor_role', TRUE) is the role,
+-- 'raktify.actor_user_id' is the user, 'raktify.actor_institution_id'
 -- is the staff user's institution (NULL for donor / coordinator / admins).
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Helpers to keep policy bodies short.
 CREATE OR REPLACE FUNCTION fn_actor_role() RETURNS TEXT LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('bloodconnect.actor_role', TRUE), '')
+  SELECT nullif(current_setting('raktify.actor_role', TRUE), '')
 $$;
 CREATE OR REPLACE FUNCTION fn_actor_user_id() RETURNS UUID LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('bloodconnect.actor_user_id', TRUE), '')::uuid
+  SELECT nullif(current_setting('raktify.actor_user_id', TRUE), '')::uuid
 $$;
 CREATE OR REPLACE FUNCTION fn_actor_institution_id() RETURNS UUID LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('bloodconnect.actor_institution_id', TRUE), '')::uuid
+  SELECT nullif(current_setting('raktify.actor_institution_id', TRUE), '')::uuid
 $$;
 CREATE OR REPLACE FUNCTION fn_is_admin() RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
   SELECT fn_actor_role() IN ('ngo_admin','super_admin')
@@ -164,7 +164,7 @@ CREATE POLICY scr_blood_bank_own ON donor_screening FOR SELECT TO bb_writer
   USING (blood_bank_id = fn_actor_institution_id());
 CREATE POLICY scr_admin ON donor_screening FOR SELECT TO bb_writer
   USING (fn_actor_role() = 'super_admin'
-         AND nullif(current_setting('bloodconnect.access_reason', TRUE), '') IS NOT NULL);
+         AND nullif(current_setting('raktify.access_reason', TRUE), '') IS NOT NULL);
 
 CREATE POLICY scr_blood_bank_insert ON donor_screening FOR INSERT TO bb_writer
   WITH CHECK (
@@ -181,7 +181,7 @@ ALTER TABLE screening_audit_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY scr_audit_super_admin ON screening_audit_log FOR SELECT TO audit_writer
   USING (
     fn_actor_role() = 'super_admin'
-    AND nullif(current_setting('bloodconnect.access_reason', TRUE), '') IS NOT NULL
+    AND nullif(current_setting('raktify.access_reason', TRUE), '') IS NOT NULL
   );
 
 -- ── blood_inventory ──────────────────────────────────────────────────────

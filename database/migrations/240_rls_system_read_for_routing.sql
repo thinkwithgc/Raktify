@@ -31,8 +31,8 @@ CREATE POLICY donors_self ON donors FOR SELECT TO app_user
 DROP POLICY IF EXISTS pu_self_select ON platform_users;
 CREATE POLICY pu_self_select ON platform_users FOR SELECT TO app_user
   USING (
-    id::text = current_setting('bloodconnect.actor_user_id', TRUE)
-    OR current_setting('bloodconnect.actor_role', TRUE) IN ('ngo_admin','super_admin','system')
+    id::text = current_setting('raktify.actor_user_id', TRUE)
+    OR current_setting('raktify.actor_role', TRUE) IN ('ngo_admin','super_admin','system')
   );
 
 -- ROLLBACK
