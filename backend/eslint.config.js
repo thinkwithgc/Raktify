@@ -19,6 +19,19 @@ module.exports = [
       'no-process-exit': 'off',
       eqeqeq: ['error', 'smart'],
       'prefer-const': 'error',
+      // Spec §10 SQL-injection guard: forbid template literals with `${…}`
+      // interpolations passed directly to `.query()`. Static template strings
+      // with parameter placeholders ($1, $2, …) are still allowed because
+      // they have no `expressions`. Use parameterised queries instead.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.property.name="query"] > TemplateLiteral[expressions.length>0]',
+          message:
+            'SQL injection risk: do not interpolate values into a template-literal SQL string. Use parameter placeholders ($1, $2, …) and pass values as the second argument to query().',
+        },
+      ],
     },
   },
   {

@@ -139,8 +139,8 @@ async function autoAssignCoordinator(client, request) {
   // hospital/donor action. Elevate to 'system' actor for this INSERT so
   // RLS policy assign_write (which restricts to coordinator/admin) permits
   // it. We capture the prior role and restore it after.
-  const prior = await client.query(`SELECT current_setting('bloodconnect.actor_role', TRUE) AS r`);
-  await client.query(`SELECT set_config('bloodconnect.actor_role', 'system', TRUE)`);
+  const prior = await client.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`);
+  await client.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
   let ins;
   try {
     ins = await client.query(
@@ -150,7 +150,7 @@ async function autoAssignCoordinator(client, request) {
       [request.id, coordinatorId],
     );
   } finally {
-    await client.query(`SELECT set_config('bloodconnect.actor_role', $1, TRUE)`, [
+    await client.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [
       prior.rows[0].r || '',
     ]);
   }
@@ -284,6 +284,41 @@ router.post('/citizen', verifyJWT, requireRole('donor'), async (req, res) => {
 });
 
 // ── GET /requests/:id ────────────────────────────────────────────────────
+// ── GET /requests/mine (hospital) ────────────────────────────────────────
+// Returns all requests raised by the authenticated hospital, newest first.
+// Declared BEFORE GET /:id so Express doesn't bind 'mine' to the :id param.
+// Used by the hospital portal to show active + recent requests with status,
+// matched-BB, coordinator name, and a confirm-crossmatch CTA when the request
+// reaches FU/PF without crossmatch_confirmed yet.
+router.get('/mine', verifyJWT, requireRole('hospital'), async (req, res) => {
+  if (!req.user.institutionId) {
+    return res.status(403).json({ error: 'hospital_user_missing_institution' });
+  }
+  const r = await withRlsContext(req, (c) =>
+    c.query(
+      `SELECT br.id, br.request_number, br.source_tier, br.urgency_tier,
+              br.units_required, br.units_fulfilled, br.status,
+              br.patient_blood_group_id, bg.code AS blood_group_code,
+              br.component_id, bc.code AS component_code,
+              br.needed_by, br.raised_at, br.fulfilled_at,
+              br.crossmatch_confirmed, br.crossmatch_confirmed_at,
+              br.matched_blood_bank_id, mi.display_name AS matched_blood_bank_name,
+              ra.coordinator_id, co.display_name AS coordinator_name
+         FROM blood_requests br
+    LEFT JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+    LEFT JOIN blood_components bc ON bc.id = br.component_id
+    LEFT JOIN institutions mi ON mi.id = br.matched_blood_bank_id
+    LEFT JOIN request_assignments ra ON ra.request_id = br.id AND ra.is_current = TRUE
+    LEFT JOIN coordinators co ON co.id = ra.coordinator_id
+        WHERE br.requesting_institution_id = $1
+     ORDER BY br.raised_at DESC
+        LIMIT 200`,
+      [req.user.institutionId],
+    ),
+  );
+  res.json({ requests: r.rows, count: r.rowCount });
+});
+
 router.get('/:id', verifyJWT, async (req, res) => {
   const r = await withRlsContext(req, (c) =>
     c.query(
@@ -369,6 +404,37 @@ router.post('/:id/cancel', verifyJWT, async (req, res) => {
     { change_reason: `cancel: ${parsed.data.reason}` },
   );
   if (!result) return res.status(404).json({ error: 'not_found_or_terminal' });
+  res.json(result);
+});
+
+// ── POST /requests/:id/confirm-crossmatch (hospital) ─────────────────────
+// Spec §7 hospital-side close: hospital marks transfusion as confirmed.
+// Sets crossmatch_confirmed=TRUE; if the request is FU it also flips status
+// to CL (closed). Bag-state changes (TR transfused) stay with the BB/coord
+// flow — this endpoint is purely the hospital's own confirmation step.
+router.post('/:id/confirm-crossmatch', verifyJWT, requireRole('hospital'), async (req, res) => {
+  const result = await withRlsContext(
+    req,
+    async (c) => {
+      const r = await c.query(
+        `UPDATE blood_requests
+              SET crossmatch_confirmed = TRUE,
+                  crossmatch_confirmed_at = clock_timestamp(),
+                  status = CASE WHEN status = 'FU' THEN 'CL' ELSE status END,
+                  closed_at = CASE WHEN status = 'FU' THEN clock_timestamp() ELSE closed_at END
+            WHERE id = $1
+              AND requesting_institution_id = $2
+              AND status IN ('FU','PF','MT','AS')
+         RETURNING id, status, crossmatch_confirmed, crossmatch_confirmed_at`,
+        [req.params.id, req.user.institutionId],
+      );
+      if (r.rowCount === 0) {
+        throw Object.assign(new Error('not_found_or_wrong_state'), { status: 409 });
+      }
+      return r.rows[0];
+    },
+    { change_reason: 'hospital confirms crossmatch' },
+  );
   res.json(result);
 });
 

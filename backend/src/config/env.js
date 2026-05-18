@@ -52,7 +52,7 @@ const env = {
 
   msg91: {
     authKey: optional('MSG91_AUTH_KEY', null),
-    senderId: optional('MSG91_SENDER_ID', 'BLDCNT'),
+    senderId: optional('MSG91_SENDER_ID', 'RAKTFY'),
     whatsappNumber: optional('MSG91_WHATSAPP_NUMBER', null),
     templates: {
       otp: optional('MSG91_TEMPLATE_OTP', null),

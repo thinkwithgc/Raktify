@@ -6,7 +6,7 @@ const db = require('./config/db');
 const app = createApp();
 
 const server = app.listen(env.port, () => {
-  logger.info({ port: env.port, env: env.nodeEnv }, 'BloodConnect API listening');
+  logger.info({ port: env.port, env: env.nodeEnv }, 'Raktify API listening');
 });
 
 async function shutdown(signal) {

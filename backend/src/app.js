@@ -2,8 +2,10 @@ const express = require('express');
 require('express-async-errors'); // patches Express 4 to forward async errors to the error handler
 const helmet = require('helmet');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const env = require('./config/env');
 const logger = require('./config/logger');
+const { sanitizeInput } = require('./middleware/sanitize');
 const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const onboardingRouter = require('./routes/onboarding');
@@ -16,20 +18,81 @@ const coordinatorRouter = require('./routes/coordinator');
 const lookbackRouter = require('./routes/lookback');
 const webhooksRouter = require('./routes/webhooks');
 const adminRouter = require('./routes/admin');
+const reportsRouter = require('./routes/reports');
+
+// Spec §10 security hardening:
+//   - Helmet with a strict CSP (no inline scripts; API only serves JSON)
+//   - CORS whitelist from env.allowedOrigins (FRONTEND_URL + comma-extra)
+//   - Global rate limit: 100 req / IP / minute on the whole API surface
+//   - sanitizeInput on every request body / query / params before route handlers
+//
+// Per-route rate limits (e.g. OTP send, institutional login) live in the
+// route files and stack with the global limit.
+function buildAllowedOrigins() {
+  const extras = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return Array.from(new Set([env.frontendUrl, ...extras]));
+}
 
 function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
+
+  // Trust the first proxy hop (load balancer / nginx) so req.ip reflects the
+  // real client and express-rate-limit keys correctly. In dev with no proxy
+  // this is a no-op.
+  app.set('trust proxy', 1);
+
   app.use(
-    cors({
-      origin: [env.frontendUrl],
-      credentials: true,
+    helmet({
+      // CSP for an API server: no scripts, no styles, no images. We're not
+      // serving HTML — anything trying to render this response in a browser
+      // shouldn't be running script.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      referrerPolicy: { policy: 'no-referrer' },
     }),
   );
+
+  const allowedOrigins = buildAllowedOrigins();
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        // Allow same-origin / curl (no Origin header) + whitelisted origins.
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, true);
+        return cb(new Error(`origin_not_allowed: ${origin}`));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    }),
+  );
+
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+  // Global rate limit: 100 req/IP/min. Spec §10.
+  // The OTP-send and institutional-login limits in routes/auth.js stack
+  // on top of this — callers that hit those limits don't bypass the global.
+  const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 100,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip: (req) => req.path === '/health', // never throttle uptime checks
+    message: { error: 'rate_limit_global' },
+  });
+  app.use(globalLimiter);
+
+  app.use(sanitizeInput);
 
   app.use((req, _res, next) => {
     req.log = logger.child({ method: req.method, path: req.path });
@@ -48,6 +111,7 @@ function createApp() {
   app.use('/lookback', lookbackRouter);
   app.use('/webhooks', webhooksRouter);
   app.use('/admin', adminRouter);
+  app.use('/reports', reportsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

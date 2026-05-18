@@ -167,10 +167,10 @@ router.post('/otp/verify', async (req, res) => {
       `UPDATE platform_users
           SET otp_attempts = $1,
               is_locked = $2,
-              locked_until = CASE WHEN $2 THEN NOW() + INTERVAL '${otp.LOCK_DURATION_MIN} minutes'
+              locked_until = CASE WHEN $2 THEN NOW() + make_interval(mins => $4)
                                   ELSE locked_until END
         WHERE id = $3`,
-      [attempts, locking, u.id],
+      [attempts, locking, u.id, otp.LOCK_DURATION_MIN],
     );
     return res.status(401).json({
       error: locking ? 'account_locked_too_many_attempts' : 'invalid_otp',

@@ -2,7 +2,7 @@
  * Row-Level-Security context propagator.
  *
  * Every Postgres connection acquired by an authenticated request must have
- * the bloodconnect.* GUC variables set so that:
+ * the raktify.* GUC variables set so that:
  *   - RLS policies (100/200_rls) can identify the actor
  *   - The audit_log trigger can record actor_user_id, role, institution_id
  *
@@ -12,7 +12,7 @@
  *     await client.query('INSERT INTO ... ');
  *   });
  *
- * The helper opens a transaction, SETs the LOCAL bloodconnect.* GUCs from
+ * The helper opens a transaction, SETs the LOCAL raktify.* GUCs from
  * req.user, runs the callback with the client, commits on success, rolls
  * back on throw, and releases the connection.
  *
@@ -50,7 +50,10 @@ async function applyContext(client, ctx) {
   for (const k of GUC_KEYS) {
     const v = ctx[k];
     if (v === undefined) continue;
-    await client.query(`SELECT set_config('bloodconnect.${k}', $1, TRUE)`, [v ?? '']);
+    // set_config(setting_name, new_value, is_local) accepts both args as
+    // parameters — keep the eslint SQL-injection rule clean and avoid
+    // runtime concatenation entirely.
+    await client.query(`SELECT set_config($1, $2, TRUE)`, [`raktify.${k}`, v ?? '']);
   }
 }
 

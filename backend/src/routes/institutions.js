@@ -89,6 +89,9 @@ router.put('/:id', verifyJWT, requireRole('ngo_admin', 'super_admin'), async (re
 
   const r = await withRlsContext(
     req,
+    // setSql is built from the Zod-validated `fields` object — every `<col>`
+    // is one of the schema's whitelisted keys. All values are parameterised.
+    // eslint-disable-next-line no-restricted-syntax
     (c) => c.query(`UPDATE institutions SET ${setSql} WHERE id = $1 RETURNING id`, values),
     { change_reason: 'admin update institution' },
   );

@@ -10,7 +10,7 @@ router.get('/', async (_req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: env.nodeEnv,
-    service: 'bloodconnect-api',
+    service: 'raktify-api',
     version: '0.1.0',
   };
 

@@ -29,13 +29,13 @@ const { findActivatableDonors, createAlerts } = require('./donors');
  * survives.
  */
 async function runMatch(client, { request, actorUserId }) {
-  const prior = (await client.query(`SELECT current_setting('bloodconnect.actor_role', TRUE) AS r`))
+  const prior = (await client.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`))
     .rows[0].r;
-  await client.query(`SELECT set_config('bloodconnect.actor_role', 'system', TRUE)`);
+  await client.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
   try {
     return await runMatchImpl(client, { request, actorUserId });
   } finally {
-    await client.query(`SELECT set_config('bloodconnect.actor_role', $1, TRUE)`, [prior || '']);
+    await client.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [prior || '']);
   }
 }
 

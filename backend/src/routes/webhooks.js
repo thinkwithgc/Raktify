@@ -68,7 +68,11 @@ router.post('/msg91/delivery', async (req, res) => {
         throw Object.assign(new Error('no_identifier'), { status: 400 });
       }
 
+      // `lookup` is one of two hardcoded SQL fragments (`id = $1` or
+      // `provider_message_id = $1`) selected by which body field the webhook
+      // sender provided. The actual identifier value is parameterised.
       const r = await c.query(
+        // eslint-disable-next-line no-restricted-syntax
         `UPDATE notification_log
             SET delivery_status = $2,
                 delivery_status_updated = COALESCE($3::timestamptz, clock_timestamp()),

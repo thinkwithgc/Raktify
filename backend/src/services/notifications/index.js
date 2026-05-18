@@ -110,7 +110,7 @@ async function sendNotification({
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`SELECT set_config('bloodconnect.actor_role', 'system', TRUE)`);
+    await client.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
     const recipient = await resolveRecipient(client, recipientId);
     const r = await client.query(
       `INSERT INTO notification_log (

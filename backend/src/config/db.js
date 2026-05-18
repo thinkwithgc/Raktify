@@ -11,7 +11,7 @@ const pool = new Pool({
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
-  application_name: 'bloodconnect-api',
+  application_name: 'raktify-api',
 });
 
 pool.on('error', (err) => {

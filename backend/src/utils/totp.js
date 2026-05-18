@@ -24,7 +24,7 @@ async function verifyCode(secret, token) {
   }
 }
 
-function buildUri({ accountName, secret, issuer = 'BloodConnect' }) {
+function buildUri({ accountName, secret, issuer = 'Raktify' }) {
   return otplib.generateURI({ accountName, secret, issuer });
 }
 

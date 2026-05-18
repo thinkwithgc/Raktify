@@ -59,7 +59,11 @@ async function createAlerts(client, { requestId, donors, channelDefault = 'WA' }
     })
     .join(', ');
 
+  // `placeholders` is a generated list of `($N, $N+1, $N+2, $N+3)` tuples
+  // produced row-by-row above. Every value flows through `values[]` — only
+  // the parameter-placeholder syntax is interpolated.
   const r = await client.query(
+    // eslint-disable-next-line no-restricted-syntax
     `INSERT INTO donor_alerts (request_id, donor_id, channel, match_reason)
      VALUES ${placeholders}
      ON CONFLICT (request_id, donor_id) DO NOTHING

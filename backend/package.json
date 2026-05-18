@@ -1,7 +1,7 @@
 {
-  "name": "@bloodconnect/backend",
+  "name": "@raktify/backend",
   "version": "0.1.0",
-  "description": "BloodConnect API — Choudhari EduHealth India Foundation",
+  "description": "Raktify API — Choudhari EduHealth India Foundation",
   "private": true,
   "main": "src/server.js",
   "type": "commonjs",

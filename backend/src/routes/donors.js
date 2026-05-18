@@ -215,6 +215,64 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// ── GET /donors/lookup?mobile=… ─────────────────────────────────────────
+// Blood-bank-side mobile lookup for donation recording (spec §7 BB portal).
+// Returns donor id + the minimum fields needed to pre-fill the donation form:
+//   verified blood group, deferral status, next-eligible date, availability.
+// Full name is included so the BB staff can confirm identity at the chair.
+//
+// RLS note: the `donors_self` SELECT policy for blood_bank is gated on
+// donation_history at this BB — fine for return donors, useless for first
+// timers. We therefore run this lookup under the elevated `system` actor
+// role (migration 240 permits) — same pattern matching + notifications use.
+// Auth is enforced by verifyJWT + requireRole; the system elevation only
+// covers this single by-mobile read.
+router.get(
+  '/lookup',
+  verifyJWT,
+  requireRole('blood_bank', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const mobile = normaliseIndianMobile(req.query.mobile);
+    if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
+
+    const r = await withRlsContextRaw(
+      {
+        actor_role: 'system',
+        actor_user_id: req.user.userId,
+        access_reason: 'blood_bank donor mobile lookup for donation recording',
+      },
+      (c) =>
+        c.query(
+          `SELECT d.id, d.full_name,
+                  d.blood_group_verified, bgv.code AS blood_group_verified_code,
+                  d.blood_group_self_reported, bgs.code AS blood_group_self_reported_code,
+                  d.blood_group_verified_at,
+                  d.deferral_status, d.deferral_until, d.next_eligible_date,
+                  d.is_available
+             FROM donors d
+        LEFT JOIN blood_groups bgv ON bgv.id = d.blood_group_verified
+        LEFT JOIN blood_groups bgs ON bgs.id = d.blood_group_self_reported
+            WHERE d.mobile = $1
+            LIMIT 1`,
+          [mobile],
+        ),
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'donor_not_found' });
+    const d = r.rows[0];
+    res.json({
+      donor_id: d.id,
+      full_name: d.full_name, // TODO encryption.decrypt() when col-encrypted
+      blood_group_verified_code: d.blood_group_verified_code,
+      blood_group_self_reported_code: d.blood_group_self_reported_code,
+      blood_group_verified: Boolean(d.blood_group_verified_code),
+      deferral_status: d.deferral_status,
+      deferral_until: d.deferral_until,
+      next_eligible_date: d.next_eligible_date,
+      is_available: d.is_available,
+    });
+  },
+);
+
 // ── GET /donors/me ───────────────────────────────────────────────────────
 router.get('/me', verifyJWT, requireRole('donor'), async (req, res) => {
   const r = await withRlsContext(req, (c) =>
@@ -251,8 +309,13 @@ router.post('/:id/availability', verifyJWT, requireRole('donor'), async (req, re
 
   const r = await withRlsContext(
     req,
+    // setSql is a comma-joined list of `<col> = $<n>` fragments where every
+    // `<col>` comes from the Zod schema's whitelisted keys (is_available,
+    // available_hours_*, emergency_override). All values flow through
+    // parameter placeholders. No user input touches the SQL string.
     (c) =>
       c.query(
+        // eslint-disable-next-line no-restricted-syntax
         `UPDATE donors SET ${setSql}
           WHERE id = $1 AND platform_user_id = $2
        RETURNING id, is_available, available_hours_start, available_hours_end, emergency_override`,
@@ -310,7 +373,7 @@ router.post('/:id/blood-group/verify', verifyJWT, requireRole('blood_bank'), asy
   // bb_writer-roled connection is acquired here. Note: in the
   // current pool config, all backend connections run as the migration user
   // which is a member of bb_writer. The role gating is enforced by the RLS
-  // policy on donors UPDATE which inspects bloodconnect.actor_role.
+  // policy on donors UPDATE which inspects raktify.actor_role.
   const r = await withRlsContext(
     req,
     (c) =>

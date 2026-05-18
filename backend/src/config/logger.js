@@ -8,7 +8,7 @@ const transport =
 
 const logger = pino({
   level: env.logLevel,
-  base: { service: 'bloodconnect-api', env: env.nodeEnv },
+  base: { service: 'raktify-api', env: env.nodeEnv },
   transport,
   redact: {
     paths: [

@@ -129,7 +129,7 @@ async function handleDonorRegistration(client, { mobile, session, message }) {
 
   switch (session.state) {
     case 'IDLE':
-      reply = 'Welcome to BloodConnect. To register as a donor please reply with your FULL NAME.';
+      reply = 'Welcome to Raktify. To register as a donor please reply with your FULL NAME.';
       nextState = 'NAME';
       break;
     case 'NAME':
@@ -160,7 +160,7 @@ async function handleDonorRegistration(client, { mobile, session, message }) {
     case 'VILLAGE':
       ctx.village_or_pincode = text;
       reply =
-        'Last step: do you consent to BloodConnect contacting you for blood emergencies? Reply YES or NO.';
+        'Last step: do you consent to Raktify contacting you for blood emergencies? Reply YES or NO.';
       nextState = 'CONSENT';
       break;
     case 'CONSENT':

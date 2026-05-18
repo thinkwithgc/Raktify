@@ -29,8 +29,12 @@ router.get('/', verifyJWT, requireRole('ngo_admin', 'super_admin'), async (req, 
   const filter =
     status === 'OPEN' ? `lookback_status IN ('OP','IP','CN','RV')` : `lookback_status = $1`;
 
+  // `filter` is one of two hardcoded SQL fragments selected by `status`.
+  // No user input is interpolated into the SQL — the status value, when
+  // used, is passed via $1.
   const r = await withRlsContext(req, (c) =>
     c.query(
+      // eslint-disable-next-line no-restricted-syntax
       `SELECT id, donor_id, donation_id, tti_trigger, lookback_status,
               bags_recalled_count, bags_already_issued, bags_already_transfused,
               receiving_institution_ids, dho_notified, dho_notified_at,
