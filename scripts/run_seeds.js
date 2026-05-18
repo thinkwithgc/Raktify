@@ -21,7 +21,7 @@ const useSsl = process.env.DATABASE_URL.includes('sslmode=');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: useSsl ? { rejectUnauthorized: true } : false,
-  application_name: 'bloodconnect-seeder',
+  application_name: 'raktify-seeder',
 });
 
 async function main() {

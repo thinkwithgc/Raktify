@@ -42,7 +42,7 @@ const useSsl = process.env.DATABASE_URL.includes('sslmode=');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: useSsl ? { rejectUnauthorized: true } : false,
-  application_name: 'bloodconnect-lgd-import',
+  application_name: 'raktify-lgd-import',
 });
 
 function parseArgs(argv) {

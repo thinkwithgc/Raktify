@@ -1,7 +1,7 @@
 {
-  "name": "bloodconnect",
+  "name": "raktify",
   "version": "0.1.0",
-  "description": "BloodConnect monorepo — Choudhari EduHealth India Foundation",
+  "description": "Raktify monorepo — Choudhari EduHealth India Foundation",
   "private": true,
   "workspaces": [
     "backend",
@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "build:frontend": "npm --workspace frontend run build",
     "lint": "npm --workspace backend run lint",
     "format": "npm --workspace backend run format",
     "format:check": "npm --workspace backend run format:check",
@@ -17,6 +19,7 @@
     "migrate:dry": "node scripts/run_migrations.js dry-run",
     "lgd:import": "node scripts/import_lgd.js",
     "smoke": "node scripts/smoke_test.js",
+    "smoke:frontend": "npm --workspace frontend run build",
     "verify": "npm run lint && npm run format:check && npm run migrate:status && npm run smoke",
     "prepare": "husky"
   },

@@ -407,8 +407,8 @@ async function main() {
     // First mark the bag as IS (issued) so we can transition to TR via close.
     const cc3 = await db.pool.connect();
     try {
-      await cc3.query(`SELECT set_config('bloodconnect.actor_role', 'blood_bank', TRUE)`);
-      await cc3.query(`SELECT set_config('bloodconnect.actor_user_id', $1::text, TRUE)`,
+      await cc3.query(`SELECT set_config('raktify.actor_role', 'blood_bank', TRUE)`);
+      await cc3.query(`SELECT set_config('raktify.actor_user_id', $1::text, TRUE)`,
         [TEST.coordPlatformUserId]);
       await cc3.query(
         `UPDATE blood_inventory

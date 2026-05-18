@@ -1,9 +1,9 @@
-BloodConnect
+Raktify
 Master Prompt — Phased Coding Agent Specification
 Choudhari EduHealth India Foundation
 Version 1.0  |  April 2026  |  Amravati, Maharashtra
 
-PURPOSE  This document is the complete technical specification for building BloodConnect v1. It is structured in 8 independent phases. Each phase is a self-contained prompt for a coding agent. Begin a fresh agent session for each phase. The agent must complete each phase fully before the next begins.
+PURPOSE  This document is the complete technical specification for building Raktify v1. It is structured in 8 independent phases. Each phase is a self-contained prompt for a coding agent. Begin a fresh agent session for each phase. The agent must complete each phase fully before the next begins.
 
 MEDICAL REVIEW STATUS  All clinical protocols in this specification (NBTC eligibility criteria, TTI deferral periods, compatibility matrix, lookback protocol) are pending validation by a qualified haematologist. Do not modify any clinical reference data without written confirmation from the medical advisor.
 
@@ -12,8 +12,8 @@ LEGAL REVIEW STATUS  The MoU template and liability clauses are pending review b
 SECTION 1 — CONTEXT FOR EVERY PHASE
 CRITICAL  Copy Section 1 in full at the top of EVERY phase prompt. It is the foundational context the coding agent needs regardless of which phase it is building.
 
-1.1  What BloodConnect Is
-BloodConnect is a life-critical community blood donation and emergency matching platform operated by Choudhari EduHealth India Foundation, a Section 8 NGO based in Amravati, Maharashtra. It is not a blood bank. It is an information intermediary that connects voluntary blood donors, licensed blood banks, hospitals, and trained volunteer coordinators to reduce patient deaths caused by information failure during blood emergencies.
+1.1  What Raktify Is
+Raktify is a life-critical community blood donation and emergency matching platform operated by Choudhari EduHealth India Foundation, a Section 8 NGO based in Amravati, Maharashtra. It is not a blood bank. It is an information intermediary that connects voluntary blood donors, licensed blood banks, hospitals, and trained volunteer coordinators to reduce patient deaths caused by information failure during blood emergencies.
 
 The platform launches in Amravati District, Maharashtra with initial partners Irwin Hospital (GMCH) and PDMMC Hospital. It is designed to scale nationally. Every architectural decision must support national scale from day one.
 
@@ -73,15 +73,15 @@ LGD (Local Government Directory)
 Seeded from Ministry of Panchayati Raj public dataset. 640,000 villages, all districts, all talukas.
 
 1.4  Repository Structure
-All code lives in a single monorepo: /bloodconnect
-/bloodconnect/backend — Node.js + Express API
-/bloodconnect/frontend — React web application
-/bloodconnect/database — PostgreSQL migration files in numbered order
-/bloodconnect/database/seeds — Reference data seed files (blood groups, components, compatibility matrix, LGD geographic data)
-/bloodconnect/database/triggers — All trigger functions as separate .sql files
-/bloodconnect/database/rls — All Row Level Security policies as separate .sql files
-/bloodconnect/scripts — Utility scripts for seeding, migration, backup
-/bloodconnect/docs — This specification document
+All code lives in a single monorepo: /raktify
+/raktify/backend — Node.js + Express API
+/raktify/frontend — React web application
+/raktify/database — PostgreSQL migration files in numbered order
+/raktify/database/seeds — Reference data seed files (blood groups, components, compatibility matrix, LGD geographic data)
+/raktify/database/triggers — All trigger functions as separate .sql files
+/raktify/database/rls — All Row Level Security policies as separate .sql files
+/raktify/scripts — Utility scripts for seeding, migration, backup
+/raktify/docs — This specification document
 RULE  Migrations are numbered sequentially: 001_geographic.sql, 002_reference.sql, 003_platform_users.sql etc. Migrations must be reversible. Each migration file ends with a commented-out rollback section.
 
 SECTION 2 — PHASE 0: PROJECT SETUP AND INFRASTRUCTURE
@@ -105,14 +105,14 @@ GitHub Actions CI pipeline: runs on every push, executes lint check and migratio
 Phase 0 Environment Variables
 -- SQL
 # Database
-DATABASE_URL=postgresql://user:password@host:5432/bloodconnect
-DATABASE_URL_PROD=postgresql://user:password@rds-endpoint:5432/bloodconnect
+DATABASE_URL=postgresql://user:password@host:5432/raktify
+DATABASE_URL_PROD=postgresql://user:password@rds-endpoint:5432/raktify
 
 # AWS
 AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
-S3_BUCKET_NAME=bloodconnect-documents
+S3_BUCKET_NAME=raktify-documents
 KMS_MAIN_KEY_ARN=arn:aws:kms:ap-south-1:...
 KMS_SCREENING_KEY_ARN=arn:aws:kms:ap-south-1:...
 
@@ -467,7 +467,7 @@ REVOKE INSERT,UPDATE,DELETE ON compatibility_matrix FROM app_user;
 
 001_geographic_seed.sql — LGD data import
 Download LGD dataset from lgdirectory.gov.in — State Master, District Master, Sub-district (Taluka) Master, Village Master.
-Write a Node.js import script: /bloodconnect/scripts/import_lgd.js
+Write a Node.js import script: /raktify/scripts/import_lgd.js
 Script reads each CSV, maps columns to our schema fields (LGD state code → states.id, LGD district code → districts.id etc.), and inserts in batches of 1000.
 Set is_active = FALSE for all states and districts. Only set TRUE for Maharashtra (state_id=27) and Amravati district for v1 launch.
 Set has_blood_centre = FALSE for all districts. Updated when first blood bank onboards.
@@ -717,7 +717,7 @@ Language
 Template Content
 BC_OTP_EN
 English
-Your BloodConnect verification code is {1}. Valid for 10 minutes. Do not share.
+Your Raktify verification code is {1}. Valid for 10 minutes. Do not share.
 BC_EMG_MR
 Marathi
 🆘 {1} रुग्णालयाला {2} रक्ताची तातडीची गरज आहे. तुम्ही मदत करू शकता का? {3} वर उत्तर द्या.
@@ -732,10 +732,10 @@ Hindi
 धन्यवाद! आपका रक्तदान दर्ज किया गया। रक्त समूह: {1}. Hb: {2} g/dL. अगला दान: {3} से।
 BC_REM_MR
 Marathi
-तुम्ही {1} पासून पुन्हा रक्तदान करू शकता! BloodConnect वर नोंदणी करा.
+तुम्ही {1} पासून पुन्हा रक्तदान करू शकता! Raktify वर नोंदणी करा.
 BC_CRED
 English
-Your BloodConnect credentials: Email: {1} | Temp Password: {2} | Change password on first login at {3}
+Your Raktify credentials: Email: {1} | Temp Password: {2} | Change password on first login at {3}
 
 WhatsApp Bot — Registration and Inventory Update
 All incoming WhatsApp messages POST to /webhooks/whatsapp/incoming from MSG91.
@@ -916,5 +916,5 @@ All frontend interfaces complete. E2E test scenarios passing.
 
 FINAL NOTE  This master prompt is a living document. When the medical advisor returns feedback on the 20 clinical questions, update the compatibility matrix seed data, TTI deferral periods, and any eligibility criteria before Phase 1 migration runs. When the lawyer returns feedback on the MoU, update the LeegAlly template before Phase 2 onboarding flow is built. No clinical data should be hardcoded in application code — all clinical reference data lives in the database and can be updated without a code deployment.
 
-— End of BloodConnect Master Prompt v1.0 —
+— End of Raktify Master Prompt v1.0 —
 Choudhari EduHealth India Foundation  |  ops@choudhari.ngo  |  Amravati, Maharashtra

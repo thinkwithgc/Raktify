@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * BloodConnect migration runner.
+ * Raktify migration runner.
  *
  * Usage:
  *   node scripts/run_migrations.js up         apply all pending migrations
@@ -31,7 +31,7 @@ const useSsl = process.env.DATABASE_URL.includes('sslmode=');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: useSsl ? { rejectUnauthorized: true } : false,
-  application_name: 'bloodconnect-migrator',
+  application_name: 'raktify-migrator',
 });
 
 async function ensureMigrationsTable(client) {

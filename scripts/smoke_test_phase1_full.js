@@ -23,12 +23,12 @@ const useSsl = process.env.DATABASE_URL.includes('sslmode=');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: useSsl ? { rejectUnauthorized: true } : false,
-  application_name: 'bloodconnect-smoke-full',
+  application_name: 'raktify-smoke-full',
 });
 
 async function setCtx(client, ctx) {
   for (const [k, v] of Object.entries(ctx)) {
-    await client.query(`SELECT set_config('bloodconnect.${k}', $1, TRUE)`, [v ?? '']);
+    await client.query(`SELECT set_config('raktify.${k}', $1, TRUE)`, [v ?? '']);
   }
 }
 
