@@ -72,7 +72,8 @@ export function DonorLogin() {
       <Header />
       <main className="mx-auto max-w-md px-4 py-10">
         <div className="rk-card">
-          <h1 className="text-xl font-semibold text-rk-700">{t('role_donor')}</h1>
+          <h1 className="text-xl font-semibold text-rk-700">{t('lp_cta_login')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('login_mobile_hint')}</p>
 
           {step === 'mobile' ? (
             <form className="mt-4 space-y-4" onSubmit={sendOtp}>
@@ -137,12 +138,19 @@ export function DonorLogin() {
           {error ? <p className="mt-3 text-sm text-rk-700">{error}</p> : null}
 
           {step === 'mobile' ? (
-            <p className="mt-4 text-center text-sm text-slate-600">
-              First time donor?{' '}
-              <Link to="/register" className="font-medium text-rk-700 hover:underline">
-                Register here
-              </Link>
-            </p>
+            <>
+              <p className="mt-4 text-center text-sm text-slate-600">
+                First time donor?{' '}
+                <Link to="/register" className="font-medium text-rk-700 hover:underline">
+                  Register here
+                </Link>
+              </p>
+              <p className="mt-2 border-t border-slate-100 pt-3 text-center text-xs text-slate-500">
+                <Link to="/staff/login" className="font-medium text-rk-700 hover:underline">
+                  {t('login_go_staff')}
+                </Link>
+              </p>
+            </>
           ) : null}
         </div>
       </main>

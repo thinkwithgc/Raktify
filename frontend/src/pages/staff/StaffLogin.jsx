@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
@@ -76,7 +76,10 @@ export function StaffLogin() {
       <Header />
       <main className="mx-auto max-w-md px-4 py-10">
         <form className="rk-card space-y-4" onSubmit={submit}>
-          <h1 className="text-xl font-semibold text-rk-700">{t('role_staff')}</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-rk-700">{t('role_staff')}</h1>
+            <p className="mt-1 text-sm text-slate-500">Sign in with your work email and password.</p>
+          </div>
 
           <div>
             <label className="rk-label" htmlFor="email">
@@ -131,6 +134,12 @@ export function StaffLogin() {
           </button>
 
           {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+
+          <p className="border-t border-slate-100 pt-3 text-center text-xs text-slate-500">
+            <Link to="/login" className="font-medium text-rk-700 hover:underline">
+              {t('login_go_mobile')}
+            </Link>
+          </p>
         </form>
       </main>
     </div>
