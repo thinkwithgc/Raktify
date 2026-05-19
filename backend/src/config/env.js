@@ -19,6 +19,11 @@ const env = {
   frontendUrl: optional('FRONTEND_URL', 'http://localhost:5173'),
   logLevel: optional('LOG_LEVEL', 'info'),
 
+  // Staging-only: when true, /auth/otp/send returns the OTP in the response
+  // body so a live staging site can be demoed without a working SMS/WhatsApp
+  // channel. MUST be false (unset) in real production.
+  otpEcho: optional('OTP_ECHO', 'false') === 'true',
+
   jwt: {
     secret: required('JWT_SECRET'),
     expiresIn: optional('JWT_EXPIRES_IN', '8h'),
@@ -61,6 +66,25 @@ const env = {
       thankyouMr: optional('MSG91_TEMPLATE_THANKYOU_MR', null),
       reminderMr: optional('MSG91_TEMPLATE_REMINDER_MR', null),
       cred: optional('MSG91_TEMPLATE_CRED', null),
+    },
+  },
+
+  // WhatsApp Business Cloud API (Meta-hosted, direct — no BSP/DLT).
+  // Activates when NOTIFICATIONS_PROVIDER=whatsapp_cloud and these are set.
+  whatsapp: {
+    phoneNumberId: optional('WHATSAPP_PHONE_NUMBER_ID', null),
+    accessToken: optional('WHATSAPP_ACCESS_TOKEN', null),
+    wabaId: optional('WHATSAPP_WABA_ID', null),
+    webhookVerifyToken: optional('WHATSAPP_WEBHOOK_VERIFY_TOKEN', null),
+    appSecret: optional('WHATSAPP_APP_SECRET', null),
+    apiVersion: optional('WHATSAPP_API_VERSION', 'v21.0'),
+    // Meta-approved template names, keyed by templateType (lower-cased).
+    templates: {
+      otp: optional('WHATSAPP_TEMPLATE_OTP', null),
+      emg: optional('WHATSAPP_TEMPLATE_EMERGENCY', null),
+      thk: optional('WHATSAPP_TEMPLATE_THANKYOU', null),
+      rem: optional('WHATSAPP_TEMPLATE_REMINDER', null),
+      cred: optional('WHATSAPP_TEMPLATE_CRED', null),
     },
   },
 

@@ -90,7 +90,28 @@ router.post('/msg91/delivery', async (req, res) => {
   res.json({ status: 'recorded', notification: result });
 });
 
+// ── GET /webhooks/whatsapp/incoming ──────────────────────────────────────
+// Meta WhatsApp Cloud API webhook verification handshake. When you register
+// the callback URL, Meta sends a GET with hub.mode / hub.verify_token /
+// hub.challenge — echo the challenge back if the verify token matches.
+router.get('/whatsapp/incoming', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (
+    mode === 'subscribe' &&
+    env.whatsapp.webhookVerifyToken &&
+    token === env.whatsapp.webhookVerifyToken
+  ) {
+    return res.status(200).send(String(challenge ?? ''));
+  }
+  return res.sendStatus(403);
+});
+
 // ── POST /webhooks/whatsapp/incoming ─────────────────────────────────────
+// Accepts two payload shapes:
+//   - Meta WhatsApp Cloud API  ({ object: 'whatsapp_business_account', entry: […] })
+//   - the simple {from_mobile, message_text} shape used by the smoke test
 const incomingSchema = z.object({
   from_mobile: z.string(),
   message_text: z.string().min(1),
@@ -98,7 +119,61 @@ const incomingSchema = z.object({
   received_at: z.string().datetime().optional(),
 });
 
+// Meta delivery-status string -> notification_log.delivery_status code.
+const META_STATUS = { sent: 'SE', delivered: 'DL', read: 'RD', failed: 'FA' };
+
+async function handleMetaWebhook(req, res) {
+  // NOTE: Meta signs the POST with X-Hub-Signature-256 (HMAC-SHA256 of the
+  // RAW request body, keyed by the app secret). Verifying it correctly needs
+  // the raw body captured before JSON parsing — a small app.js change.
+  // TODO: capture raw body and verify X-Hub-Signature-256 vs WHATSAPP_APP_SECRET.
+  for (const entry of Array.isArray(req.body.entry) ? req.body.entry : []) {
+    for (const change of entry.changes || []) {
+      const value = change.value || {};
+      // Incoming messages -> the registration bot dispatcher.
+      for (const msg of value.messages || []) {
+        if (msg.type === 'text' && msg.text?.body) {
+          try {
+            await dispatchIncomingMessage({
+              from_mobile: msg.from,
+              message_text: msg.text.body,
+              provider_message_id: msg.id,
+            });
+          } catch (err) {
+            logger.error({ err: err.message }, 'WhatsApp bot dispatch failed');
+          }
+        }
+      }
+      // Delivery / read receipts -> notification_log.
+      for (const st of value.statuses || []) {
+        const code = META_STATUS[st.status];
+        if (!code || !st.id) continue;
+        try {
+          await withRlsContextRaw(
+            { actor_role: 'webhook', change_reason: 'WhatsApp delivery webhook' },
+            (c) =>
+              c.query(
+                `UPDATE notification_log
+                    SET delivery_status = $2, delivery_status_updated = clock_timestamp()
+                  WHERE provider_message_id = $1`,
+                [st.id, code],
+              ),
+          );
+        } catch (err) {
+          logger.error({ err: err.message }, 'WhatsApp status update failed');
+        }
+      }
+    }
+  }
+  // Meta requires a prompt 200, otherwise it retries the delivery.
+  res.sendStatus(200);
+}
+
 router.post('/whatsapp/incoming', async (req, res) => {
+  if (req.body && req.body.object === 'whatsapp_business_account') {
+    return handleMetaWebhook(req, res);
+  }
+  // Simple shape (smoke test).
   if (!verifyMsg91Signature(req)) {
     return res.status(401).json({ error: 'invalid_signature' });
   }

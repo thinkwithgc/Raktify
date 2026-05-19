@@ -25,9 +25,15 @@ const { isValidIndianMobile } = require('../../utils/phone');
 let provider;
 if (env.providers.notifications === 'msg91') {
   provider = require('./msg91Provider');
+} else if (env.providers.notifications === 'whatsapp_cloud') {
+  provider = require('./whatsappCloudProvider');
 } else {
   provider = require('./consoleProvider');
 }
+
+// notification_log.provider is CHAR(2): M9 MSG91, LO local-console,
+// WC WhatsApp Cloud (migration 250). Default to LO for the console provider.
+const PROVIDER_CODE = { msg91: 'M9', whatsapp_cloud: 'WC' };
 
 async function resolveRecipient(client, recipientId) {
   if (!recipientId) return { recipient_external_mobile: null };
@@ -92,8 +98,33 @@ async function sendNotification({
   relatedRequestId = null,
   relatedAlertId = null,
 }) {
+  // 1. Resolve the recipient up front. Needs actor_role='system' so the
+  //    donors/platform_users/institutions RLS SELECT policies permit the read.
+  //    The resolved mobile is handed to the provider AND used for the log row.
+  let recipient = {};
+  {
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+      recipient = await resolveRecipient(c, recipientId);
+      await c.query('COMMIT');
+    } catch (err) {
+      try {
+        await c.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      logger.error({ err: err.message, templateType }, 'notification recipient resolve failed');
+    } finally {
+      c.release();
+    }
+  }
+
+  // 2. Dispatch via the active provider, giving it the resolved phone number.
   const dispatchResult = await provider.send({
     recipientId,
+    recipientMobile: recipient.recipient_external_mobile || null,
     templateType,
     variables,
     channel,
@@ -101,17 +132,14 @@ async function sendNotification({
     emergencyOverride,
   });
 
-  // Persist to notification_log regardless of provider outcome.
-  // sendNotification runs from many contexts (routes, jobs, bot dispatcher);
-  // some have an RLS actor_role set on their tx, some don't (we use pool.query
-  // here on a fresh connection). Always SET LOCAL actor_role='system' so the
-  // notif_system_insert RLS policy permits the INSERT.
+  // 3. Persist to notification_log regardless of provider outcome.
+  //    SET LOCAL actor_role='system' so the notif_system_insert RLS policy
+  //    permits the INSERT (sendNotification runs from routes, jobs, the bot).
   let notificationLogId = null;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
-    const recipient = await resolveRecipient(client, recipientId);
     const r = await client.query(
       `INSERT INTO notification_log (
          recipient_donor_id, recipient_user_id, recipient_institution_id,
@@ -134,7 +162,7 @@ async function sendNotification({
         JSON.stringify(variables),
         relatedRequestId,
         relatedAlertId,
-        provider.providerName === 'msg91' ? 'M9' : 'LO',
+        PROVIDER_CODE[provider.providerName] || 'LO',
         dispatchResult.messageId || null,
         dispatchResult.deliveryStatus || (dispatchResult.success ? 'SE' : 'FA'),
         emergencyOverride,

@@ -125,9 +125,11 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
     language: 'en',
   });
 
-  // Useful in dev only — surface OTP in response so curl-based testing works
-  // without scraping the outbox file.
-  const devEcho = env.nodeEnv === 'development' ? { dev_otp: code } : {};
+  // Surface the OTP in the response for local dev, and for staging when the
+  // OTP_ECHO flag is explicitly set (so a live staging site can be demoed
+  // without a working SMS/WhatsApp channel). Never enabled in real production.
+  const echoOtp = env.nodeEnv === 'development' || env.otpEcho;
+  const devEcho = echoOtp ? { dev_otp: code } : {};
   res.json({ status: 'sent', expires_at: expiresAt.toISOString(), ...devEcho });
 });
 
