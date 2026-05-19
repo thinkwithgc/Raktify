@@ -21,7 +21,7 @@
     "smoke": "node scripts/smoke_test.js",
     "smoke:frontend": "npm --workspace frontend run build",
     "verify": "npm run lint && npm run format:check && npm run migrate:status && npm run smoke",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "engines": {
     "node": ">=22.0.0"
