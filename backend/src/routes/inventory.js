@@ -205,4 +205,97 @@ router.post(
   },
 );
 
+// ── GET /inventory/dashboard (blood_bank) ────────────────────────────────
+// Aggregate overview for the blood-bank portal landing: KPI counts, the
+// inventory grid (blood group x component), incoming open requests in the
+// BB's district ("Raise Hand" candidates), and recent donations.
+router.get('/dashboard', verifyJWT, requireRole('blood_bank'), async (req, res) => {
+  const bbId = req.user.institutionId;
+  if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+  const data = await withRlsContext(req, async (c) => {
+    const kpis = (
+      await c.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE)::int  AS available_units,
+           COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE
+                            AND expiry_date > CURRENT_DATE
+                            AND expiry_date <= CURRENT_DATE + 2)::int           AS expiring_48h,
+           COUNT(*) FILTER (WHERE status = 'QA')::int                          AS pending_tti,
+           COUNT(*) FILTER (WHERE status IN ('IS','TR')
+                            AND issued_at >= date_trunc('month', NOW()))::int   AS issued_this_month
+         FROM blood_inventory WHERE blood_bank_id = $1`,
+        [bbId],
+      )
+    ).rows[0];
+
+    const donationsToday = (
+      await c.query(
+        `SELECT COUNT(*)::int AS n FROM donation_history
+          WHERE blood_bank_id = $1 AND collection_date = CURRENT_DATE`,
+        [bbId],
+      )
+    ).rows[0].n;
+
+    const grid = (
+      await c.query(
+        `SELECT bg.code AS blood_group, bc.code AS component,
+                COUNT(*) FILTER (WHERE bi.status = 'AV' AND bi.is_recalled = FALSE)::int AS available,
+                COUNT(*)::int AS total
+           FROM blood_inventory bi
+           JOIN blood_groups bg ON bg.id = bi.blood_group_id
+           JOIN blood_components bc ON bc.id = bi.component_id
+          WHERE bi.blood_bank_id = $1
+          GROUP BY bg.code, bc.code
+          ORDER BY bg.code, bc.code`,
+        [bbId],
+      )
+    ).rows;
+
+    const dist = (await c.query(`SELECT district_id FROM institutions WHERE id = $1`, [bbId]))
+      .rows[0]?.district_id;
+
+    const incoming = dist
+      ? (
+          await c.query(
+            `SELECT br.id, br.request_number, bg.code AS blood_group, bc.code AS component,
+                    br.units_required, br.urgency_tier, br.raised_at
+               FROM blood_requests br
+               JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+               JOIN blood_components bc ON bc.id = br.component_id
+              WHERE br.requesting_hospital_district_id = $1
+                AND br.status IN ('OP','MT')
+           ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+                    br.raised_at DESC
+              LIMIT 10`,
+            [dist],
+          )
+        ).rows
+      : [];
+
+    const recent = (
+      await c.query(
+        `SELECT dh.id, dh.collection_date, bc.code AS component, dh.volume_ml,
+                d.full_name AS donor_name
+           FROM donation_history dh
+           JOIN blood_components bc ON bc.id = dh.component_id
+           JOIN donors d ON d.id = dh.donor_id
+          WHERE dh.blood_bank_id = $1
+       ORDER BY dh.collection_date DESC, dh.created_at DESC
+          LIMIT 8`,
+        [bbId],
+      )
+    ).rows;
+
+    return {
+      kpis: { ...kpis, donations_today: donationsToday },
+      inventory_grid: grid,
+      incoming_requests: incoming,
+      recent_donations: recent,
+    };
+  });
+
+  res.json(data);
+});
+
 module.exports = router;

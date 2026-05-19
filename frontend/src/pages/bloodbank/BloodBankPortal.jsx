@@ -12,6 +12,7 @@ import { useT } from '../../i18n/useT.js';
 
 function tabsFor(t) {
   return [
+    { id: 'dashboard', label: 'Dashboard' },
     { id: 'inventory', label: t('inventory') },
     { id: 'record', label: t('record_donation') },
     { id: 'screening', label: t('tti_screening') },
@@ -21,7 +22,7 @@ function tabsFor(t) {
 
 export function BloodBankPortal() {
   const { t } = useT();
-  const [tab, setTab] = useState('inventory');
+  const [tab, setTab] = useState('dashboard');
   const TABS = tabsFor(t);
 
   return (
@@ -46,12 +47,191 @@ export function BloodBankPortal() {
           ))}
         </nav>
 
+        {tab === 'dashboard' ? <BBDashboard /> : null}
         {tab === 'inventory' ? <InventoryView /> : null}
         {tab === 'record' ? <RecordDonation /> : null}
         {tab === 'screening' ? <ScreeningEntry /> : null}
         {tab === 'opening' ? <OpeningStock /> : null}
       </main>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dashboard tab — at-a-glance overview for the blood bank
+// ────────────────────────────────────────────────────────────────────────────
+const GRID_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const URG = {
+  CR: { label: 'Critical', cls: 'bg-rk-700 text-white' },
+  UR: { label: 'Urgent', cls: 'bg-amber-500 text-white' },
+  PL: { label: 'Planned', cls: 'bg-slate-300 text-slate-800' },
+};
+
+function fmtDate(v) {
+  if (!v) return '—';
+  try {
+    return new Date(v).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch {
+    return String(v);
+  }
+}
+
+function KpiCard({ label, value, tone }) {
+  return (
+    <div className="rk-card">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={'mt-1 text-3xl font-bold ' + (tone || 'text-slate-900')}>{value}</div>
+    </div>
+  );
+}
+
+function BBDashboard() {
+  const q = useQuery({
+    queryKey: ['bb', 'dashboard'],
+    queryFn: () => apiRequest('GET', '/inventory/dashboard'),
+    staleTime: 15_000,
+  });
+
+  if (q.isLoading) return <div className="rk-card text-center text-slate-500">…</div>;
+  if (q.error)
+    return (
+      <div className="rk-card text-rk-700">
+        {q.error?.response?.data?.error || 'load_failed'}
+      </div>
+    );
+
+  const d = q.data || {};
+  const k = d.kpis || {};
+  const grid = d.inventory_grid || [];
+  const components = [...new Set(grid.map((r) => r.component))].sort();
+  const cellFor = (g, comp) => grid.find((r) => r.blood_group === g && r.component === comp);
+
+  return (
+    <section className="space-y-4">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <KpiCard label="Available units" value={k.available_units ?? 0} tone="text-green-700" />
+        <KpiCard
+          label="Expiring <48h"
+          value={k.expiring_48h ?? 0}
+          tone={k.expiring_48h ? 'text-rk-700' : 'text-slate-900'}
+        />
+        <KpiCard
+          label="Pending TTI"
+          value={k.pending_tti ?? 0}
+          tone={k.pending_tti ? 'text-amber-600' : 'text-slate-900'}
+        />
+        <KpiCard label="Issued this month" value={k.issued_this_month ?? 0} />
+        <KpiCard label="Donations today" value={k.donations_today ?? 0} />
+      </div>
+
+      {/* Inventory grid */}
+      <article className="rk-card">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Inventory at a glance
+        </h2>
+        {components.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            No inventory yet — record a donation to build stock.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2 text-left">Group</th>
+                    {components.map((comp) => (
+                      <th key={comp} className="px-3 py-2 text-center">
+                        {comp}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {GRID_GROUPS.map((g) => (
+                    <tr key={g}>
+                      <td className="px-3 py-2 font-semibold text-rk-700">{g}</td>
+                      {components.map((comp) => {
+                        const cell = cellFor(g, comp);
+                        const avail = cell?.available ?? 0;
+                        return (
+                          <td key={comp} className="px-3 py-2 text-center">
+                            <span
+                              className={
+                                avail > 0 ? 'font-semibold text-slate-900' : 'text-slate-300'
+                              }
+                            >
+                              {avail}
+                            </span>
+                            {cell && cell.total > avail ? (
+                              <span className="text-xs text-slate-400"> /{cell.total}</span>
+                            ) : null}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Cell = available units · /n = total bags incl. quarantine.
+            </p>
+          </>
+        )}
+      </article>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Incoming requests */}
+        <article className="rk-card">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Incoming requests · your district
+          </h2>
+          {(d.incoming_requests || []).length === 0 ? (
+            <p className="text-sm text-slate-500">No open requests in your district.</p>
+          ) : (
+            <ul className="space-y-2">
+              {d.incoming_requests.map((r) => {
+                const u = URG[r.urgency_tier] || URG.PL;
+                return (
+                  <li key={r.id} className="flex items-center gap-2 text-sm">
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${u.cls}`}>
+                      {u.label}
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-500">{r.request_number}</span>
+                    <span className="font-medium text-slate-900">
+                      {r.blood_group} · {r.component} · {r.units_required}u
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </article>
+
+        {/* Recent donations */}
+        <article className="rk-card">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Recent donations
+          </h2>
+          {(d.recent_donations || []).length === 0 ? (
+            <p className="text-sm text-slate-500">No donations recorded yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {d.recent_donations.map((dn) => (
+                <li key={dn.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-medium text-slate-900">{dn.donor_name}</span>
+                  <span className="text-xs text-slate-500">
+                    {dn.component} · {dn.volume_ml}ml · {fmtDate(dn.collection_date)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      </div>
+    </section>
   );
 }
 
