@@ -19,6 +19,139 @@ const { runMatch } = require('../services/matching');
 
 const router = express.Router();
 
+// ── GET /coordinator/dashboard ───────────────────────────────────────────
+// Aggregate landing for the coordinator portal: queue KPIs (open / critical
+// / accepted-by-me), personal impact metrics from `coordinators`, district
+// donor pool, and a snapshot of blood availability in the district.
+router.get(
+  '/dashboard',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const isCoord = req.user.role === 'coordinator';
+
+    const data = await withRlsContext(req, async (c) => {
+      let districtId = null;
+      let coord = null;
+      if (isCoord) {
+        const cr = await c.query(
+          `SELECT id, district_id, on_duty, on_duty_until,
+                  donations_facilitated, requests_fulfilled,
+                  community_donor_count, lives_saved_estimate,
+                  median_response_time_min, reliability_score, is_district_lead
+             FROM coordinators
+            WHERE platform_user_id = $1`,
+          [req.user.userId],
+        );
+        if (cr.rowCount === 0) {
+          throw Object.assign(new Error('coordinator_profile_not_found'), { status: 404 });
+        }
+        coord = cr.rows[0];
+        districtId = coord.district_id;
+      }
+
+      // Queue KPIs (district-scoped for coord, global for ngo_admin/super_admin)
+      const queueRow = (
+        await c.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE br.status IN ('OP','MT','AS','PF'))::int               AS open_count,
+             COUNT(*) FILTER (WHERE br.status IN ('OP','MT','AS','PF')
+                              AND br.urgency_tier = 'CR')::int                              AS critical_now,
+             COUNT(*) FILTER (WHERE br.status IN ('OP','MT','AS','PF')
+                              AND ra.coordinator_accepted_at IS NOT NULL
+                              AND ra.coordinator_id = $2)::int                              AS accepted_by_me,
+             COUNT(*) FILTER (WHERE br.status IN ('OP','MT','AS','PF')
+                              AND ra.coordinator_accepted_at IS NULL)::int                  AS awaiting_accept,
+             COUNT(*) FILTER (WHERE br.status = 'CL'
+                              AND br.closed_at >= date_trunc('month', NOW()))::int          AS closed_this_month
+           FROM blood_requests br
+      LEFT JOIN request_assignments ra
+             ON ra.request_id = br.id AND ra.is_current = TRUE
+          WHERE ($1::int IS NULL OR br.requesting_hospital_district_id = $1)`,
+          [districtId, coord?.id || null],
+        )
+      ).rows[0];
+
+      const districtDonors = districtId
+        ? (
+            await c.query(
+              `SELECT COUNT(*)::int AS verified,
+                      COUNT(*) FILTER (WHERE d.deferral_status = 'OK')::int AS available
+                 FROM donors d
+                 JOIN villages v ON v.id = d.village_id
+                WHERE v.district_id = $1
+                  AND d.is_active = TRUE
+                  AND d.blood_group_verified IS NOT NULL`,
+              [districtId],
+            )
+          ).rows[0]
+        : { verified: 0, available: 0 };
+
+      const availability = districtId
+        ? (
+            await c.query(
+              `SELECT bg.code AS blood_group, bc.code AS component,
+                      COUNT(*)::int AS available_units
+                 FROM blood_inventory bi
+                 JOIN institutions i ON i.id = bi.blood_bank_id
+                 JOIN blood_groups bg ON bg.id = bi.blood_group_id
+                 JOIN blood_components bc ON bc.id = bi.component_id
+                WHERE i.district_id = $1
+                  AND bi.status = 'AV'
+                  AND bi.is_recalled = FALSE
+                  AND bi.expiry_date > CURRENT_DATE
+                GROUP BY bg.code, bc.code
+                ORDER BY bg.code, bc.code`,
+              [districtId],
+            )
+          ).rows
+        : [];
+
+      // Most-critical 5 open in district (already covered in /requests, but
+      // a short preview here saves a click for the common case).
+      const topOpen = (
+        await c.query(
+          `SELECT br.id, br.request_number, br.urgency_tier, br.status,
+                  bg.code AS blood_group, bc.code AS component,
+                  br.units_required, br.units_fulfilled,
+                  br.needed_by, br.raised_at,
+                  EXTRACT(EPOCH FROM (NOW() - br.raised_at))::int AS seconds_since_raised
+             FROM blood_requests br
+             JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+             JOIN blood_components bc ON bc.id = br.component_id
+            WHERE br.status IN ('OP','MT','AS','PF')
+              AND ($1::int IS NULL OR br.requesting_hospital_district_id = $1)
+         ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+                  br.raised_at ASC
+            LIMIT 5`,
+          [districtId],
+        )
+      ).rows;
+
+      return {
+        scope_district_id: districtId,
+        is_district_lead: coord?.is_district_lead || false,
+        on_duty: coord?.on_duty || false,
+        on_duty_until: coord?.on_duty_until || null,
+        kpis: {
+          ...queueRow,
+          donations_facilitated: coord?.donations_facilitated ?? null,
+          requests_fulfilled: coord?.requests_fulfilled ?? null,
+          community_donor_count: coord?.community_donor_count ?? null,
+          lives_saved_estimate: coord?.lives_saved_estimate ?? null,
+          median_response_time_min: coord?.median_response_time_min ?? null,
+          reliability_score: coord?.reliability_score ?? null,
+        },
+        district_donors: districtDonors,
+        district_availability: availability,
+        top_open_requests: topOpen,
+      };
+    });
+
+    res.json(data);
+  },
+);
+
 // ── GET /coordinator/requests ────────────────────────────────────────────
 router.get(
   '/requests',

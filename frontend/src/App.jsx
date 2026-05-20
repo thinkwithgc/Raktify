@@ -5,7 +5,7 @@ import { DonorLogin } from './pages/donor/DonorLogin.jsx';
 import { DonorRegister } from './pages/donor/DonorRegister.jsx';
 import { DonorDashboard } from './pages/donor/DonorDashboard.jsx';
 import { StaffLogin } from './pages/staff/StaffLogin.jsx';
-import { CoordinatorQueue } from './pages/coordinator/CoordinatorQueue.jsx';
+import { CoordinatorPortal } from './pages/coordinator/CoordinatorPortal.jsx';
 import { RequestDetail } from './pages/coordinator/RequestDetail.jsx';
 import { HospitalPortal } from './pages/hospital/HospitalPortal.jsx';
 import { BloodBankPortal } from './pages/bloodbank/BloodBankPortal.jsx';
@@ -47,7 +47,7 @@ export default function App() {
         path="/coordinator"
         element={
           <RequireAuth roles={['coordinator', 'ngo_admin', 'super_admin']}>
-            <CoordinatorQueue />
+            <CoordinatorPortal />
           </RequireAuth>
         }
       />
