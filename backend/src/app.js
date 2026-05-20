@@ -19,6 +19,7 @@ const lookbackRouter = require('./routes/lookback');
 const webhooksRouter = require('./routes/webhooks');
 const adminRouter = require('./routes/admin');
 const reportsRouter = require('./routes/reports');
+const geographyRouter = require('./routes/geography');
 
 // Spec §10 security hardening:
 //   - Helmet with a strict CSP (no inline scripts; API only serves JSON)
@@ -112,6 +113,7 @@ function createApp() {
   app.use('/webhooks', webhooksRouter);
   app.use('/admin', adminRouter);
   app.use('/reports', reportsRouter);
+  app.use('/geography', geographyRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

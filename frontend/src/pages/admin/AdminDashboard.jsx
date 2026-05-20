@@ -5,6 +5,7 @@ import { Header } from '../../components/Header.jsx';
 import { CoordinatorsTab } from './CoordinatorsTab.jsx';
 import { DuplicatesTab } from './DuplicatesTab.jsx';
 import { ReferralsTab } from './ReferralsTab.jsx';
+import { OnboardingTab } from './OnboardingTab.jsx';
 import { LookbackTab } from './LookbackTab.jsx';
 import { AuditTab } from './AuditTab.jsx';
 import { JobsTab } from './JobsTab.jsx';
@@ -14,6 +15,7 @@ import { JobsTab } from './JobsTab.jsx';
 // which already existed). Reports live behind a separate route.
 
 const TABS = [
+  { id: 'onboarding', label: 'Onboarding' },
   { id: 'coordinators', label: 'Coordinators' },
   { id: 'duplicates', label: 'Duplicates' },
   { id: 'referrals', label: 'Referrals' },
@@ -23,7 +25,7 @@ const TABS = [
 ];
 
 export function AdminDashboard() {
-  const [tab, setTab] = useState('coordinators');
+  const [tab, setTab] = useState('onboarding');
 
   return (
     <div className="min-h-full">
@@ -53,6 +55,7 @@ export function AdminDashboard() {
           </Link>
         </nav>
 
+        {tab === 'onboarding' ? <OnboardingTab /> : null}
         {tab === 'coordinators' ? <CoordinatorsTab /> : null}
         {tab === 'duplicates' ? <DuplicatesTab /> : null}
         {tab === 'referrals' ? <ReferralsTab /> : null}

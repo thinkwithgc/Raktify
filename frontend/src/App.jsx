@@ -11,6 +11,7 @@ import { HospitalPortal } from './pages/hospital/HospitalPortal.jsx';
 import { BloodBankPortal } from './pages/bloodbank/BloodBankPortal.jsx';
 import { AdminDashboard } from './pages/admin/AdminDashboard.jsx';
 import { ReportsViewer } from './pages/admin/ReportsViewer.jsx';
+import { InstitutionApply } from './pages/onboarding/InstitutionApply.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/login" element={<DonorLogin />} />
       <Route path="/register" element={<DonorRegister />} />
       <Route path="/staff/login" element={<StaffLogin />} />
+      <Route path="/onboarding/apply" element={<InstitutionApply />} />
 
       <Route
         path="/donor"

@@ -96,6 +96,12 @@ export function Landing() {
               ))}
             </div>
             <Link
+              to="/onboarding/apply"
+              className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 md:inline"
+            >
+              Join as a partner
+            </Link>
+            <Link
               to="/staff/login"
               className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 sm:inline"
             >
@@ -288,6 +294,15 @@ export function Landing() {
               {t('lp_cta_donor')}
               <ArrowIcon className="h-5 w-5" />
             </Link>
+            <p className="relative mt-5 text-sm text-rk-100">
+              Hospital or blood bank?{' '}
+              <Link
+                to="/onboarding/apply"
+                className="font-semibold text-white underline underline-offset-2 hover:text-rk-50"
+              >
+                Apply to join Raktify
+              </Link>
+            </p>
           </div>
         </div>
       </section>
