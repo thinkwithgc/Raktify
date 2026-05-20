@@ -28,11 +28,13 @@ async function buildPassport(client, donorId) {
             d.eligible_components, d.deferral_status, d.deferral_until,
             d.next_eligible_date, d.total_donations, d.total_units_ml,
             d.community_id, d.is_available, d.reliability_score,
-            c.name AS community_name
+            c.name AS community_name,
+            d.village_id, v.district_id, v.taluka_id
        FROM donors d
   LEFT JOIN blood_groups bg_self ON bg_self.id = d.blood_group_self_reported
   LEFT JOIN blood_groups bg_ver  ON bg_ver.id  = d.blood_group_verified
-  LEFT JOIN communities c ON c.id = d.community_id
+  LEFT JOIN communities c        ON c.id = d.community_id
+  LEFT JOIN villages v           ON v.id = d.village_id
       WHERE d.id = $1`,
     [donorId],
   );
@@ -94,6 +96,11 @@ async function buildPassport(client, donorId) {
         eligible_components: p.eligible_components,
       },
       community: p.community_id ? { id: p.community_id, name: p.community_name } : null,
+      location: {
+        district_id: p.district_id || null,
+        taluka_id: p.taluka_id || null,
+        village_id: p.village_id || null,
+      },
       stats: {
         total_donations: p.total_donations,
         total_units_ml: p.total_units_ml,

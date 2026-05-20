@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
@@ -121,6 +122,8 @@ export function DonorDashboard() {
               }
             />
 
+            <BadgeCard donations={donor.stats.total_donations ?? 0} />
+
             <section className="grid gap-4 sm:grid-cols-2">
               <StatCard
                 label={t('blood_group')}
@@ -150,6 +153,8 @@ export function DonorDashboard() {
                 }
               />
             </section>
+
+            <UpcomingCampsSection donorDistrictId={donor?.location?.district_id} />
 
             <section>
               <h2 className="px-1 pb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -190,6 +195,101 @@ export function DonorDashboard() {
   );
 }
 
+function UpcomingCampsSection({ donorDistrictId }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['donor', 'camps', donorDistrictId || 'all'],
+    queryFn: () =>
+      apiRequest(
+        'GET',
+        donorDistrictId ? `/camps?district_id=${donorDistrictId}` : '/camps',
+      ),
+    staleTime: 60_000,
+  });
+
+  const rsvp = useMutation({
+    mutationFn: (campId) => apiRequest('POST', `/camps/${campId}/register`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['donor', 'camps'] }),
+  });
+  const cancel = useMutation({
+    mutationFn: (campId) => apiRequest('DELETE', `/camps/${campId}/register`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['donor', 'camps'] }),
+  });
+
+  // Note: until we wire a /camps/mine endpoint, RSVP state is local-optimistic.
+  const [registered, setRegistered] = useState({});
+
+  const camps = (q.data?.camps || []).slice(0, 5);
+
+  return (
+    <section>
+      <h2 className="px-1 pb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Upcoming camps
+      </h2>
+      <div className="space-y-2">
+        {q.isLoading ? (
+          <div className="rk-card text-center text-slate-500">…</div>
+        ) : camps.length === 0 ? (
+          <div className="rk-card text-sm text-slate-500">
+            No camps scheduled near you right now. We&apos;ll notify you on WhatsApp when one
+            is announced.
+          </div>
+        ) : (
+          camps.map((c) => {
+            const isRegistered = registered[c.id];
+            return (
+              <article key={c.id} className="rk-card space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-slate-900">{c.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {new Date(c.scheduled_date).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                      {' · '}
+                      {(c.start_time || '').slice(0, 5)}–{(c.end_time || '').slice(0, 5)}
+                      {' · '}
+                      {c.venue}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {c.district_name} · {c.organiser_name}
+                    </div>
+                  </div>
+                  {isRegistered ? (
+                    <button
+                      type="button"
+                      className="rk-button-secondary text-xs"
+                      onClick={() => {
+                        cancel.mutate(c.id);
+                        setRegistered((r) => ({ ...r, [c.id]: false }));
+                      }}
+                    >
+                      Cancel RSVP
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rk-button-primary text-xs"
+                      onClick={() => {
+                        rsvp.mutate(c.id);
+                        setRegistered((r) => ({ ...r, [c.id]: true }));
+                      }}
+                      disabled={rsvp.isPending}
+                    >
+                      I&apos;ll be there
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AvailabilityCard({ donor, t, busy, onToggle }) {
   const isOn = Boolean(donor?.stats?.is_available);
   return (
@@ -215,6 +315,84 @@ function AvailabilityCard({ donor, t, busy, onToggle }) {
       >
         {busy ? '…' : isOn ? 'Pause availability' : 'Mark me available'}
       </button>
+    </section>
+  );
+}
+
+// Tiers track lifetime verified donations. Numbers picked to match Indian
+// blood-donor recognition norms (10 = "Many-time donor" badge in most state
+// blood-bank programmes, 25 = the Maharashtra State "Maha Rakta Doot" cut).
+const TIERS = [
+  { min: 0,  label: 'New donor',    cls: 'bg-slate-100 text-slate-700 ring-slate-200',
+    medal: 'rgb(148 163 184)', next: 1,  hint: 'Donate once to earn your Bronze badge.' },
+  { min: 1,  label: 'Bronze donor', cls: 'bg-amber-50 text-amber-900 ring-amber-200',
+    medal: '#cd7f32', next: 5,  hint: '4 more donations until Silver.' },
+  { min: 5,  label: 'Silver donor', cls: 'bg-slate-100 text-slate-800 ring-slate-300',
+    medal: '#c0c0c0', next: 10, hint: '5 more until Gold.' },
+  { min: 10, label: 'Gold donor',   cls: 'bg-amber-100 text-amber-900 ring-amber-300',
+    medal: '#d4af37', next: 25, hint: 'On track for Champion status.' },
+  { min: 25, label: 'Champion',     cls: 'bg-rk-50 text-rk-700 ring-rk-200',
+    medal: '#ef4a32', next: null, hint: 'You’ve saved an estimated 75+ lives.' },
+];
+
+function tierFor(donations) {
+  return [...TIERS].reverse().find((t) => donations >= t.min) || TIERS[0];
+}
+
+function BadgeCard({ donations }) {
+  const tier = tierFor(donations);
+  const tierIndex = TIERS.indexOf(tier);
+  const nextTier = TIERS[tierIndex + 1];
+  // Progress = how far between this tier's floor and the next tier's floor.
+  let progressPct = null;
+  if (nextTier) {
+    const span = nextTier.min - tier.min;
+    progressPct = Math.min(100, Math.round(((donations - tier.min) / span) * 100));
+  }
+  // Lives-saved heuristic: each verified donation = ~3 lives (RBC + plasma + plt).
+  const livesSaved = donations * 3;
+
+  return (
+    <section className={`rounded-2xl p-5 ring-1 ${tier.cls}`}>
+      <div className="flex items-center gap-4">
+        <div
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl font-bold text-white shadow-soft"
+          style={{ background: tier.medal }}
+          aria-hidden="true"
+        >
+          ★
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs uppercase tracking-wide opacity-70">Donor tier</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-semibold">{tier.label}</span>
+            <span className="text-sm opacity-70">
+              · {donations} donation{donations === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs opacity-70">{tier.hint}</div>
+        </div>
+        <div className="hidden text-right text-xs opacity-80 sm:block">
+          <div className="font-semibold">~{livesSaved} lives</div>
+          <div>impacted</div>
+        </div>
+      </div>
+      {progressPct != null ? (
+        <div className="mt-3">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/40">
+            <div
+              className="h-full rounded-full bg-current opacity-70 transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] uppercase tracking-wide opacity-70">
+            <span>{tier.label}</span>
+            <span>
+              {nextTier.min - donations} to {nextTier.label}
+            </span>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

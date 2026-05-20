@@ -6,6 +6,9 @@ import { CoordinatorsTab } from './CoordinatorsTab.jsx';
 import { DuplicatesTab } from './DuplicatesTab.jsx';
 import { ReferralsTab } from './ReferralsTab.jsx';
 import { OnboardingTab } from './OnboardingTab.jsx';
+import { CampsTab } from './CampsTab.jsx';
+import { ThalassemiaTab } from './ThalassemiaTab.jsx';
+import { RareBloodTab } from './RareBloodTab.jsx';
 import { LookbackTab } from './LookbackTab.jsx';
 import { AuditTab } from './AuditTab.jsx';
 import { JobsTab } from './JobsTab.jsx';
@@ -17,6 +20,9 @@ import { JobsTab } from './JobsTab.jsx';
 const TABS = [
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'coordinators', label: 'Coordinators' },
+  { id: 'camps', label: 'Camps' },
+  { id: 'thalassemia', label: 'Thalassemia' },
+  { id: 'rare', label: 'Rare blood' },
   { id: 'duplicates', label: 'Duplicates' },
   { id: 'referrals', label: 'Referrals' },
   { id: 'lookback', label: 'Lookback' },
@@ -57,6 +63,9 @@ export function AdminDashboard() {
 
         {tab === 'onboarding' ? <OnboardingTab /> : null}
         {tab === 'coordinators' ? <CoordinatorsTab /> : null}
+        {tab === 'camps' ? <CampsTab /> : null}
+        {tab === 'thalassemia' ? <ThalassemiaTab /> : null}
+        {tab === 'rare' ? <RareBloodTab /> : null}
         {tab === 'duplicates' ? <DuplicatesTab /> : null}
         {tab === 'referrals' ? <ReferralsTab /> : null}
         {tab === 'lookback' ? <LookbackTab /> : null}
