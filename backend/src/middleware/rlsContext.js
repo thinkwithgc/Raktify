@@ -28,8 +28,13 @@ const GUC_KEYS = [
   'actor_institution_id',
   'actor_session_id',
   'actor_ip_address',
+  'actor_system_process',
   'change_reason',
   'access_reason',
+  // Magic-link camp organizer dashboard. The GET /camps/access/:token route
+  // sets this so the RLS policy on camp_registrations can confirm the
+  // bearer is authorised for that camp_id without a JWT-backed identity.
+  'camp_token',
 ];
 
 function buildContext(req, overrides = {}) {

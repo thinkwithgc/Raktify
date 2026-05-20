@@ -23,7 +23,9 @@ const { z } = require('zod');
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const logger = require('../config/logger');
+const env = require('../config/env');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { sendNotification } = require('../services/notifications');
 
 const router = express.Router();
 
@@ -358,6 +360,9 @@ router.post(
 );
 
 // ── POST /camps/:id/verify (PE → PL) ─────────────────────────────────────
+// Also mints a magic-link organizer access token and (when WhatsApp is wired)
+// sends it to the submitter's mobile. Token is returned in the response so
+// the admin UI can also surface a copy-to-clipboard link for offline-share.
 router.post(
   '/:id/verify',
   verifyJWT,
@@ -369,6 +374,8 @@ router.post(
     });
     const parsed = schema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const token = crypto.randomBytes(24).toString('base64url');
 
     const result = await withRlsContext(
       req,
@@ -389,7 +396,8 @@ router.post(
                   partnered_blood_bank_id = COALESCE($4::uuid, partnered_blood_bank_id),
                   organising_coordinator_id = COALESCE($5::uuid, organising_coordinator_id)
             WHERE id = $1 AND status = 'PE'
-        RETURNING id, status, verified_at`,
+        RETURNING id, status, verified_at,
+                  scheduled_date, submitted_by_name, submitted_by_mobile, name`,
           [
             req.params.id,
             req.user.userId,
@@ -401,11 +409,257 @@ router.post(
         if (r.rowCount === 0) {
           throw Object.assign(new Error('not_found_or_wrong_state'), { status: 409 });
         }
-        return r.rows[0];
+        const camp = r.rows[0];
+
+        // Mint the access token. Expiry = camp date + 30 days (covers post-
+        // camp wind-down — final attendance marking, impact recap).
+        await c.query(
+          `INSERT INTO camp_access_tokens (
+             camp_id, token, granted_to_mobile, granted_to_name,
+             created_by_user_id, expires_at)
+           VALUES ($1, $2, $3, $4, $5,
+                   ($6::date + INTERVAL '30 days')::timestamptz)`,
+          [
+            camp.id,
+            token,
+            camp.submitted_by_mobile,
+            camp.submitted_by_name,
+            req.user.userId,
+            camp.scheduled_date,
+          ],
+        );
+        return camp;
       },
       { change_reason: 'verify camp application' },
     );
-    res.json(result);
+
+    const magicUrl = `${env.frontendUrl || ''}/camp/${token}`;
+
+    // Best-effort notification to the organizer. If WhatsApp Cloud isn't
+    // wired the chokepoint just writes to the local outbox; the link is
+    // also returned in the response so the admin can copy-paste manually.
+    if (result.submitted_by_mobile) {
+      sendNotification({
+        recipientId: result.submitted_by_mobile,
+        templateType: 'CAMP_LINK',
+        variables: {
+          camp_name: result.name,
+          scheduled_date: String(result.scheduled_date),
+          dashboard_url: magicUrl,
+        },
+        channel: 'WA',
+        language: 'en',
+      }).catch((err) => logger.warn({ err: err.message }, 'camp magic-link notify failed'));
+    }
+
+    res.json({
+      ...result,
+      submitted_by_mobile: undefined, // don't echo back; admin already has it
+      submitted_by_name: undefined,
+      organizer_dashboard: {
+        token,
+        url: magicUrl,
+        expires_in_days: 'scheduled_date + 30',
+      },
+    });
+  },
+);
+
+// ── GET /camps/access/:token (PUBLIC magic-link) ─────────────────────────
+// Resolves a camp access token to a scoped dashboard payload. The token is
+// the credential — no JWT. Refuses on revoked / expired tokens.
+//
+// Declared BEFORE /:id so /camps/access/<token>/registrations etc. don't
+// race against the GET /:id route. Same trick as /apply.
+async function loadToken(token) {
+  const r = await withRlsContextRaw({ actor_role: 'system' }, (c) =>
+    c.query(
+      `SELECT t.id, t.camp_id, t.token, t.expires_at, t.revoked_at,
+              t.granted_to_name, t.granted_to_mobile
+         FROM camp_access_tokens t
+        WHERE t.token = $1
+        LIMIT 1`,
+      [token],
+    ),
+  );
+  if (r.rowCount === 0) return { ok: false, reason: 'invalid_token' };
+  const t = r.rows[0];
+  if (t.revoked_at) return { ok: false, reason: 'token_revoked', token: t };
+  if (new Date(t.expires_at) <= new Date()) return { ok: false, reason: 'token_expired', token: t };
+  return { ok: true, token: t };
+}
+
+router.get('/access/:token', async (req, res) => {
+  const v = await loadToken(req.params.token);
+  if (!v.ok) return res.status(403).json({ error: v.reason });
+  const t = v.token;
+
+  const dashboard = await withRlsContextRaw(
+    {
+      actor_role: 'camp_organizer',
+      actor_system_process: `camp:${t.token.slice(0, 12)}`,
+      camp_token: t.token,
+      actor_ip_address: req.ip || req.headers?.['x-forwarded-for'] || null,
+      change_reason: 'camp organizer dashboard view',
+    },
+    async (c) => {
+      const camp = (
+        await c.query(
+          `SELECT c.id, c.name, c.scheduled_date, c.start_time, c.end_time,
+                  c.venue, c.address_line, c.pincode,
+                  c.status, c.organiser_name, c.organiser_type,
+                  c.target_donor_count, c.registered_donor_count,
+                  c.attended_donor_count, c.units_collected,
+                  d.name AS district_name,
+                  i.display_name AS partnered_blood_bank_name
+             FROM donation_camps c
+             JOIN districts d ON d.id = c.district_id
+        LEFT JOIN institutions i ON i.id = c.partnered_blood_bank_id
+            WHERE c.id = $1`,
+          [t.camp_id],
+        )
+      ).rows[0];
+
+      const regs = (
+        await c.query(
+          `SELECT cr.id, cr.status, cr.registered_at, cr.source,
+                  d.full_name,
+                  bg.code AS blood_group_code,
+                  COALESCE(d.deferral_status, 'OK') AS deferral_status
+             FROM camp_registrations cr
+             JOIN donors d        ON d.id = cr.donor_id
+        LEFT JOIN blood_groups bg ON bg.id = d.blood_group_verified
+            WHERE cr.camp_id = $1
+         ORDER BY cr.registered_at DESC`,
+          [t.camp_id],
+        )
+      ).rows;
+
+      // Touch last_used + use_count for rough audit.
+      await c.query(
+        `UPDATE camp_access_tokens
+            SET last_used_at = clock_timestamp(),
+                last_used_ip = $2,
+                use_count = use_count + 1
+          WHERE id = $1`,
+        [t.id, req.ip || null],
+      );
+
+      return { camp, registrations: regs };
+    },
+  );
+
+  res.json({
+    granted_to_name: t.granted_to_name,
+    expires_at: t.expires_at,
+    ...dashboard,
+  });
+});
+
+// ── POST /camps/access/:token/registrations/:regId/status ────────────────
+// Organizer marks a donor AT (attended) or NS (no-show) on camp day.
+router.post('/access/:token/registrations/:regId/status', async (req, res) => {
+  const schema = z.object({ status: z.enum(['AT', 'NS', 'RG']) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+  const v = await loadToken(req.params.token);
+  if (!v.ok) return res.status(403).json({ error: v.reason });
+
+  const r = await withRlsContextRaw(
+    {
+      actor_role: 'camp_organizer',
+      actor_system_process: `camp:${v.token.token.slice(0, 12)}`,
+      camp_token: v.token.token,
+      actor_ip_address: req.ip || null,
+      change_reason: 'organizer marks attendance',
+    },
+    (c) =>
+      c.query(
+        `UPDATE camp_registrations
+            SET status = $3,
+                status_changed_at = clock_timestamp()
+          WHERE id = $1 AND camp_id = $2
+      RETURNING id, status`,
+        [req.params.regId, v.token.camp_id, parsed.data.status],
+      ),
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'registration_not_found' });
+  res.json(r.rows[0]);
+});
+
+// ── POST /camps/access/:token/broadcast ──────────────────────────────────
+// Send a message to all registered (RG status) donors. Used for last-minute
+// venue changes, reminders, "bring an ID" notes.
+router.post('/access/:token/broadcast', async (req, res) => {
+  const schema = z.object({ message: z.string().min(5).max(500) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'message_required_5_to_500_chars' });
+  }
+  const v = await loadToken(req.params.token);
+  if (!v.ok) return res.status(403).json({ error: v.reason });
+
+  const donors = await withRlsContextRaw(
+    {
+      actor_role: 'camp_organizer',
+      actor_system_process: `camp:${v.token.token.slice(0, 12)}`,
+      camp_token: v.token.token,
+      change_reason: 'organizer broadcast prep',
+    },
+    (c) =>
+      c.query(
+        `SELECT donor_id FROM camp_registrations
+          WHERE camp_id = $1 AND status IN ('RG', 'AT')`,
+        [v.token.camp_id],
+      ),
+  );
+
+  let queued = 0;
+  for (const row of donors.rows) {
+    try {
+      await sendNotification({
+        recipientId: row.donor_id,
+        templateType: 'CAMP_ANNC',
+        variables: {
+          camp_id: v.token.camp_id,
+          message: parsed.data.message,
+        },
+        channel: 'WA',
+        language: 'mr',
+      });
+      queued += 1;
+    } catch (err) {
+      logger.warn({ err: err.message, donor_id: row.donor_id }, 'camp broadcast send failed');
+    }
+  }
+  res.json({ queued, total_registered: donors.rowCount });
+});
+
+// ── POST /camps/access/:token/revoke (admin emergency) ───────────────────
+router.post(
+  '/access/:token/revoke',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin', 'coordinator'),
+  async (req, res) => {
+    const schema = z.object({ reason: z.string().min(5).max(500) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'reason_required' });
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE camp_access_tokens
+              SET revoked_at = clock_timestamp(),
+                  revoked_reason = $2
+            WHERE token = $1 AND revoked_at IS NULL
+        RETURNING id`,
+          [req.params.token, parsed.data.reason],
+        ),
+      { change_reason: `revoke camp token: ${parsed.data.reason}` },
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'token_not_found_or_revoked' });
+    res.json({ revoked: true });
   },
 );
 

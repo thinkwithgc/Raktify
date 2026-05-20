@@ -13,6 +13,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard.jsx';
 import { ReportsViewer } from './pages/admin/ReportsViewer.jsx';
 import { InstitutionApply } from './pages/onboarding/InstitutionApply.jsx';
 import { HostCamp } from './pages/camps/HostCamp.jsx';
+import { CampOrganizerDashboard } from './pages/camps/CampOrganizerDashboard.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -38,6 +39,7 @@ export default function App() {
       <Route path="/staff/login" element={<StaffLogin />} />
       <Route path="/onboarding/apply" element={<InstitutionApply />} />
       <Route path="/camps/host" element={<HostCamp />} />
+      <Route path="/camp/:token" element={<CampOrganizerDashboard />} />
 
       <Route
         path="/donor"

@@ -208,19 +208,109 @@ function ReviewPanel({ camp, onClose, onActioned }) {
   const [reviewNotes, setReviewNotes] = useState('');
   const [declineReason, setDeclineReason] = useState('');
   const [showDecline, setShowDecline] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [copyState, setCopyState] = useState('');
 
   const verify = useMutation({
     mutationFn: () =>
       apiRequest('POST', `/camps/${camp.id}/verify`, {
         review_notes: reviewNotes || undefined,
       }),
-    onSuccess: () => onActioned(),
+    onSuccess: (r) => setVerifyResult(r),
   });
   const decline = useMutation({
     mutationFn: () =>
       apiRequest('POST', `/camps/${camp.id}/decline`, { reason: declineReason }),
     onSuccess: () => onActioned(),
   });
+
+  function copyLink(url) {
+    try {
+      navigator.clipboard.writeText(url);
+      setCopyState('Copied!');
+      setTimeout(() => setCopyState(''), 1500);
+    } catch {
+      setCopyState('Copy failed — long-press the link.');
+    }
+  }
+
+  // Verify-success screen: surface the magic link + a one-tap WhatsApp share.
+  if (verifyResult) {
+    const url = verifyResult.organizer_dashboard?.url || '';
+    const waMsg = encodeURIComponent(
+      `Hi ${camp.submitted_by_name || 'there'},\n\n` +
+        `Your camp "${camp.name}" on ${camp.scheduled_date} is approved on Raktify.\n` +
+        `Track RSVPs, send updates, and mark attendance here:\n${url}\n\n` +
+        `(Bookmark this link — it's only for you.)`,
+    );
+    const waBase = camp.submitted_by_mobile
+      ? `https://wa.me/${String(camp.submitted_by_mobile).replace(/[^0-9]/g, '')}`
+      : 'https://wa.me/';
+    return (
+      <article className="rk-card border border-green-300 bg-green-50/40 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-green-900">Camp approved</h3>
+            <p className="text-xs text-slate-600">
+              {camp.name} · {fmtDate(camp.scheduled_date)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setVerifyResult(null);
+              onActioned();
+            }}
+            className="rk-button-secondary text-xs"
+          >
+            Done
+          </button>
+        </div>
+        <p className="text-sm text-slate-700">
+          Share this magic link with{' '}
+          <span className="font-semibold">{camp.submitted_by_name}</span>. It opens a
+          scoped organizer dashboard — no Raktify login needed.
+        </p>
+        <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+          <input
+            readOnly
+            value={url}
+            className="flex-1 truncate bg-transparent font-mono text-slate-700 outline-none"
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            type="button"
+            className="rounded-md bg-rk-700 px-2 py-1 text-xs font-semibold text-white hover:bg-rk-800"
+            onClick={() => copyLink(url)}
+          >
+            {copyState || 'Copy'}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`${waBase}?text=${waMsg}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-green-600 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100"
+          >
+            Send via WhatsApp
+          </a>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="rk-button-secondary text-xs"
+          >
+            Preview dashboard
+          </a>
+        </div>
+        <p className="text-xs text-slate-500">
+          Link expires 30 days after the camp date. If the host loses access, ask them
+          to contact you — you can re-issue from the camp row (coming soon).
+        </p>
+      </article>
+    );
+  }
 
   return (
     <article className="rk-card border border-amber-300 bg-amber-50/40 space-y-3">
