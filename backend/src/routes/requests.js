@@ -319,6 +319,86 @@ router.get('/mine', verifyJWT, requireRole('hospital'), async (req, res) => {
   res.json({ requests: r.rows, count: r.rowCount });
 });
 
+// ── GET /requests/dashboard (hospital) ───────────────────────────────────
+// Aggregate overview for the hospital portal: KPIs (open / critical / fulfilled
+// / avg time-to-fulfilment), district blood availability snapshot, recent
+// closed/expired activity. Declared BEFORE GET /:id so Express doesn't bind
+// 'dashboard' to the :id param.
+router.get('/dashboard', verifyJWT, requireRole('hospital'), async (req, res) => {
+  const hospId = req.user.institutionId;
+  if (!hospId) return res.status(403).json({ error: 'hospital_user_missing_institution' });
+
+  const data = await withRlsContext(req, async (c) => {
+    const kpis = (
+      await c.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status IN ('OP','MT','AS','PF'))::int       AS open_count,
+           COUNT(*) FILTER (WHERE status IN ('OP','MT','AS','PF')
+                            AND urgency_tier = 'CR')::int                     AS critical_now,
+           COUNT(*) FILTER (WHERE status = 'CL'
+                            AND closed_at >= date_trunc('month', NOW()))::int AS fulfilled_this_month,
+           COUNT(*) FILTER (WHERE status = 'EX'
+                            AND raised_at >= date_trunc('month', NOW()))::int AS expired_this_month,
+           AVG(EXTRACT(EPOCH FROM (fulfilled_at - raised_at)))::int           AS avg_fulfilment_seconds
+         FROM blood_requests
+         WHERE requesting_institution_id = $1
+           AND raised_at >= NOW() - INTERVAL '90 days'`,
+        [hospId],
+      )
+    ).rows[0];
+
+    const dist = (await c.query(`SELECT district_id FROM institutions WHERE id = $1`, [hospId]))
+      .rows[0]?.district_id;
+
+    const availability = dist
+      ? (
+          await c.query(
+            `SELECT bg.code AS blood_group, bc.code AS component,
+                    COUNT(*)::int AS available_units,
+                    MIN(bi.expiry_date) AS earliest_expiry
+               FROM blood_inventory bi
+               JOIN institutions i ON i.id = bi.blood_bank_id
+               JOIN blood_groups bg ON bg.id = bi.blood_group_id
+               JOIN blood_components bc ON bc.id = bi.component_id
+              WHERE i.district_id = $1
+                AND bi.status = 'AV'
+                AND bi.is_recalled = FALSE
+                AND bi.expiry_date > CURRENT_DATE
+              GROUP BY bg.code, bc.code
+              ORDER BY bg.code, bc.code`,
+            [dist],
+          )
+        ).rows
+      : [];
+
+    const recent = (
+      await c.query(
+        `SELECT br.id, br.request_number, br.status, br.urgency_tier,
+                br.units_required, br.units_fulfilled,
+                bg.code AS blood_group, bc.code AS component,
+                br.raised_at, br.closed_at, br.crossmatch_confirmed
+           FROM blood_requests br
+           JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+           JOIN blood_components bc ON bc.id = br.component_id
+          WHERE br.requesting_institution_id = $1
+            AND br.status IN ('CL','FU','EX','CA')
+       ORDER BY COALESCE(br.closed_at, br.fulfilled_at, br.raised_at) DESC
+          LIMIT 8`,
+        [hospId],
+      )
+    ).rows;
+
+    return {
+      district_id: dist || null,
+      kpis,
+      district_availability: availability,
+      recent_activity: recent,
+    };
+  });
+
+  res.json(data);
+});
+
 router.get('/:id', verifyJWT, async (req, res) => {
   const r = await withRlsContext(req, (c) =>
     c.query(
