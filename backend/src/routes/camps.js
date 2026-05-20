@@ -27,6 +27,26 @@ const env = require('../config/env');
 const { normaliseIndianMobile } = require('../utils/phone');
 const { sendNotification } = require('../services/notifications');
 
+// Behind Azure App Service / Front Door, req.ip can surface as a multi-hop
+// X-Forwarded-For string, an IPv4-mapped IPv6 like '::ffff:1.2.3.4', or an
+// unparseable proxy fallback. The audit_log column tolerates this (TEXT),
+// but camp_access_tokens.last_used_ip is INET — and Postgres rejects bad
+// INET values with error 22P02. This helper strips junk and returns null
+// when the value can't be parsed as a clean IPv4 or IPv6.
+const IPV4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+const IPV6 = /^[0-9a-fA-F:]+$/;
+function cleanClientIp(req) {
+  let raw = req?.ip || req?.headers?.['x-forwarded-for'] || null;
+  if (!raw) return null;
+  // X-Forwarded-For may be a comma-separated chain — take the first hop.
+  raw = String(raw).split(',')[0].trim();
+  // Strip the IPv4-mapped IPv6 prefix Postgres also accepts but other
+  // tooling sometimes mangles.
+  if (raw.startsWith('::ffff:')) raw = raw.slice(7);
+  if (IPV4.test(raw) || (raw.includes(':') && IPV6.test(raw))) return raw;
+  return null;
+}
+
 const router = express.Router();
 
 // ── GET /camps ───────────────────────────────────────────────────────────
@@ -531,7 +551,7 @@ router.get('/access/:token', async (req, res) => {
       actor_role: 'camp_organizer',
       actor_system_process: `camp:${t.token.slice(0, 12)}`,
       camp_token: t.token,
-      actor_ip_address: req.ip || req.headers?.['x-forwarded-for'] || null,
+      actor_ip_address: cleanClientIp(req),
       change_reason: 'camp organizer dashboard view',
     },
     async (c) => {
@@ -587,7 +607,7 @@ router.get('/access/:token', async (req, res) => {
                 last_used_ip = $2,
                 use_count = use_count + 1
           WHERE id = $1`,
-        [t.id, req.ip || null],
+        [t.id, cleanClientIp(req)],
       );
 
       return { camp, registrations: regs, channel_mix: channelMix };
@@ -616,7 +636,7 @@ router.post('/access/:token/registrations/:regId/status', async (req, res) => {
       actor_role: 'camp_organizer',
       actor_system_process: `camp:${v.token.token.slice(0, 12)}`,
       camp_token: v.token.token,
-      actor_ip_address: req.ip || null,
+      actor_ip_address: cleanClientIp(req),
       change_reason: 'organizer marks attendance',
     },
     (c) =>
