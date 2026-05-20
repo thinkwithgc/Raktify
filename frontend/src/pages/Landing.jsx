@@ -96,6 +96,12 @@ export function Landing() {
               ))}
             </div>
             <Link
+              to="/camps/host"
+              className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 md:inline"
+            >
+              Host a camp
+            </Link>
+            <Link
               to="/onboarding/apply"
               className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 md:inline"
             >
@@ -301,6 +307,14 @@ export function Landing() {
                 className="font-semibold text-white underline underline-offset-2 hover:text-rk-50"
               >
                 Apply to join Raktify
+              </Link>
+              {' · '}
+              Hosting a camp?{' '}
+              <Link
+                to="/camps/host"
+                className="font-semibold text-white underline underline-offset-2 hover:text-rk-50"
+              >
+                Register your camp
               </Link>
             </p>
           </div>

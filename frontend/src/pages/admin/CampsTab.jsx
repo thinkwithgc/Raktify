@@ -4,20 +4,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api.js';
 
 const STATUS = {
-  PL: { label: 'Planned', cls: 'bg-amber-100 text-amber-800' },
+  PE: { label: 'Pending review', cls: 'bg-amber-100 text-amber-800' },
+  PL: { label: 'Planned', cls: 'bg-sky-100 text-sky-800' },
   LV: { label: 'Live', cls: 'bg-green-100 text-green-800' },
   CO: { label: 'Completed', cls: 'bg-slate-200 text-slate-800' },
   CA: { label: 'Cancelled', cls: 'bg-rk-700 text-white' },
+  DC: { label: 'Declined', cls: 'bg-rk-700/80 text-white' },
 };
 
 const ORGANISER = {
   CC: 'Corporate',
-  CO: 'Coordinator',
+  CO: 'Community',
   EI: 'Educational',
   EO: 'External org',
   MC: 'Medical college',
   OT: 'Other',
 };
+
+const FILTERS = [
+  { id: 'PE', label: 'Pending review' },
+  { id: 'PL', label: 'Planned' },
+  { id: '',   label: 'Upcoming (PL + LV)' },
+  { id: 'CO', label: 'Completed' },
+  { id: 'DC', label: 'Declined' },
+];
 
 function fmtDate(v) {
   if (!v) return '—';
@@ -32,31 +42,63 @@ export function CampsTab() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selectedCamp, setSelectedCamp] = useState(null);
+  const [reviewCamp, setReviewCamp] = useState(null);
+  const [filter, setFilter] = useState('PE');
 
   const listQ = useQuery({
-    queryKey: ['admin', 'camps'],
-    queryFn: () => apiRequest('GET', '/camps'),
-    staleTime: 30_000,
+    queryKey: ['admin', 'camps', filter],
+    queryFn: () =>
+      apiRequest('GET', filter ? `/camps?status=${filter}` : '/camps'),
+    staleTime: 15_000,
   });
 
   const rows = listQ.data?.camps || [];
+  const pendingCount = rows.length; // when filter=PE, this is the queue size
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Upcoming donation camps
-        </h2>
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id || 'upcoming'}
+            type="button"
+            onClick={() => setFilter(f.id)}
+            className={
+              'rounded-full border px-3 py-1 text-sm font-medium ' +
+              (filter === f.id
+                ? 'border-rk-700 bg-rk-50 text-rk-900'
+                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50')
+            }
+          >
+            {f.label}
+            {f.id === 'PE' && filter !== 'PE' && pendingCount === 0 ? null : null}
+          </button>
+        ))}
         <button
           type="button"
-          className="rk-button-primary text-sm"
+          className="ml-auto rk-button-primary text-sm"
           onClick={() => setShowForm((s) => !s)}
         >
           {showForm ? 'Close' : '+ Schedule a camp'}
         </button>
       </div>
 
-      {showForm ? <CreateCampForm onCreated={() => { setShowForm(false); qc.invalidateQueries({ queryKey: ['admin', 'camps'] }); }} /> : null}
+      {filter === 'PE' && rows.length > 0 ? (
+        <p className="text-xs text-slate-500">
+          {rows.length} camp{rows.length === 1 ? '' : 's'} awaiting NGO verification.
+          Review submitter details before approving — once verified, the camp becomes
+          public and donors can RSVP.
+        </p>
+      ) : null}
+
+      {showForm ? (
+        <CreateCampForm
+          onCreated={() => {
+            setShowForm(false);
+            qc.invalidateQueries({ queryKey: ['admin', 'camps'] });
+          }}
+        />
+      ) : null}
 
       <div className="rk-card overflow-x-auto p-0">
         <table className="min-w-full text-sm">
@@ -75,13 +117,22 @@ export function CampsTab() {
           <tbody className="divide-y divide-slate-100">
             {rows.map((c) => {
               const s = STATUS[c.status] || STATUS.PL;
+              const isPending = c.status === 'PE';
               return (
-                <tr key={c.id}>
+                <tr key={c.id} className={isPending ? 'bg-amber-50/30' : ''}>
                   <td className="px-3 py-2">
                     <div className="font-medium text-slate-900">{c.name}</div>
                     <div className="text-xs text-slate-500">
                       {c.venue} · {c.start_time?.slice(0, 5)}–{c.end_time?.slice(0, 5)}
                     </div>
+                    {isPending && c.volunteer_training_requested ? (
+                      <div className="mt-0.5 inline-block rounded bg-rk-50 px-1.5 py-0.5 text-[10px] font-medium text-rk-700">
+                        Training requested
+                        {c.expected_volunteer_count
+                          ? ` · ${c.expected_volunteer_count} vols`
+                          : ''}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-slate-700">{fmtDate(c.scheduled_date)}</td>
                   <td className="px-3 py-2 text-slate-700">{c.district_name}</td>
@@ -90,25 +141,35 @@ export function CampsTab() {
                     <div className="text-xs text-slate-500">{ORGANISER[c.organiser_type]}</div>
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-900">
-                    {c.registered_donor_count}
+                    {c.registered_donor_count ?? 0}
                     {c.target_donor_count ? (
                       <span className="text-xs font-normal text-slate-500"> / {c.target_donor_count}</span>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-700">{c.attended_donor_count}</td>
+                  <td className="px-3 py-2 text-right text-slate-700">{c.attended_donor_count ?? 0}</td>
                   <td className="px-3 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}>
                       {s.label}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-rk-700 hover:underline"
-                      onClick={() => setSelectedCamp(c)}
-                    >
-                      Roster →
-                    </button>
+                    {isPending ? (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-rk-700 hover:underline"
+                        onClick={() => setReviewCamp(c)}
+                      >
+                        Review →
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-rk-700 hover:underline"
+                        onClick={() => setSelectedCamp(c)}
+                      >
+                        Roster →
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
@@ -116,7 +177,9 @@ export function CampsTab() {
             {rows.length === 0 && !listQ.isLoading ? (
               <tr>
                 <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">
-                  No upcoming camps yet — click “Schedule a camp” to add one.
+                  {filter === 'PE'
+                    ? 'No camp applications awaiting review — great.'
+                    : 'No camps in this filter.'}
                 </td>
               </tr>
             ) : null}
@@ -127,7 +190,174 @@ export function CampsTab() {
       {selectedCamp ? (
         <RosterPanel camp={selectedCamp} onClose={() => setSelectedCamp(null)} />
       ) : null}
+      {reviewCamp ? (
+        <ReviewPanel
+          camp={reviewCamp}
+          onClose={() => setReviewCamp(null)}
+          onActioned={() => {
+            setReviewCamp(null);
+            qc.invalidateQueries({ queryKey: ['admin', 'camps'] });
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ReviewPanel({ camp, onClose, onActioned }) {
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [declineReason, setDeclineReason] = useState('');
+  const [showDecline, setShowDecline] = useState(false);
+
+  const verify = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/camps/${camp.id}/verify`, {
+        review_notes: reviewNotes || undefined,
+      }),
+    onSuccess: () => onActioned(),
+  });
+  const decline = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/camps/${camp.id}/decline`, { reason: declineReason }),
+    onSuccess: () => onActioned(),
+  });
+
+  return (
+    <article className="rk-card border border-amber-300 bg-amber-50/40 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">{camp.name}</h3>
+          <p className="text-xs text-slate-500">
+            {fmtDate(camp.scheduled_date)} · {camp.venue} · {camp.district_name}
+          </p>
+        </div>
+        <button type="button" onClick={onClose} className="rk-button-secondary text-xs">
+          Close
+        </button>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md bg-white p-3 text-sm sm:grid-cols-3">
+        <dt className="text-slate-500">Submitted by</dt>
+        <dd className="sm:col-span-2 font-medium text-slate-900">
+          {camp.submitted_by_name}
+          {camp.submitted_by_role ? (
+            <span className="text-xs text-slate-500"> · {camp.submitted_by_role}</span>
+          ) : null}
+        </dd>
+        <dt className="text-slate-500">Mobile</dt>
+        <dd className="sm:col-span-2 font-mono text-sm text-slate-800">
+          {camp.submitted_by_mobile}
+        </dd>
+        {camp.submitted_by_email ? (
+          <>
+            <dt className="text-slate-500">Email</dt>
+            <dd className="sm:col-span-2">{camp.submitted_by_email}</dd>
+          </>
+        ) : null}
+        <dt className="text-slate-500">Organiser</dt>
+        <dd className="sm:col-span-2">
+          {camp.organiser_name} ({ORGANISER[camp.organiser_type]})
+        </dd>
+        <dt className="text-slate-500">Time window</dt>
+        <dd className="sm:col-span-2">
+          {camp.start_time?.slice(0, 5)}–{camp.end_time?.slice(0, 5)}
+        </dd>
+        <dt className="text-slate-500">Target donors</dt>
+        <dd className="sm:col-span-2">{camp.target_donor_count || 'not specified'}</dd>
+        <dt className="text-slate-500">Volunteer training</dt>
+        <dd className="sm:col-span-2">
+          {camp.volunteer_training_requested ? (
+            <span className="font-semibold text-rk-700">
+              Requested
+              {camp.expected_volunteer_count
+                ? ` · ${camp.expected_volunteer_count} volunteers expected`
+                : ''}
+            </span>
+          ) : (
+            'Not requested'
+          )}
+        </dd>
+        {camp.review_notes ? (
+          <>
+            <dt className="text-slate-500">Host notes</dt>
+            <dd className="sm:col-span-2 italic text-slate-700">{camp.review_notes}</dd>
+          </>
+        ) : null}
+      </dl>
+
+      {showDecline ? (
+        <div className="space-y-2">
+          <label className="block text-sm">
+            <span className="rk-label">Decline reason (visible internally)</span>
+            <textarea
+              className="rk-input min-h-[80px]"
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. duplicate of a verified camp; venue not suitable; date conflicts with another camp in district"
+              required
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rk-button-secondary text-xs"
+              onClick={() => setShowDecline(false)}
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className="rounded-md bg-rk-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rk-800"
+              disabled={decline.isPending || declineReason.length < 5}
+              onClick={() => decline.mutate()}
+            >
+              {decline.isPending ? '…' : 'Decline application'}
+            </button>
+          </div>
+          {decline.error ? (
+            <p className="text-xs text-rk-700">
+              {decline.error?.response?.data?.error || 'decline_failed'}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="block text-sm">
+            <span className="rk-label">Review notes (optional)</span>
+            <textarea
+              className="rk-input"
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              rows={2}
+              placeholder="e.g. spoke to host; venue confirmed; assigning Coord Anjali for training"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-rk-300 px-3 py-1.5 text-xs font-semibold text-rk-700 hover:bg-rk-50"
+              onClick={() => setShowDecline(true)}
+            >
+              Decline…
+            </button>
+            <button
+              type="button"
+              className="rk-button-primary text-xs"
+              disabled={verify.isPending}
+              onClick={() => verify.mutate()}
+            >
+              {verify.isPending ? '…' : 'Verify & approve'}
+            </button>
+          </div>
+          {verify.error ? (
+            <p className="text-xs text-rk-700">
+              {verify.error?.response?.data?.error || 'verify_failed'}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -180,7 +410,6 @@ function CreateCampForm({ onCreated }) {
   function set(k, v) {
     setForm((p) => ({ ...p, [k]: v }));
   }
-
   function submit(e) {
     e.preventDefault();
     setErr('');
@@ -190,7 +419,7 @@ function CreateCampForm({ onCreated }) {
   return (
     <form onSubmit={submit} className="rk-card grid gap-3 sm:grid-cols-2">
       <h3 className="col-span-full text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Schedule a new camp
+        Schedule a camp directly (staff-created, skips review)
       </h3>
       <label className="block">
         <span className="rk-label">Camp name</span>

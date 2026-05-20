@@ -1,0 +1,488 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { z } from 'zod';
+
+import { Header } from '../../components/Header.jsx';
+import { apiRequest } from '../../lib/api.js';
+
+const ORGANISER_TYPES = [
+  { code: 'CC', label: 'Corporate / company' },
+  { code: 'EI', label: 'Educational institution / college' },
+  { code: 'EO', label: 'NGO or external organisation' },
+  { code: 'MC', label: 'Medical college / hospital' },
+  { code: 'CO', label: 'Community / neighbourhood group' },
+  { code: 'OT', label: 'Other' },
+];
+
+// Client-side mirror of backend/src/routes/camps.js applySchema. The
+// backend re-validates so this just keeps the UX tight.
+const schema = z.object({
+  name: z.string().min(2),
+  organiser_type: z.enum(['CC', 'CO', 'EI', 'EO', 'MC', 'OT']),
+  organiser_name: z.string().min(2),
+  state_id: z.number().int().positive(),
+  district_id: z.number().int().positive(),
+  taluka_id: z.number().int().positive().optional(),
+  venue: z.string().min(2),
+  address_line: z.string().min(5),
+  pincode: z.string().regex(/^[1-9]\d{5}$/).optional(),
+  scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  target_donor_count: z.number().int().positive().max(2000).optional(),
+  submitted_by_name: z.string().min(2),
+  submitted_by_mobile: z
+    .string()
+    .regex(/^(\+?91[-\s]?)?[6-9]\d{9}$/, 'invalid_mobile'),
+  submitted_by_email: z.string().email().optional().or(z.literal('')),
+  submitted_by_role: z.string().optional(),
+  volunteer_training_requested: z.boolean().optional(),
+  expected_volunteer_count: z.number().int().min(0).max(500).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+function Field({ label, hint, children, error }) {
+  return (
+    <label className="block">
+      <span className="rk-label">{label}</span>
+      {children}
+      {hint && !error ? <span className="mt-1 block text-xs text-slate-500">{hint}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-rk-700">{error}</span> : null}
+    </label>
+  );
+}
+
+export function HostCamp() {
+  const [form, setForm] = useState({
+    name: '',
+    organiser_type: 'EO',
+    organiser_name: '',
+    state_id: 0,
+    district_id: 0,
+    taluka_id: 0,
+    venue: '',
+    address_line: '',
+    pincode: '',
+    scheduled_date: '',
+    start_time: '09:00',
+    end_time: '15:00',
+    target_donor_count: '',
+    submitted_by_name: '',
+    submitted_by_mobile: '',
+    submitted_by_email: '',
+    submitted_by_role: '',
+    volunteer_training_requested: true,
+    expected_volunteer_count: '',
+    notes: '',
+  });
+  const [states, setStates] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [talukas, setTalukas] = useState([]);
+  const [errors, setErrors] = useState({});
+  const [topError, setTopError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(null);
+
+  function update(k, v) {
+    setForm((p) => ({ ...p, [k]: v }));
+  }
+
+  useEffect(() => {
+    apiRequest('GET', '/geography/states').then((r) => setStates(r.states || [])).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!form.state_id) {
+      setDistricts([]);
+      return;
+    }
+    apiRequest('GET', `/geography/districts?state_id=${form.state_id}`)
+      .then((r) => setDistricts(r.districts || []))
+      .catch(() => {});
+    update('district_id', 0);
+    update('taluka_id', 0);
+    setTalukas([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.state_id]);
+  useEffect(() => {
+    if (!form.district_id) {
+      setTalukas([]);
+      return;
+    }
+    apiRequest('GET', `/geography/talukas?district_id=${form.district_id}`)
+      .then((r) => setTalukas(r.talukas || []))
+      .catch(() => {});
+    update('taluka_id', 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.district_id]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErrors({});
+    setTopError('');
+
+    const payload = {
+      ...form,
+      state_id: Number(form.state_id),
+      district_id: Number(form.district_id),
+      taluka_id: form.taluka_id ? Number(form.taluka_id) : undefined,
+      target_donor_count: form.target_donor_count ? Number(form.target_donor_count) : undefined,
+      expected_volunteer_count: form.expected_volunteer_count
+        ? Number(form.expected_volunteer_count)
+        : undefined,
+      pincode: form.pincode || undefined,
+      submitted_by_email: form.submitted_by_email || undefined,
+      submitted_by_role: form.submitted_by_role || undefined,
+      notes: form.notes || undefined,
+    };
+
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success) {
+      const f = {};
+      for (const issue of parsed.error.issues) f[issue.path[0]] = issue.message;
+      setErrors(f);
+      setTopError('Please review the highlighted fields.');
+      return;
+    }
+    // Date sanity
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(parsed.data.scheduled_date) < today) {
+      setErrors({ scheduled_date: 'must be a future date' });
+      setTopError('Camp date must be in the future.');
+      return;
+    }
+    if (parsed.data.end_time <= parsed.data.start_time) {
+      setErrors({ end_time: 'must be after start time' });
+      setTopError('End time must be after start time.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const r = await apiRequest('POST', '/camps/apply', parsed.data);
+      setSubmitted(r);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setTopError(err?.response?.data?.error || 'submit_failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-full">
+        <Header subtitle="Host a camp" />
+        <main className="mx-auto max-w-2xl px-4 py-10">
+          <div className="rk-card space-y-3">
+            <h1 className="text-xl font-semibold text-rk-700">Application received</h1>
+            <p className="text-sm text-slate-700">
+              Thank you for offering to host a donation camp. Our NGO coordinator will
+              contact you on the mobile number you provided to verify details and arrange
+              <strong> volunteer training</strong> on how to use Raktify during the camp.
+            </p>
+            <dl className="grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-3 text-sm">
+              <dt className="text-slate-500">Application ID</dt>
+              <dd className="font-mono text-xs text-slate-800">{submitted.camp_id}</dd>
+              <dt className="text-slate-500">Camp name</dt>
+              <dd className="font-medium">{submitted.name}</dd>
+              <dt className="text-slate-500">Scheduled</dt>
+              <dd>{submitted.scheduled_date}</dd>
+              <dt className="text-slate-500">Status</dt>
+              <dd>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  Pending review
+                </span>
+              </dd>
+            </dl>
+            <p className="text-xs text-slate-500">
+              {submitted.next_step}
+            </p>
+            <Link to="/" className="rk-button-secondary inline-block">
+              Back to home
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-full">
+      <Header subtitle="Host a camp" />
+      <main className="mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-slate-900">Host a blood donation camp</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Anyone can register a camp — hospitals, blood banks, schools, colleges, corporates,
+            housing societies, Rotary / Lions clubs, panchayats, or other NGOs. You do not need
+            a Raktify account. Our NGO coordinator will verify your details and{' '}
+            <strong>train your volunteers</strong> on how to use Raktify so every donor at the
+            camp gets registered and every unit gets traced.
+          </p>
+        </div>
+
+        {topError ? (
+          <div className="rk-card mb-4 border border-rk-700/30 bg-rk-700/5 text-sm text-rk-700">
+            {topError}
+          </div>
+        ) : null}
+
+        <form className="space-y-6" onSubmit={submit}>
+          {/* Organiser */}
+          <section className="rk-card grid gap-3 sm:grid-cols-2">
+            <h2 className="col-span-full text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Who is hosting?
+            </h2>
+            <Field label="Organisation type">
+              <select
+                className="rk-input"
+                value={form.organiser_type}
+                onChange={(e) => update('organiser_type', e.target.value)}
+              >
+                {ORGANISER_TYPES.map((o) => (
+                  <option key={o.code} value={o.code}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Organisation name" error={errors.organiser_name}>
+              <input
+                className="rk-input"
+                value={form.organiser_name}
+                onChange={(e) => update('organiser_name', e.target.value)}
+                placeholder="e.g. Rotary Club of Amravati"
+                required
+              />
+            </Field>
+          </section>
+
+          {/* Camp basics */}
+          <section className="rk-card grid gap-3 sm:grid-cols-2">
+            <h2 className="col-span-full text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Camp details
+            </h2>
+            <Field label="Camp name" error={errors.name}>
+              <input
+                className="rk-input"
+                value={form.name}
+                onChange={(e) => update('name', e.target.value)}
+                placeholder="e.g. Republic Day Donation Drive"
+                required
+              />
+            </Field>
+            <Field label="Target donors" hint="Optional — roughly how many donors are you expecting?">
+              <input
+                className="rk-input"
+                inputMode="numeric"
+                value={form.target_donor_count}
+                onChange={(e) =>
+                  update('target_donor_count', e.target.value.replace(/\D/g, ''))
+                }
+                placeholder="e.g. 50"
+              />
+            </Field>
+            <Field label="Date" error={errors.scheduled_date}>
+              <input
+                type="date"
+                className="rk-input"
+                value={form.scheduled_date}
+                onChange={(e) => update('scheduled_date', e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Start time" error={errors.start_time}>
+              <input
+                type="time"
+                className="rk-input"
+                value={form.start_time}
+                onChange={(e) => update('start_time', e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="End time" error={errors.end_time}>
+              <input
+                type="time"
+                className="rk-input"
+                value={form.end_time}
+                onChange={(e) => update('end_time', e.target.value)}
+                required
+              />
+            </Field>
+          </section>
+
+          {/* Location */}
+          <section className="rk-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Where will it be held?
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="State" error={errors.state_id}>
+                <select
+                  className="rk-input"
+                  value={form.state_id}
+                  onChange={(e) => update('state_id', Number(e.target.value))}
+                  required
+                >
+                  <option value={0}>— select —</option>
+                  {states.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="District" error={errors.district_id}>
+                <select
+                  className="rk-input"
+                  value={form.district_id}
+                  onChange={(e) => update('district_id', Number(e.target.value))}
+                  disabled={!form.state_id}
+                  required
+                >
+                  <option value={0}>— select —</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Taluka" hint="Optional">
+                <select
+                  className="rk-input"
+                  value={form.taluka_id}
+                  onChange={(e) => update('taluka_id', Number(e.target.value))}
+                  disabled={!form.district_id || talukas.length === 0}
+                >
+                  <option value={0}>— optional —</option>
+                  {talukas.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Venue" error={errors.venue}>
+              <input
+                className="rk-input"
+                value={form.venue}
+                onChange={(e) => update('venue', e.target.value)}
+                placeholder="e.g. Auditorium, Sant Gadge Baba University"
+                required
+              />
+            </Field>
+            <Field label="Address" error={errors.address_line}>
+              <input
+                className="rk-input"
+                value={form.address_line}
+                onChange={(e) => update('address_line', e.target.value)}
+                placeholder="Building / street / locality"
+                required
+              />
+            </Field>
+            <Field label="Pincode" error={errors.pincode}>
+              <input
+                className="rk-input max-w-[10rem] tracking-widest"
+                value={form.pincode}
+                onChange={(e) =>
+                  update('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                inputMode="numeric"
+                maxLength={6}
+              />
+            </Field>
+          </section>
+
+          {/* Volunteer training */}
+          <section className="rk-card space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Volunteer training
+            </h2>
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.volunteer_training_requested}
+                onChange={(e) => update('volunteer_training_requested', e.target.checked)}
+              />
+              <span>
+                Yes — please train our volunteers on Raktify so we can register every donor
+                and trace every unit during the camp.
+              </span>
+            </label>
+            {form.volunteer_training_requested ? (
+              <Field label="How many volunteers will need training?" error={errors.expected_volunteer_count}>
+                <input
+                  className="rk-input max-w-[10rem]"
+                  inputMode="numeric"
+                  value={form.expected_volunteer_count}
+                  onChange={(e) =>
+                    update('expected_volunteer_count', e.target.value.replace(/\D/g, ''))
+                  }
+                  placeholder="e.g. 6"
+                />
+              </Field>
+            ) : null}
+          </section>
+
+          {/* Contact */}
+          <section className="rk-card grid gap-3 sm:grid-cols-2">
+            <h2 className="col-span-full text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Your contact details
+            </h2>
+            <Field label="Full name" error={errors.submitted_by_name}>
+              <input
+                className="rk-input"
+                value={form.submitted_by_name}
+                onChange={(e) => update('submitted_by_name', e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Your role" hint="e.g. President, Headmistress, HR Manager">
+              <input
+                className="rk-input"
+                value={form.submitted_by_role}
+                onChange={(e) => update('submitted_by_role', e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Mobile (10-digit)"
+              hint="Our coordinator will WhatsApp / call you on this number"
+              error={errors.submitted_by_mobile}
+            >
+              <input
+                className="rk-input"
+                value={form.submitted_by_mobile}
+                onChange={(e) => update('submitted_by_mobile', e.target.value)}
+                placeholder="9XXXXXXXXX"
+                inputMode="tel"
+                required
+              />
+            </Field>
+            <Field label="Email (optional)" error={errors.submitted_by_email}>
+              <input
+                type="email"
+                className="rk-input"
+                value={form.submitted_by_email}
+                onChange={(e) => update('submitted_by_email', e.target.value)}
+              />
+            </Field>
+            <Field label="Anything else you'd like us to know?" hint="Partnerships, blood-bank tie-ups, accessibility needs, etc.">
+              <textarea
+                className="rk-input col-span-full min-h-[80px]"
+                value={form.notes}
+                onChange={(e) => update('notes', e.target.value)}
+                rows={3}
+              />
+            </Field>
+          </section>
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <p className="max-w-md text-xs text-slate-500">
+              By submitting you agree that our coordinator may contact you on the number you
+              provided. Raktify is free for camp hosts and donors — always.
+            </p>
+            <button type="submit" className="rk-button-primary" disabled={submitting}>
+              {submitting ? '…' : 'Submit application'}
+            </button>
+          </div>
+        </form>
+      </main>
+    </div>
+  );
+}

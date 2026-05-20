@@ -1,22 +1,29 @@
 /**
  * Donation camp routes (spec §11).
  *
+ *   POST /camps/apply              PUBLIC — external host submits a camp;
+ *                                  lands in status=PE awaiting NGO review
  *   GET  /camps                    list — upcoming + (optional) district filter
  *   GET  /camps/:id                detail
  *   GET  /camps/:id/registrations  roster — coordinator/admin/BB
- *   POST /camps                    create — coordinator/admin
+ *   POST /camps                    create direct — coordinator/admin (status=PL)
+ *   POST /camps/:id/verify         PE → PL — coordinator/admin
+ *   POST /camps/:id/decline        PE → DC — coordinator/admin
  *   POST /camps/:id/register       donor self-RSVP
  *   DELETE /camps/:id/register     donor cancels RSVP
  *
  * The denormalised donation_camps.registered_donor_count is kept in sync by
- * triggers on camp_registrations (migration 260).
+ * triggers on camp_registrations (migration 260). Migration 261 widens the
+ * status enum and adds public-submitter fields.
  */
 const express = require('express');
 const crypto = require('crypto');
 const { z } = require('zod');
 
-const { withRlsContext } = require('../middleware/rlsContext');
+const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const logger = require('../config/logger');
+const { normaliseIndianMobile } = require('../utils/phone');
 
 const router = express.Router();
 
@@ -26,6 +33,7 @@ const router = express.Router();
 router.get('/', verifyJWT, async (req, res) => {
   const districtId = req.query.district_id ? Number(req.query.district_id) : null;
   const status = req.query.status || null;
+  const isReviewer = ['ngo_admin', 'super_admin', 'coordinator'].includes(req.user.role);
 
   const r = await withRlsContext(req, (c) =>
     c.query(
@@ -37,7 +45,12 @@ router.get('/', verifyJWT, async (req, res) => {
               c.target_donor_count, c.registered_donor_count,
               c.attended_donor_count, c.units_collected,
               c.status, c.partnered_blood_bank_id,
-              i.display_name AS partnered_blood_bank_name
+              i.display_name AS partnered_blood_bank_name,
+              c.submitted_by_name, c.submitted_by_mobile,
+              c.submitted_by_email, c.submitted_by_role,
+              c.volunteer_training_requested, c.expected_volunteer_count,
+              c.review_notes, c.declined_reason,
+              c.verified_at, c.declined_at
          FROM donation_camps c
          JOIN districts d ON d.id = c.district_id
     LEFT JOIN institutions i ON i.id = c.partnered_blood_bank_id
@@ -49,7 +62,163 @@ router.get('/', verifyJWT, async (req, res) => {
       [districtId, status],
     ),
   );
-  res.json({ camps: r.rows, count: r.rowCount });
+
+  // Non-reviewers (donors, hospitals, blood banks) never see the submitter
+  // PII. The columns above are returned for the SQL convenience of a single
+  // query; we redact them per-row before sending the response.
+  const REDACT_KEYS = [
+    'submitted_by_name',
+    'submitted_by_mobile',
+    'submitted_by_email',
+    'submitted_by_role',
+    'review_notes',
+    'declined_reason',
+  ];
+  const camps = isReviewer
+    ? r.rows
+    : r.rows.map((row) => {
+        const safe = { ...row };
+        for (const k of REDACT_KEYS) delete safe[k];
+        return safe;
+      });
+  res.json({ camps, count: r.rowCount });
+});
+
+// ── POST /camps/apply (PUBLIC) ───────────────────────────────────────────
+// External camp hosts (hospitals not yet onboarded, blood banks, NGOs,
+// communities, colleges, corporates) submit a camp here. Lands in status=PE
+// pending NGO coordinator review. Mirrors the institution onboarding apply
+// pattern: no JWT, uses actor_role='onboarding' for RLS + audit.
+//
+// Declared BEFORE GET /:id so Express doesn't bind 'apply' to :id.
+const applySchema = z.object({
+  // Camp identity
+  name: z.string().min(2),
+  organiser_type: z.enum(['CC', 'CO', 'EI', 'EO', 'MC', 'OT']),
+  organiser_name: z.string().min(2),
+
+  // Geography
+  state_id: z.number().int().positive(),
+  district_id: z.number().int().positive(),
+  taluka_id: z.number().int().positive().optional(),
+  venue: z.string().min(2),
+  address_line: z.string().min(5),
+  pincode: z
+    .string()
+    .regex(/^[1-9]\d{5}$/)
+    .optional(),
+
+  // Schedule
+  scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+
+  // Targets
+  target_donor_count: z.number().int().positive().max(2000).optional(),
+
+  // Public submitter contact (the ask: who's hosting?)
+  submitted_by_name: z.string().min(2),
+  submitted_by_mobile: z.string(),
+  submitted_by_email: z.string().email().optional(),
+  submitted_by_role: z.string().optional(),
+
+  // Volunteer training ask
+  volunteer_training_requested: z.boolean().optional(),
+  expected_volunteer_count: z.number().int().min(0).max(500).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+function slugify(s) {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+router.post('/apply', async (req, res) => {
+  const parsed = applySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+  }
+  const d = parsed.data;
+  const submitterMobile = normaliseIndianMobile(d.submitted_by_mobile);
+  if (!submitterMobile) {
+    return res.status(400).json({ error: 'invalid_mobile_format' });
+  }
+
+  const slug = `${slugify(d.name)}-${Date.now().toString(36).slice(-5)}`;
+  const qrToken = crypto.randomBytes(18).toString('base64url');
+
+  const created = await withRlsContextRaw(
+    { actor_role: 'onboarding', change_reason: 'public camp apply' },
+    async (c) => {
+      const r = await c.query(
+        `INSERT INTO donation_camps (
+           name, slug, qr_code_token,
+           state_id, district_id, taluka_id,
+           venue, address_line, pincode,
+           scheduled_date, start_time, end_time,
+           organiser_type, organiser_name,
+           target_donor_count, status,
+           submitted_by_name, submitted_by_mobile,
+           submitted_by_email, submitted_by_role,
+           volunteer_training_requested, expected_volunteer_count,
+           review_notes)
+         VALUES (
+           $1, $2, $3,
+           $4, $5, $6,
+           $7, $8, $9,
+           $10, $11, $12,
+           $13, $14,
+           $15, 'PE',
+           $16, $17,
+           $18, $19,
+           $20, $21,
+           $22)
+         RETURNING id, name, slug, scheduled_date, status`,
+        [
+          d.name,
+          slug,
+          qrToken,
+          d.state_id,
+          d.district_id,
+          d.taluka_id || null,
+          d.venue,
+          d.address_line,
+          d.pincode || null,
+          d.scheduled_date,
+          d.start_time,
+          d.end_time,
+          d.organiser_type,
+          d.organiser_name,
+          d.target_donor_count || null,
+          d.submitted_by_name,
+          submitterMobile,
+          d.submitted_by_email || null,
+          d.submitted_by_role || null,
+          d.volunteer_training_requested ?? false,
+          d.expected_volunteer_count || null,
+          d.notes || null,
+        ],
+      );
+      return r.rows[0];
+    },
+  );
+
+  logger.info(
+    { camp_id: created.id, district_id: d.district_id, organiser_type: d.organiser_type },
+    'Public camp application received',
+  );
+
+  res.status(201).json({
+    camp_id: created.id,
+    name: created.name,
+    scheduled_date: created.scheduled_date,
+    status: 'PE',
+    next_step:
+      'Our NGO coordinator will contact you within 2 working days to verify details and arrange volunteer training.',
+  });
 });
 
 // ── GET /camps/:id ───────────────────────────────────────────────────────
@@ -113,14 +282,6 @@ const createSchema = z.object({
   partnered_blood_bank_id: z.string().uuid().optional(),
   target_donor_count: z.number().int().positive().max(2000).optional(),
 });
-
-function slugify(s) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40);
-}
 
 router.post(
   '/',
@@ -193,6 +354,88 @@ router.post(
     );
 
     res.status(201).json(result);
+  },
+);
+
+// ── POST /camps/:id/verify (PE → PL) ─────────────────────────────────────
+router.post(
+  '/:id/verify',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const schema = z.object({
+      review_notes: z.string().max(2000).optional(),
+      partnered_blood_bank_id: z.string().uuid().optional(),
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        let organisingCoordId = null;
+        if (req.user.role === 'coordinator') {
+          const cr = await c.query(`SELECT id FROM coordinators WHERE platform_user_id = $1`, [
+            req.user.userId,
+          ]);
+          if (cr.rowCount > 0) organisingCoordId = cr.rows[0].id;
+        }
+        const r = await c.query(
+          `UPDATE donation_camps
+              SET status = 'PL',
+                  verified_by_user_id = $2,
+                  verified_at = clock_timestamp(),
+                  review_notes = COALESCE($3, review_notes),
+                  partnered_blood_bank_id = COALESCE($4::uuid, partnered_blood_bank_id),
+                  organising_coordinator_id = COALESCE($5::uuid, organising_coordinator_id)
+            WHERE id = $1 AND status = 'PE'
+        RETURNING id, status, verified_at`,
+          [
+            req.params.id,
+            req.user.userId,
+            parsed.data.review_notes || null,
+            parsed.data.partnered_blood_bank_id || null,
+            organisingCoordId,
+          ],
+        );
+        if (r.rowCount === 0) {
+          throw Object.assign(new Error('not_found_or_wrong_state'), { status: 409 });
+        }
+        return r.rows[0];
+      },
+      { change_reason: 'verify camp application' },
+    );
+    res.json(result);
+  },
+);
+
+// ── POST /camps/:id/decline (PE → DC) ────────────────────────────────────
+router.post(
+  '/:id/decline',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const schema = z.object({ reason: z.string().min(5).max(2000) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'reason_required_min_5_chars' });
+    }
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE donation_camps
+              SET status = 'DC',
+                  declined_at = clock_timestamp(),
+                  declined_reason = $2
+            WHERE id = $1 AND status = 'PE'
+        RETURNING id, status, declined_at`,
+          [req.params.id, parsed.data.reason],
+        ),
+      { change_reason: `decline camp: ${parsed.data.reason}` },
+    );
+    if (r.rowCount === 0) return res.status(409).json({ error: 'not_found_or_wrong_state' });
+    res.json(r.rows[0]);
   },
 );
 
