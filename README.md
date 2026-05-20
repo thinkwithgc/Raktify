@@ -6,6 +6,18 @@ Life-critical community blood donation and emergency matching platform operated 
 
 The full product specification is `docs/Raktify_Master_Prompt.md`. The build is structured in 8 phases (0 → 8) plus a planned Phase 9 (offline-community onboarding).
 
+**For the 27 May 2026 donor meeting**, three docs:
+
+| Document | Use it for |
+|----------|-----------|
+| `docs/Raktify_Feature_Reference.md` | Exhaustive snapshot of every feature shipped (roles, screens, endpoints, schemas). |
+| `docs/Raktify_Demo_Guide.md` | Click-by-click runbook with all test accounts and demo flows. |
+| `docs/Raktify_CSR_Budget.html` | Two-year operating budget + aggressive feature roadmap (open in a browser, A4 print-ready). |
+| `docs/DEPLOYMENT.md` | Azure infra recipe + production env matrix. |
+
+**Live staging:** `https://raktify.choudhari.ngo` (frontend) ·
+`https://raktify-api-staging-hsdxfzhrg5a7ekes.centralindia-01.azurewebsites.net/health` (backend).
+
 ---
 
 ## Repository layout
@@ -84,19 +96,23 @@ npm run dev:frontend    # → http://localhost:5173
 
 ## Status
 
-Phases 0–8 are code-complete (core). See `CLAUDE.md` for the per-phase detail and the deferred-items list.
+Phases 0–8 are code-complete and live on Azure staging.
+See `CLAUDE.md` for the per-phase detail, `docs/Raktify_Feature_Reference.md`
+for the exhaustive feature catalogue, and `docs/Raktify_CSR_Budget.html`
+for the deferred-items roadmap.
 
 | Phase | Status |
 |-------|--------|
 | 0 — Infrastructure | ✅ |
-| 1 — Database foundation | ✅ |
+| 1 — Database foundation | ✅ (44 migrations) |
 | 2 — Auth + onboarding | ✅ |
 | 3 — Donor registration + passport | ✅ |
 | 4 — Inventory + TTI | ✅ |
 | 5 — Request engine + matching | ✅ |
 | 6 — Notifications + WhatsApp + Lookback | ✅ |
-| 7 — Frontend (React PWA) | ✅ |
-| 8 — Admin + reporting + deploy | ✅ (code-complete) |
+| 7 — Frontend (React PWA) | ✅ (5 role portals + public surfaces) |
+| 8 — Admin + reporting + deploy | ✅ (10-tab admin, 3 reports) |
+| Post-Phase-8 additions | Donor tier badges · Camps end-to-end (host → verify → magic-link organizer dashboard → public landing → share toolkit → channel attribution → roster → attendance) · Thalassemia & rare-blood registries · Public geo lookup |
 | 9 — Offline-community onboarding | Planned |
 
 ### Outstanding external dependencies

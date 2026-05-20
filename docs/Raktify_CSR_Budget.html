@@ -335,55 +335,93 @@
           <div class="tagline">रक्त दान करा. जीव वाचवा. &nbsp;·&nbsp; India's voluntary blood network</div>
         </div>
         <div class="doc-meta">
-          <strong>Two-Year Budget &amp; Impact</strong>
+          <strong>Two-Year Operating Budget &amp; 18-Month Roadmap</strong>
           Prepared for CSR partnership<br />
-          May 2026 &nbsp;·&nbsp; FY2026–FY2028
+          21 May 2026 &nbsp;·&nbsp; FY2026&ndash;FY2028
         </div>
       </header>
 
       <h1 class="title">Funding a permanent, life-saving digital public good</h1>
       <p class="lead">
-        Raktify is a free platform that connects voluntary blood donors, hospitals, and
-        blood banks so no emergency request goes unanswered. The platform is built and
-        launch-ready. This sheet sets out the relaxed (conservative-high) cost of running
-        and sustaining it for two years — and the impact a CSR partnership unlocks.
+        Raktify is a free, India-first platform connecting voluntary blood donors,
+        hospitals, blood banks and camp organizers so no emergency request goes
+        unanswered. The full 8-phase MVP is <strong>code-complete and live</strong> on
+        Azure at <strong>raktify.choudhari.ngo</strong>. This sheet sets out the
+        two-year operating cost and the 18-month aggressive roadmap that a CSR
+        partnership unlocks &mdash; from district roll-out to pan-India coverage,
+        Aadhaar KYC, IoT cold-chain, insurance integration, and federated rare-blood
+        broadcasting.
       </p>
 
-      <!-- ── Budget ─────────────────────────────────────────────────── -->
+      <!-- ── Budget · Year-by-year ─────────────────────────────────── -->
       <div class="section">
-        <div class="section-label">Two-year budget — core platform</div>
+        <div class="section-label">Two-year operating budget — line-item breakdown</div>
         <table>
+          <thead>
+            <tr style="background: var(--cream); border-bottom: 1px solid var(--sand)">
+              <th style="text-align: left; padding: 8px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--stone-500)">Cost item</th>
+              <th style="text-align: right; padding: 8px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--stone-500)">Year 1</th>
+              <th style="text-align: right; padding: 8px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--stone-500)">Year 2</th>
+              <th style="text-align: right; padding: 8px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--stone-500)">2-yr total</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
               <td>
-                <span class="row-letter">A</span> &nbsp; Cloud infrastructure (Microsoft Azure)
-                <div class="row-note">Database, application hosting, frontend, monitoring, security</div>
+                <span class="row-letter">A</span> &nbsp; <strong>Cloud infrastructure</strong> &mdash; Azure Central India
+                <div class="row-note">
+                  PostgreSQL Flexible Server (B1ms, Multi-AZ ready) ₹1.5L &middot;
+                  App Service Linux B1 ₹0.5L &middot; Static Web Apps + Blob ₹0.1L &middot;
+                  Application Insights + Log Analytics ₹0.3L
+                </div>
               </td>
+              <td class="amt">&#8377;&nbsp;2,40,000</td>
+              <td class="amt">&#8377;&nbsp;2,50,000</td>
               <td class="amt">&#8377;&nbsp;4,90,000</td>
             </tr>
             <tr>
               <td>
-                <span class="row-letter">B</span> &nbsp; Communications — SMS, WhatsApp &amp; voice
-                <div class="row-note">OTP, emergency donor alerts, escalation calls (usage-based)</div>
+                <span class="row-letter">B</span> &nbsp; <strong>WhatsApp / SMS / voice</strong>
+                <div class="row-note">
+                  WhatsApp utility templates (Meta-direct, no BSP) ~&#8377;0.65/msg &middot;
+                  SMS fallback ~&#8377;0.25/msg &middot; voice escalation calls ~&#8377;1.5/min.
+                  Year 1 assumes 18k WA + 5k SMS + 1k voice min; Year 2 doubles.
+                </div>
               </td>
+              <td class="amt">&#8377;&nbsp;1,15,000</td>
+              <td class="amt">&#8377;&nbsp;1,60,000</td>
               <td class="amt">&#8377;&nbsp;2,75,000</td>
             </tr>
             <tr>
               <td>
-                <span class="row-letter">C</span> &nbsp; Software subscriptions &amp; tooling
-                <div class="row-note">Error tracking, uptime monitoring, e-sign, developer tooling</div>
+                <span class="row-letter">C</span> &nbsp; <strong>SaaS subscriptions &amp; tooling</strong>
+                <div class="row-note">
+                  LeegAlly Aadhaar eSign ~&#8377;200/sign × 200 institutions ₹0.4L &middot;
+                  Sentry team plan ₹0.25L &middot; Better Uptime free tier ₹0 &middot;
+                  GitHub Pro / dev tooling ₹0.1L
+                </div>
               </td>
+              <td class="amt">&#8377;&nbsp;40,000</td>
+              <td class="amt">&#8377;&nbsp;35,000</td>
               <td class="amt">&#8377;&nbsp;75,000</td>
             </tr>
             <tr>
               <td>
-                <span class="row-letter">D</span> &nbsp; One-time setup
-                <div class="row-note">Domains, telecom (DLT) registration, configuration</div>
+                <span class="row-letter">D</span> &nbsp; <strong>One-time setup</strong> &mdash; FY26-27 only
+                <div class="row-note">
+                  Domain &amp; SSL ₹0.05L &middot; DLT principal-entity registration ₹0.15L &middot;
+                  WhatsApp Business Account verification ₹0 (Meta direct) &middot;
+                  Azure Key Vault initial config ₹0.10L
+                </div>
               </td>
+              <td class="amt">&#8377;&nbsp;30,000</td>
+              <td class="amt">&mdash;</td>
               <td class="amt">&#8377;&nbsp;30,000</td>
             </tr>
             <tr class="subtotal">
-              <td>Core platform running cost &nbsp;·&nbsp; 2 years</td>
+              <td>Core platform operating cost</td>
+              <td class="amt">&#8377;&nbsp;4,25,000</td>
+              <td class="amt">&#8377;&nbsp;4,45,000</td>
               <td class="amt">&#8377;&nbsp;8,70,000</td>
             </tr>
           </tbody>
@@ -391,28 +429,60 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Two-year budget — sustainability &amp; growth</div>
+        <div class="section-label">Sustainability, growth &amp; pilots</div>
         <table>
           <tbody>
             <tr>
               <td>
-                <span class="row-letter">E</span> &nbsp; Technical maintenance &amp; enhancement
-                <div class="row-note">Security patches, support, onboarding of partner networks</div>
+                <span class="row-letter">E</span> &nbsp; <strong>Part-time engineer</strong> &mdash; maintenance + roadmap delivery
+                <div class="row-note">
+                  ~25 hours/month &times; 24 months &middot; security patches, partner onboarding
+                  support, feature delivery against the roadmap below
+                </div>
               </td>
+              <td class="amt" colspan="2">&nbsp;</td>
               <td class="amt">&#8377;&nbsp;6,00,000</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="row-letter">F</span> &nbsp; <strong>Volunteer training &amp; coordinator stipends</strong>
+                <div class="row-note">
+                  3 districts &times; ₹3k/month travel + airtime reimbursement &middot;
+                  bi-monthly volunteer-training camps at partner blood banks
+                </div>
+              </td>
+              <td class="amt" colspan="2">&nbsp;</td>
+              <td class="amt">&#8377;&nbsp;2,16,000</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="row-letter">G</span> &nbsp; <strong>Medical &amp; legal advisor honorarium</strong>
+                <div class="row-note">
+                  Haematologist sign-off on clinical reference data &middot; healthcare lawyer
+                  review of MoU template &middot; quarterly compliance check
+                </div>
+              </td>
+              <td class="amt" colspan="2">&nbsp;</td>
+              <td class="amt">&#8377;&nbsp;1,20,000</td>
             </tr>
             <tr class="optional">
               <td>
-                <span class="row-letter">F</span> &nbsp; IoT cold-chain monitoring pilot — optional
-                <div class="row-note">Temperature sensors for blood-bank fridges &amp; transport</div>
+                <span class="row-letter">H</span> &nbsp; IoT cold-chain monitoring pilot &mdash; <em>optional</em>
+                <div class="row-note">
+                  10 LoRaWAN temperature loggers for blood-bank fridges + transport bags &middot;
+                  MQTT broker on Azure IoT Hub &middot; dashboard integration into the BB portal
+                </div>
               </td>
+              <td class="amt" colspan="2">&nbsp;</td>
               <td class="amt">&#8377;&nbsp;2,00,000</td>
             </tr>
             <tr>
               <td>
-                <span class="row-letter">G</span> &nbsp; Contingency (~10%)
+                <span class="row-letter">I</span> &nbsp; Contingency &mdash; ~8%
+                <div class="row-note">Currency volatility, surge SMS, unplanned partner asks</div>
               </td>
-              <td class="amt">&#8377;&nbsp;1,50,000</td>
+              <td class="amt" colspan="2">&nbsp;</td>
+              <td class="amt">&#8377;&nbsp;1,30,000</td>
             </tr>
           </tbody>
         </table>
@@ -424,26 +494,30 @@
         <div class="tiers">
           <div class="tier">
             <div class="tier-name">Lean</div>
-            <div class="tier-amt">&#8377;&nbsp;9 lakh</div>
+            <div class="tier-amt">&#8377;&nbsp;10 lakh</div>
             <div class="tier-desc">
-              Core platform only — cloud, communications, subscriptions &amp; setup. The
-              foundation self-maintains the system.
+              Core platform (A+B+C+D) plus medical &amp; legal advisor honorarium (G).
+              The foundation self-maintains the system and ships the roadmap from
+              volunteer effort.
             </div>
           </div>
           <div class="tier">
             <div class="tier-name">Recommended</div>
-            <div class="tier-amt">&#8377;&nbsp;16 lakh</div>
+            <div class="tier-amt">&#8377;&nbsp;19 lakh</div>
             <div class="tier-desc">
-              Everything above plus a part-time developer for maintenance &amp; growth, with
-              contingency. Excludes the IoT pilot.
+              Everything above plus a part-time engineer (E), district coordinator
+              stipends &amp; volunteer training (F), and contingency (I). Excludes the
+              IoT pilot. Funds the entire 18-month roadmap.
             </div>
           </div>
           <div class="tier highlight">
             <div class="tier-name">Full programme</div>
-            <div class="tier-amt">&#8377;&nbsp;18–20 lakh</div>
+            <div class="tier-amt">&#8377;&nbsp;22 lakh</div>
             <div class="tier-desc">
-              Complete two-year funding — platform, maintenance, the IoT cold-chain pilot
-              and contingency. Nothing left to crunch.
+              Complete two-year funding &mdash; platform, engineer, volunteer programme,
+              <strong>IoT cold-chain pilot (H)</strong> &amp; contingency. The pilot
+              alone prevents ~&#8377;1.5L of bag wastage per year per partner blood bank.
+              Nothing left to crunch.
             </div>
             <span class="pill">Headline ask</span>
           </div>
@@ -452,149 +526,202 @@
 
       <!-- ── Roadmap ────────────────────────────────────────────────── -->
       <div class="section">
-        <div class="section-label">Where the platform is today, and what comes next</div>
-        <p style="margin-bottom: 0.75rem; color: var(--stone-700); font-size: 0.92rem">
-          The platform is <strong>code-complete</strong> on the full 8-phase MVP — donor &amp;
-          institutional onboarding, blood-bank inventory with TTI screening, request &amp;
-          matching engine, coordinator escalation rings, hemovigilance reporting, audit-hash
-          chain, donor badges, camp scheduling, thalassemia &amp; rare-blood registries. The
-          following items are <strong>scoped, designed, and partly stubbed</strong>; CSR
-          funding accelerates each from "ready to wire" to "in production".
+        <div class="section-label">Where the platform is today</div>
+        <p style="margin-bottom: 0.6rem; color: var(--stone-700); font-size: 0.92rem">
+          The full 8-phase MVP is <strong>code-complete and live on Azure</strong>.
+          44 database migrations, 44 API endpoints, five role portals (donor, hospital,
+          blood bank, coordinator, NGO admin), 10-tab admin console, end-to-end camp
+          lifecycle with public host applications + NGO verification + magic-link
+          organizer dashboards + multi-channel share + per-channel attribution,
+          thalassemia + rare-blood registries, hash-chained audit log, DHO hemovigilance
+          report export. RLS-gated, column-encrypted, demo-ready at
+          <strong style="color: var(--rk-700)">raktify.choudhari.ngo</strong>.
         </p>
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem">
+        <p style="font-size: 0.88rem; color: var(--stone-500)">
+          The roadmap below is what CSR funding turns from "designed and stubbed"
+          into "live and serving patients". Every line item is finite and scoped &mdash;
+          no greenfield research, no speculative bets.
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-label">18-month aggressive roadmap &mdash; Q3 FY27 onwards</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.84rem">
           <thead>
-            <tr style="text-align: left; color: var(--stone-500); border-bottom: 1px solid var(--sand)">
-              <th style="padding: 0.4rem 0.6rem 0.4rem 0">Capability</th>
-              <th style="padding: 0.4rem 0.6rem">Unlocks</th>
-              <th style="padding: 0.4rem 0 0.4rem 0.6rem">Blocked on</th>
+            <tr style="background: var(--cream); border-bottom: 1px solid var(--sand)">
+              <th style="padding: 8px 10px; text-align: left; color: var(--rk-700); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em">Quarter</th>
+              <th style="padding: 8px 10px; text-align: left; color: var(--rk-700); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em">Shipping</th>
+              <th style="padding: 8px 10px; text-align: left; color: var(--rk-700); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em">Impact target</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">WhatsApp Cloud API</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Donor OTPs, MoU eSign delivery, urgent alerts &amp; opt-in workflow
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q3 2026<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Jul&ndash;Sep</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; WhatsApp Cloud API <strong>live</strong> (OTP, alerts, camp links, MoU eSign)<br>
+                &bull; Pan-India LGD geography activated for top 8 states<br>
+                &bull; Real-time queue via Socket.io (sub-second emergency updates)<br>
+                &bull; Workbox BackgroundSync for offline-first donor availability
               </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">Meta WABA review</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Pan-India geography</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Onboarding partners in any state — currently Maharashtra-active
-              </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                LGD CSV import (importer in repo)
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>3 districts live</strong> in Maharashtra &middot;<br>
+                500 donors registered &middot;<br>
+                first 50 emergency requests mediated
               </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Map view + GPS donor search</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Distance-based ring escalation; donor self-discovery of camps
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q4 2026<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Oct&ndash;Dec</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; Map view + PostGIS distance-based donor search<br>
+                &bull; Devanagari design pass (Noto Sans Devanagari, type scale, motion)<br>
+                &bull; Clinical-copy Marathi + Hindi translations (medical advisor signed)<br>
+                &bull; Dynamic Open Graph for camp share previews on WA / FB<br>
+                &bull; DHO PDF report generation (Puppeteer)
               </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                PostGIS upgrade or managed tile provider
-              </td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Aadhaar XML KYC</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Tamper-proof donor identity &amp; institutional signatory verification
-              </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">UIDAI AUA/KUA licence</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Real-time live queue</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Sub-second emergency updates for coordinators (vs. 15-second polling today)
-              </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                Socket.io server + sticky-session ALB
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>10 districts</strong> live &middot;<br>
+                2,000 donors &middot;<br>
+                first DHO hemovigilance filing
               </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Insurance integration</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Ayushman Bharat / PMJAY / Mahatma Phule patient verification
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q1 2027<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Jan&ndash;Mar</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; <strong>Aadhaar XML KYC</strong> for donors and institutional signatories<br>
+                &bull; Donor merge endpoint live (duplicate consolidation)<br>
+                &bull; Adverse-transfusion-reaction tracking (hemovigilance closure)<br>
+                &bull; Camp Captain role (persistent host login for repeat organisers)<br>
+                &bull; Audit-reader integrity-check grant migration
               </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                State-health-mission MoU
-              </td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">Multi-language deep copy</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Marathi + Hindi clinical surfaces (UI already supports both)
-              </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                Medical-advisor copy review
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>25 districts</strong> &middot;<br>
+                5,000 donors &middot;<br>
+                15 institutions onboarded
               </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--sand)">
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">IoT cold-chain sensors</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Auto temperature logging for refrigerator &amp; transport bag-level
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q2 2027<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Apr&ndash;Jun</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; <strong>IoT cold-chain pilot</strong> &mdash; 10 fridge sensors, transport-bag tags<br>
+                &bull; Insurance API integration (Ayushman Bharat / PMJAY / MJPJAY)<br>
+                &bull; Hospital network expansion (50 hospitals across 3 states)<br>
+                &bull; Citizen-tier request audit + community moderation tooling
               </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                Hardware partner + MQTT broker
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>50 hospitals</strong> &middot;<br>
+                10,000 donors &middot;<br>
+                first cold-chain alert prevents wastage
+              </td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--sand)">
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q3 2027<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Jul&ndash;Sep</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; AI-assisted donor recommendation (next-eligible date + reliability + distance)<br>
+                &bull; Lab integration with major chains (post-transfusion outcome tracking)<br>
+                &bull; State Government MoUs (Maharashtra, Karnataka, Tamil Nadu)<br>
+                &bull; Bi-directional sync with eRaktKosh
+              </td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>3 state MoUs</strong> &middot;<br>
+                25,000 donors &middot;<br>
+                100 institutions
+              </td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--sand)">
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">Q4 2027<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">Oct&ndash;Dec</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; Public-health dashboard for DHOs (district shortage heatmaps, lookback velocity)<br>
+                &bull; FHIR-conformant export for academic / research partners<br>
+                &bull; National rare-blood registry federation (cross-state alert routing)<br>
+                &bull; Native Android donor app (Capacitor wrapper of the existing PWA)
+              </td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>Pan-India</strong> rare-blood<br>
+                national network &middot;<br>
+                Android Play Store launch
               </td>
             </tr>
             <tr>
-              <td style="padding: 0.5rem 0.6rem 0.5rem 0; font-weight: 600">DHO PDF reports</td>
-              <td style="padding: 0.5rem 0.6rem; color: var(--stone-700)">
-                Hemovigilance &amp; district-summary PDFs for DGHS submission
+              <td style="padding: 8px 10px; vertical-align: top; font-weight: 700; color: var(--rk-700); white-space: nowrap">2028<br><span style="font-weight: 400; font-size: 10.5px; color: var(--stone-500)">FY27-28</span></td>
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                &bull; Federated patient registries (thalassemia / sickle-cell across hospitals)<br>
+                &bull; International rollout (Nepal, Bangladesh &mdash; high-overlap clinical need)<br>
+                &bull; Predictive demand forecasting per blood bank (ML on historical pattern)<br>
+                &bull; Donor wellness layer (post-donation health check, anaemia monitoring)
               </td>
-              <td style="padding: 0.5rem 0 0.5rem 0.6rem; color: var(--stone-500)">
-                Puppeteer / wkhtmltopdf wiring (CSV already exports)
+              <td style="padding: 8px 10px; vertical-align: top; color: var(--stone-700)">
+                <strong>100,000+ donors</strong> &middot;<br>
+                self-sustaining unit-economics &middot;<br>
+                grant readiness for Tata, Gates &middot;<br>
+                10+ NGO white-label deployments
               </td>
             </tr>
           </tbody>
         </table>
         <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--stone-500)">
-          None of these are speculative — schemas, provider abstractions and route stubs are
-          already in the repo. Each item is a finite, scoped piece of work; the funding moves
-          them from "designed" to "live".
+          Every item above has a database migration ready or a provider abstraction
+          waiting for an env-var swap. Schemas for IoT alerts, lookback federation, FHIR
+          export and rare-blood national broadcast are <em>already in the repo</em>.
+          CSR funding is what moves them from designed to deployed.
         </p>
       </div>
 
       <!-- ── Impact ─────────────────────────────────────────────────── -->
       <div class="section">
-        <div class="section-label">The impact this donation creates</div>
+        <div class="section-label">The impact this funding creates</div>
         <div class="stats">
           <div class="stat">
             <div class="big">Up to 3 lives</div>
             <div class="cap">supported by a single donated unit, separated into red cells, plasma &amp; platelets</div>
           </div>
           <div class="stat">
-            <div class="big">&lt; &#8377;1,000</div>
-            <div class="cap">illustrative cost per emergency request the platform mediates over two years</div>
+            <div class="big">~&#8377;&nbsp;220</div>
+            <div class="cap">illustrative platform cost per emergency request mediated, assuming the 18-month roadmap target of 10,000 requests over 2 years</div>
           </div>
           <div class="stat">
-            <div class="big">&#8377;0</div>
-            <div class="cap">cost to donors, hospitals &amp; blood banks — Raktify is free to use, always</div>
+            <div class="big">&#8377;&nbsp;0</div>
+            <div class="cap">cost to donors, hospitals, blood banks, camp hosts &mdash; Raktify is free to use, always</div>
           </div>
         </div>
         <ul class="impact-points">
           <li>
-            The donation funds the <strong>rails, not transactions</strong> — a permanent
-            system that keeps saving lives every year after launch, not a one-time camp.
+            The funding builds <strong>rails, not transactions</strong> &mdash; a permanent
+            digital public good that keeps saving lives every year after launch, not
+            a one-time camp.
           </li>
           <li>
-            Raktify is built to <strong>absorb existing offline networks</strong>, so every
-            community onboarded multiplies reach at near-zero marginal cost.
+            Raktify is built to <strong>absorb existing offline networks</strong> &mdash;
+            WhatsApp groups, paper rosters, ad-hoc Rotary drives. Every community
+            onboarded multiplies reach at near-zero marginal cost.
           </li>
           <li>
-            A full audit trail, lab-verified matching and donor-privacy protection make it a
-            <strong>safe, accountable</strong> system a CSR partner can stand behind.
+            A hash-chained audit trail, RLS-gated PII, AES-GCM column encryption and
+            lab-verified-only matching make Raktify a <strong>safe, accountable</strong>
+            system a CSR partner, a hospital chain, or a state health mission can stand
+            behind.
+          </li>
+          <li>
+            The platform is <strong>white-label ready</strong> &mdash; the same codebase
+            can power a partner NGO's deployment in a different state without code
+            duplication.
+          </li>
+          <li>
+            CSR contribution is fully <strong>80G-eligible</strong> and aligned with
+            CSR Schedule VII (i) preventive healthcare &amp; (xii) disaster management
+            preparedness.
           </li>
         </ul>
       </div>
 
       <p class="caveat">
-        Figures are relaxed (conservative-high) two-year planning estimates; cloud and
-        communications costs scale with adoption. The "cost per request" figure is
-        illustrative, dependent on district roll-out and adoption targets. This is the
-        technology &amp; platform budget — organisation-level costs (advisor honoraria,
-        legal review, volunteer support, awareness drives) are budgeted separately.
+        Figures are conservative-high two-year planning estimates. Cloud and
+        communications costs scale linearly with adoption; the Year-1 estimate
+        assumes the Q3-2026 target of 3 districts &middot; 500 donors &middot; 50
+        emergency requests / month. Year-2 doubles. The "cost per request" figure is
+        illustrative, dependent on district roll-out and adoption targets. Awareness
+        drives, branded merchandise and partner event costs are funded by the
+        Choudhari Foundation's general programme budget, not from CSR contribution
+        scope.
       </p>
 
       <!-- ── Footer ─────────────────────────────────────────────────── -->
