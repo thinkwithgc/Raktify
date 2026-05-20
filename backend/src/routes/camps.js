@@ -223,6 +223,38 @@ router.post('/apply', async (req, res) => {
   });
 });
 
+// ── GET /camps/public/:slug (PUBLIC poster page) ─────────────────────────
+// The /c/<slug> share URL hits this. Returns a tightly scoped subset of
+// camp data — no submitter PII, no internal review state. Only published
+// (status PL or LV) camps are visible; PE/DC/CA/CO return 404.
+//
+// Declared BEFORE GET /:id so 'public' doesn't bind to :id.
+router.get('/public/:slug', async (req, res) => {
+  const r = await withRlsContextRaw({ actor_role: 'system' }, (c) =>
+    c.query(
+      `SELECT c.id, c.name, c.slug,
+              c.scheduled_date, c.start_time, c.end_time,
+              c.venue, c.address_line, c.pincode,
+              c.organiser_name, c.organiser_type,
+              c.target_donor_count, c.registered_donor_count,
+              c.status, c.poster_storage_key,
+              d.name AS district_name,
+              s.name AS state_name,
+              i.display_name AS partnered_blood_bank_name
+         FROM donation_camps c
+         JOIN districts d ON d.id = c.district_id
+         JOIN states s    ON s.id = c.state_id
+    LEFT JOIN institutions i ON i.id = c.partnered_blood_bank_id
+        WHERE c.slug = $1
+          AND c.status IN ('PL', 'LV')
+        LIMIT 1`,
+      [req.params.slug],
+    ),
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'camp_not_found' });
+  res.json(r.rows[0]);
+});
+
 // ── GET /camps/:id ───────────────────────────────────────────────────────
 router.get('/:id', verifyJWT, async (req, res) => {
   const r = await withRlsContext(req, (c) =>
@@ -505,7 +537,7 @@ router.get('/access/:token', async (req, res) => {
     async (c) => {
       const camp = (
         await c.query(
-          `SELECT c.id, c.name, c.scheduled_date, c.start_time, c.end_time,
+          `SELECT c.id, c.slug, c.name, c.scheduled_date, c.start_time, c.end_time,
                   c.venue, c.address_line, c.pincode,
                   c.status, c.organiser_name, c.organiser_type,
                   c.target_donor_count, c.registered_donor_count,
@@ -523,6 +555,7 @@ router.get('/access/:token', async (req, res) => {
       const regs = (
         await c.query(
           `SELECT cr.id, cr.status, cr.registered_at, cr.source,
+                  cr.referral_channel,
                   d.full_name,
                   bg.code AS blood_group_code,
                   COALESCE(d.deferral_status, 'OK') AS deferral_status
@@ -531,6 +564,18 @@ router.get('/access/:token', async (req, res) => {
         LEFT JOIN blood_groups bg ON bg.id = d.blood_group_verified
             WHERE cr.camp_id = $1
          ORDER BY cr.registered_at DESC`,
+          [t.camp_id],
+        )
+      ).rows;
+
+      const channelMix = (
+        await c.query(
+          `SELECT COALESCE(referral_channel, 'direct') AS channel,
+                  COUNT(*)::int AS count
+             FROM camp_registrations
+            WHERE camp_id = $1
+         GROUP BY 1
+         ORDER BY count DESC`,
           [t.camp_id],
         )
       ).rows;
@@ -545,7 +590,7 @@ router.get('/access/:token', async (req, res) => {
         [t.id, req.ip || null],
       );
 
-      return { camp, registrations: regs };
+      return { camp, registrations: regs, channel_mix: channelMix };
     },
   );
 
@@ -694,7 +739,20 @@ router.post(
 );
 
 // ── POST /camps/:id/register (donor RSVP) ────────────────────────────────
+const rsvpSchema = z.object({
+  referral_channel: z
+    .enum(['whatsapp', 'facebook', 'instagram', 'twitter', 'email', 'qr', 'direct', 'web'])
+    .optional(),
+});
+
 router.post('/:id/register', verifyJWT, requireRole('donor'), async (req, res) => {
+  const parsed = rsvpSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+  const channel = parsed.data.referral_channel || null;
+  // Channel → source CHAR(2) bucket: QR is its own thing; everything else is
+  // 'WB' web (the donor is on a web page, regardless of how they got there).
+  const source = channel === 'qr' ? 'QR' : 'WB';
+
   const result = await withRlsContext(
     req,
     async (c) => {
@@ -706,12 +764,14 @@ router.post('/:id/register', verifyJWT, requireRole('donor'), async (req, res) =
       }
       const donorId = donorR.rows[0].id;
       const r = await c.query(
-        `INSERT INTO camp_registrations (camp_id, donor_id, source)
-         VALUES ($1, $2, 'WB')
+        `INSERT INTO camp_registrations (camp_id, donor_id, source, referral_channel)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (camp_id, donor_id) DO UPDATE
-            SET status = 'RG', status_changed_at = clock_timestamp()
+            SET status = 'RG',
+                status_changed_at = clock_timestamp(),
+                referral_channel = COALESCE(camp_registrations.referral_channel, EXCLUDED.referral_channel)
          RETURNING id, status, registered_at`,
-        [req.params.id, donorId],
+        [req.params.id, donorId, source, channel],
       );
       return r.rows[0];
     },

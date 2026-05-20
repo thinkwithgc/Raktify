@@ -59,7 +59,20 @@ export function DonorLogin() {
     try {
       const r = await apiRequest('POST', '/auth/otp/verify', { mobile, otp });
       setSession(r);
-      navigate(r.role === 'coordinator' ? '/coordinator' : '/donor', { replace: true });
+      // If the donor was redirected here from a public camp link (or any
+      // /login?return=... handoff), bounce them back to that URL instead of
+      // the generic /donor home. PublicCampPage auto-RSVPs from sessionStorage.
+      const returnTo = new URLSearchParams(window.location.search).get('return');
+      const pendingCamp = window.sessionStorage.getItem('rk.pendingCampRsvp');
+      const dest =
+        returnTo && returnTo.startsWith('/')
+          ? returnTo
+          : pendingCamp && r.role === 'donor'
+            ? `/c/${encodeURIComponent(pendingCamp)}`
+            : r.role === 'coordinator'
+              ? '/coordinator'
+              : '/donor';
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err?.response?.data?.error || 'verify_failed');
     } finally {

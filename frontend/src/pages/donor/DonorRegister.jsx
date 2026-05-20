@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -79,6 +79,14 @@ export function DonorRegister() {
   const [otpStage, setOtpStage] = useState('idle'); // 'idle'|'sent'|'verified'|'consented'
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState('');
+
+  // If the user arrived from a public camp link (/register?camp=<slug>),
+  // persist that intent in sessionStorage so it survives a multi-step wizard
+  // refresh and is honoured by the redirect-after-completion logic below.
+  useEffect(() => {
+    const campParam = new URLSearchParams(window.location.search).get('camp');
+    if (campParam) window.sessionStorage.setItem('rk.pendingCampRsvp', campParam);
+  }, []);
 
   // Load DRAFT eligibility bank from backend so question copy stays in sync
   // with whatever the medical advisor signs off on.
@@ -199,7 +207,13 @@ export function DonorRegister() {
         console.warn('consent_post_failed', consentErr);
       }
       setOtpStage('consented');
-      navigate('/donor', { replace: true });
+      // If they came from a public camp link, bounce back to /c/<slug> so
+      // PublicCampPage can auto-RSVP using the sessionStorage marker.
+      const campParam = new URLSearchParams(window.location.search).get('camp');
+      const pendingCamp = campParam || window.sessionStorage.getItem('rk.pendingCampRsvp');
+      navigate(pendingCamp ? `/c/${encodeURIComponent(pendingCamp)}` : '/donor', {
+        replace: true,
+      });
     } catch (err) {
       setError(err?.response?.data?.error || 'verify_failed');
     } finally {

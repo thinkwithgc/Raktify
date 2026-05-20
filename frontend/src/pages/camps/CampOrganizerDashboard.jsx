@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QRCodeSVG } from 'qrcode.react';
 
 import { Wordmark } from '../../components/Wordmark.jsx';
 import { apiRequest } from '../../lib/api.js';
@@ -191,6 +192,12 @@ export function CampOrganizerDashboard() {
         <KpiCard label="Units collected" value={camp.units_collected ?? 0} sub="from blood bank" />
       </section>
 
+      {/* Share toolkit */}
+      <ShareToolkit camp={camp} />
+
+      {/* Where RSVPs came from */}
+      <ChannelMix mix={dashQ.data?.channel_mix || []} total={regs.length} />
+
       {/* Broadcast */}
       <article className="rk-card space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -324,6 +331,203 @@ export function CampOrganizerDashboard() {
         Need help? WhatsApp the NGO coordinator on the number they shared with you.
       </footer>
     </PageShell>
+  );
+}
+
+// ─── Share toolkit ──────────────────────────────────────────────────────────
+// Generates the public /c/<slug> URL plus a QR code and per-channel share
+// buttons. Each button appends ?via=<channel> so RSVPs can be attributed.
+function ShareToolkit({ camp }) {
+  const slug = camp?.slug;
+  const [copyState, setCopyState] = useState('');
+
+  // Always use the live origin so QR posters work regardless of dev/staging.
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://raktify.choudhari.ngo';
+  const baseUrl = slug ? `${origin}/c/${slug}` : null;
+
+  const shareText = useMemo(() => {
+    if (!camp) return '';
+    const dateStr = (() => {
+      try {
+        return new Date(camp.scheduled_date).toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'short', year: 'numeric',
+        });
+      } catch {
+        return camp.scheduled_date || '';
+      }
+    })();
+    return (
+      `🩸 Blood donation camp: ${camp.name}\n` +
+      `📅 ${dateStr} · ${(camp.start_time || '').slice(0, 5)}–${(camp.end_time || '').slice(0, 5)}\n` +
+      `📍 ${camp.venue}\n\n` +
+      `If you can donate, please register here:`
+    );
+  }, [camp]);
+
+  if (!baseUrl) return null;
+
+  function urlWith(channel) {
+    return `${baseUrl}?via=${channel}`;
+  }
+
+  async function copy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState('Copied!');
+      setTimeout(() => setCopyState(''), 1800);
+    } catch {
+      setCopyState('Copy failed — long-press the link.');
+    }
+  }
+
+  const channels = [
+    {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      href: `https://wa.me/?text=${encodeURIComponent(`${shareText}\n${urlWith('whatsapp')}`)}`,
+      cls: 'border-green-500 text-green-700 hover:bg-green-50',
+    },
+    {
+      key: 'facebook',
+      label: 'Facebook',
+      href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(urlWith('facebook'))}`,
+      cls: 'border-sky-600 text-sky-700 hover:bg-sky-50',
+    },
+    {
+      key: 'twitter',
+      label: 'X / Twitter',
+      href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(urlWith('twitter'))}`,
+      cls: 'border-slate-700 text-slate-800 hover:bg-slate-50',
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      href: `mailto:?subject=${encodeURIComponent(`Blood donation camp: ${camp.name}`)}&body=${encodeURIComponent(`${shareText}\n${urlWith('email')}`)}`,
+      cls: 'border-slate-300 text-slate-700 hover:bg-slate-50',
+    },
+  ];
+
+  return (
+    <article className="rk-card space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Invite donors
+        </h2>
+        <span className="text-xs text-slate-500">
+          Every share carries a different ?via= so you can see which channels work.
+        </span>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div className="space-y-3">
+          {/* Copy-able URL */}
+          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+            <input
+              readOnly
+              value={baseUrl}
+              className="flex-1 truncate bg-transparent font-mono text-slate-700 outline-none"
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              type="button"
+              className="rounded-md bg-rk-700 px-2 py-1 text-xs font-semibold text-white hover:bg-rk-800"
+              onClick={() => copy(baseUrl)}
+            >
+              {copyState || 'Copy'}
+            </button>
+          </div>
+
+          {/* Channel buttons */}
+          <div className="flex flex-wrap gap-2">
+            {channels.map((ch) => (
+              <a
+                key={ch.key}
+                href={ch.href}
+                target="_blank"
+                rel="noreferrer"
+                className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${ch.cls}`}
+              >
+                {ch.label}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={() => copy(`${shareText}\n${urlWith('instagram')}`)}
+              className="rounded-md border border-pink-500 px-3 py-1.5 text-xs font-semibold text-pink-700 hover:bg-pink-50"
+              title="Instagram doesn't accept direct share links — copy this text then paste into your Story or bio"
+            >
+              Instagram (copy text)
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">
+            Instagram doesn&apos;t support direct share URLs. Tap the button above to copy a
+            ready-to-paste message; add it to your Story link sticker or bio.
+          </p>
+        </div>
+
+        {/* QR code for printable posters */}
+        <div className="flex flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white p-3">
+          <QRCodeSVG
+            value={urlWith('qr')}
+            size={144}
+            level="M"
+            includeMargin={false}
+            bgColor="#ffffff"
+            fgColor="#7c1d1b"
+          />
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Scan to register</p>
+          <button
+            type="button"
+            className="mt-1 text-xs font-medium text-rk-700 hover:underline"
+            onClick={() => window.print()}
+          >
+            Print this page
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// ─── Channel mix ───────────────────────────────────────────────────────────
+const CHANNEL_LABEL = {
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  twitter: 'X / Twitter',
+  email: 'Email',
+  qr: 'QR poster',
+  direct: 'Direct link',
+  web: 'Web',
+};
+
+function ChannelMix({ mix, total }) {
+  if (!mix || mix.length === 0 || total === 0) return null;
+  const max = Math.max(...mix.map((m) => m.count));
+  return (
+    <article className="rk-card space-y-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Where RSVPs came from
+      </h2>
+      <ul className="space-y-1.5">
+        {mix.map((m) => (
+          <li key={m.channel} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-sm">
+            <span className="text-slate-700">{CHANNEL_LABEL[m.channel] || m.channel}</span>
+            <span className="h-2 rounded-full bg-slate-100">
+              <span
+                className="block h-full rounded-full bg-rk-700/80"
+                style={{ width: `${Math.round((m.count / max) * 100)}%` }}
+              />
+            </span>
+            <span className="text-right font-semibold text-slate-900">{m.count}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-slate-400">
+        Tracked from the ?via= parameter on your share links.
+      </p>
+    </article>
   );
 }
 
