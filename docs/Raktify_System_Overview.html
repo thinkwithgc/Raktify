@@ -1,0 +1,2425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Raktify — A System Overview</title>
+    <meta name="description" content="Raktify — a permanent, life-saving digital public good. System overview for partners, hospitals, NGOs and CSR funders." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =================================================================
+         DESIGN TOKENS — Raktify brand
+         ================================================================= */
+      :root {
+        --rk-50: #fff5f3;
+        --rk-100: #ffe7e1;
+        --rk-200: #ffc8bd;
+        --rk-400: #f0563e;
+        --rk-600: #dc2f1d;
+        --rk-700: #b8231a;
+        --rk-800: #971f1b;
+        --rk-900: #7c1d1b;
+        --cream: #fdf8f4;
+        --sand: #f5ece4;
+        --sand-2: #ece0d3;
+        --ink: #1c1917;
+        --stone-700: #44403c;
+        --stone-600: #57534e;
+        --stone-500: #78716c;
+        --stone-400: #a8a29e;
+        --stone-300: #d6d3d1;
+        --stone-200: #e7e5e4;
+        --stone-100: #f5f5f4;
+        --green-100: #dcfce7;
+        --green-700: #15803d;
+        --amber-100: #fef3c7;
+        --amber-700: #b45309;
+        --sky-100: #e0f2fe;
+        --sky-700: #0369a1;
+        --soft: 0 2px 8px -2px rgba(124, 29, 27, 0.08),
+          0 10px 28px -10px rgba(124, 29, 27, 0.14);
+        --lift: 0 6px 16px -6px rgba(124, 29, 27, 0.18),
+          0 20px 40px -10px rgba(124, 29, 27, 0.24);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        background: var(--cream);
+        color: var(--ink);
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* =================================================================
+         PAGE — A4 print
+         ================================================================= */
+      .page {
+        background: #fff;
+        max-width: 794px;          /* A4 width @ 96dpi */
+        min-height: 1123px;         /* A4 height @ 96dpi */
+        margin: 24px auto;
+        padding: 56px 56px 64px;
+        box-shadow: var(--lift);
+        position: relative;
+        page-break-after: always;
+        overflow: hidden;
+      }
+      .page:last-of-type {
+        page-break-after: auto;
+      }
+      .page > .pg-number {
+        position: absolute;
+        right: 56px;
+        bottom: 28px;
+        font-size: 10.5px;
+        color: var(--stone-400);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .page > .pg-tag {
+        position: absolute;
+        left: 56px;
+        bottom: 28px;
+        font-size: 10.5px;
+        color: var(--rk-700);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+        .page {
+          box-shadow: none;
+          margin: 0;
+        }
+        @page {
+          size: A4;
+          margin: 0;
+        }
+      }
+
+      /* =================================================================
+         WORDMARK
+         ================================================================= */
+      .wordmark {
+        font-family: 'Inter', sans-serif;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0;
+      }
+      .wm-rakt {
+        color: var(--rk-700);
+      }
+      .wm-i {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        color: var(--rk-700);
+        margin: 0 0.04em;
+      }
+      .wm-stem {
+        font-style: normal;
+      }
+      .wm-drop {
+        width: 0.42em;
+        height: 0.42em;
+        margin-bottom: -0.08em;
+        color: var(--rk-700);
+      }
+      .wm-fy {
+        color: var(--ink);
+      }
+
+      /* =================================================================
+         HEADER + COVER
+         ================================================================= */
+      .cover {
+        padding: 0;
+        background:
+          radial-gradient(60% 50% at 100% 0%, rgba(220, 47, 29, 0.10), transparent 70%),
+          radial-gradient(40% 35% at 0% 100%, rgba(220, 47, 29, 0.08), transparent 70%),
+          #fff;
+        display: flex;
+        flex-direction: column;
+      }
+      .cover-band {
+        height: 8px;
+        background: linear-gradient(90deg, var(--rk-700), var(--rk-400));
+      }
+      .cover-inner {
+        flex: 1;
+        padding: 80px 60px 60px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .cover-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+      }
+      .cover-top .wordmark {
+        font-size: 64px;
+      }
+      .cover-meta {
+        text-align: right;
+        font-size: 11.5px;
+        color: var(--stone-500);
+        line-height: 1.65;
+        letter-spacing: 0.02em;
+      }
+      .cover-meta strong {
+        color: var(--rk-700);
+        font-weight: 700;
+        font-size: 12.5px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 4px;
+      }
+      .cover-mid {
+        margin-top: 80px;
+      }
+      .cover-eyebrow {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--rk-700);
+        margin-bottom: 14px;
+      }
+      .cover-title {
+        font-size: 56px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.04;
+        color: var(--ink);
+        margin-bottom: 22px;
+      }
+      .cover-title em {
+        font-style: normal;
+        color: var(--rk-700);
+      }
+      .cover-tagline {
+        font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--rk-700);
+        line-height: 1.4;
+      }
+      .cover-tagline .sub {
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+        font-size: 17px;
+        color: var(--stone-700);
+        margin-left: 12px;
+      }
+      .cover-lead {
+        margin-top: 24px;
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--stone-700);
+        max-width: 92%;
+      }
+      .cover-bottom {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .cover-orgcard {
+        background: var(--cream);
+        border: 1px solid var(--sand-2);
+        border-radius: 14px;
+        padding: 18px 22px;
+        max-width: 460px;
+      }
+      .cover-orgcard strong {
+        color: var(--rk-700);
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .cover-orgcard p {
+        margin-top: 6px;
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: var(--stone-700);
+      }
+      .cover-rev {
+        font-size: 11px;
+        color: var(--stone-400);
+        letter-spacing: 0.06em;
+        text-align: right;
+      }
+
+      /* =================================================================
+         GENERIC PAGE COMPONENTS
+         ================================================================= */
+      .pg-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--sand);
+      }
+      .pg-header .wordmark {
+        font-size: 20px;
+      }
+      .pg-header-meta {
+        font-size: 10px;
+        color: var(--stone-400);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 700;
+      }
+
+      h1.section-title {
+        font-size: 34px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        margin-bottom: 8px;
+      }
+      h1.section-title em {
+        font-style: normal;
+        color: var(--rk-700);
+      }
+      .section-eyebrow {
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--rk-700);
+        margin-bottom: 8px;
+      }
+      .section-lead {
+        font-size: 14.5px;
+        color: var(--stone-700);
+        margin-bottom: 24px;
+        line-height: 1.65;
+        max-width: 90%;
+      }
+
+      h2.sub {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ink);
+        margin: 22px 0 10px;
+      }
+      h3.label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--rk-700);
+        margin-bottom: 8px;
+      }
+
+      p {
+        margin: 0 0 10px;
+      }
+      strong {
+        font-weight: 700;
+      }
+
+      ul.bullets {
+        list-style: none;
+        margin: 8px 0 14px;
+      }
+      ul.bullets > li {
+        position: relative;
+        padding-left: 18px;
+        margin-bottom: 6px;
+        line-height: 1.6;
+        font-size: 13.5px;
+        color: var(--stone-700);
+      }
+      ul.bullets > li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 9px;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--rk-600);
+      }
+
+      /* =================================================================
+         STAT CARDS
+         ================================================================= */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .stats.four {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .stat {
+        background: #fff;
+        border: 1px solid var(--sand-2);
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: var(--soft);
+      }
+      .stat .big {
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--rk-700);
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+      }
+      .stat .lbl {
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--stone-700);
+        margin-top: 6px;
+      }
+
+      /* =================================================================
+         CALLOUT
+         ================================================================= */
+      .callout {
+        background: var(--rk-50);
+        border-left: 4px solid var(--rk-700);
+        border-radius: 10px;
+        padding: 14px 18px;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--stone-700);
+        margin: 14px 0;
+      }
+      .callout.dark {
+        background: var(--ink);
+        color: #fff;
+        border-left-color: var(--rk-400);
+      }
+      .callout strong {
+        color: var(--rk-700);
+      }
+      .callout.dark strong {
+        color: var(--rk-200);
+      }
+
+      /* =================================================================
+         CARD GRID
+         ================================================================= */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .cards.three {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--sand-2);
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: var(--soft);
+      }
+      .card .icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: var(--rk-50);
+        color: var(--rk-700);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 10px;
+      }
+      .card .ttl {
+        font-size: 14.5px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 4px;
+      }
+      .card .desc {
+        font-size: 12px;
+        color: var(--stone-700);
+        line-height: 1.55;
+      }
+
+      /* =================================================================
+         STEPS — vertical numbered flow
+         ================================================================= */
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .step {
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 18px;
+        padding: 10px 0;
+        position: relative;
+      }
+      .step + .step::before {
+        content: '';
+        position: absolute;
+        left: 23px;
+        top: -8px;
+        width: 2px;
+        height: 18px;
+        background: var(--sand-2);
+      }
+      .step-num {
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
+        background: var(--rk-700);
+        color: #fff;
+        font-size: 16px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px -4px rgba(184, 35, 26, 0.5);
+      }
+      .step-body {
+        padding-top: 4px;
+      }
+      .step-body .ttl {
+        font-size: 14.5px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 4px;
+      }
+      .step-body .desc {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: var(--stone-700);
+      }
+      .step-body .desc em {
+        font-style: italic;
+        color: var(--stone-500);
+      }
+
+      /* Compact horizontal steps for the "how it works" overview */
+      .hsteps {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        align-items: stretch;
+        gap: 0;
+        margin: 12px 0 4px;
+      }
+      .hsteps .hs-card {
+        background: #fff;
+        border: 1px solid var(--sand-2);
+        border-radius: 14px;
+        padding: 14px 14px;
+        box-shadow: var(--soft);
+      }
+      .hsteps .hs-card .num {
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--rk-700);
+        letter-spacing: 0.1em;
+      }
+      .hsteps .hs-card .ttl {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 4px 0 6px;
+      }
+      .hsteps .hs-card .desc {
+        font-size: 11.5px;
+        color: var(--stone-700);
+        line-height: 1.55;
+      }
+      .hsteps .arrow {
+        align-self: center;
+        color: var(--rk-400);
+        padding: 0 6px;
+      }
+
+      /* =================================================================
+         SYSTEM DIAGRAM
+         ================================================================= */
+      .diagram {
+        background: var(--cream);
+        border: 1px solid var(--sand-2);
+        border-radius: 18px;
+        padding: 26px 26px 22px;
+        margin: 8px 0 14px;
+      }
+      .diag-actors {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 8px;
+      }
+      .diag-actor {
+        background: #fff;
+        border: 1px solid var(--sand-2);
+        border-radius: 12px;
+        padding: 12px 14px;
+        text-align: center;
+        box-shadow: var(--soft);
+      }
+      .diag-actor .icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: var(--rk-50);
+        color: var(--rk-700);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 6px;
+      }
+      .diag-actor .name {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .diag-actor .role {
+        font-size: 10.5px;
+        color: var(--stone-500);
+        line-height: 1.5;
+      }
+      .diag-core {
+        background: var(--rk-700);
+        color: #fff;
+        border-radius: 14px;
+        padding: 18px 22px;
+        text-align: center;
+        margin: 14px 0;
+        box-shadow: var(--lift);
+      }
+      .diag-core .ttl {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .diag-core .sub {
+        font-size: 11.5px;
+        color: var(--rk-100);
+        margin-top: 2px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .diag-core .pillars {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .diag-core .pillar {
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        padding: 8px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .diag-back {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      .diag-back .bk {
+        background: #fff;
+        border: 1px solid var(--sand-2);
+        border-radius: 10px;
+        padding: 10px 12px;
+        text-align: center;
+      }
+      .diag-back .bk .lbl {
+        font-size: 9.5px;
+        font-weight: 700;
+        color: var(--rk-700);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .diag-back .bk .v {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink);
+        margin-top: 3px;
+      }
+
+      /* =================================================================
+         STAKEHOLDER PAGE
+         ================================================================= */
+      .stake-hero {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 22px;
+        margin-bottom: 22px;
+        padding: 22px;
+        background: var(--rk-50);
+        border-radius: 16px;
+        border: 1px solid var(--rk-100);
+      }
+      .stake-icon {
+        width: 100px;
+        height: 100px;
+        border-radius: 26px;
+        background: var(--rk-700);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 6px 16px -4px rgba(184, 35, 26, 0.4);
+      }
+      .stake-name {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--rk-700);
+      }
+      .stake-title {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--ink);
+        line-height: 1.1;
+        margin: 4px 0 8px;
+        letter-spacing: -0.02em;
+      }
+      .stake-blurb {
+        font-size: 13px;
+        line-height: 1.55;
+        color: var(--stone-700);
+      }
+
+      /* =================================================================
+         TIMELINE — roadmap
+         ================================================================= */
+      .timeline {
+        position: relative;
+        padding-left: 26px;
+      }
+      .timeline::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        bottom: 8px;
+        width: 2px;
+        background: linear-gradient(180deg, var(--rk-700), var(--rk-400) 70%, var(--sand-2));
+      }
+      .tl-row {
+        position: relative;
+        padding: 8px 0 12px;
+      }
+      .tl-row::before {
+        content: '';
+        position: absolute;
+        left: -22px;
+        top: 16px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--rk-700);
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px var(--rk-100);
+      }
+      .tl-row .qtr {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--rk-700);
+      }
+      .tl-row .ttl {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--ink);
+        margin: 2px 0 4px;
+      }
+      .tl-row .desc {
+        font-size: 12px;
+        color: var(--stone-700);
+        line-height: 1.55;
+      }
+
+      /* =================================================================
+         COMPARISON TABLE
+         ================================================================= */
+      .compare {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+      }
+      .compare th,
+      .compare td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--sand);
+        text-align: left;
+        vertical-align: top;
+      }
+      .compare th {
+        font-size: 10.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--stone-500);
+        background: var(--cream);
+      }
+      .compare th.us {
+        color: var(--rk-700);
+      }
+      .compare td.us {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .yes {
+        color: var(--green-700);
+        font-weight: 700;
+      }
+      .no {
+        color: var(--stone-400);
+      }
+      .partial {
+        color: var(--amber-700);
+        font-weight: 700;
+      }
+
+      /* =================================================================
+         MISC
+         ================================================================= */
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .row-3-1 {
+        display: grid;
+        grid-template-columns: 3fr 1fr;
+        gap: 18px;
+        align-items: start;
+      }
+      .pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 700;
+        background: var(--rk-100);
+        color: var(--rk-700);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .pill.green {
+        background: var(--green-100);
+        color: var(--green-700);
+      }
+      .pill.dark {
+        background: var(--ink);
+        color: #fff;
+      }
+      code {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11.5px;
+        background: var(--stone-100);
+        padding: 1px 6px;
+        border-radius: 4px;
+        color: var(--ink);
+      }
+      a {
+        color: var(--rk-700);
+        text-decoration: underline;
+        text-decoration-color: var(--rk-200);
+        text-underline-offset: 3px;
+      }
+      .small {
+        font-size: 11.5px;
+        color: var(--stone-500);
+        line-height: 1.55;
+      }
+      .divider {
+        height: 1px;
+        background: var(--sand-2);
+        margin: 18px 0;
+      }
+
+      /* SVG arrow component for diagrams */
+      .arr {
+        color: var(--rk-400);
+        display: inline-block;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- =================================================================
+         COVER (page 1)
+         ================================================================= -->
+    <section class="page cover">
+      <div class="cover-band"></div>
+      <div class="cover-inner">
+        <div class="cover-top">
+          <div class="wordmark">
+            <span class="wm-rakt">Rakt</span><span class="wm-i"
+              ><span class="wm-stem">&#x131;</span
+              ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+            ><span class="wm-fy">fy</span>
+          </div>
+          <div class="cover-meta">
+            <strong>System Overview</strong>
+            For partners, hospitals, NGOs &amp; CSR funders<br />
+            21 May 2026 &nbsp;·&nbsp; v1.0
+          </div>
+        </div>
+
+        <div class="cover-mid">
+          <div class="cover-eyebrow">A digital public good for blood&nbsp;donation</div>
+          <h1 class="cover-title">
+            The <em>nervous system</em><br />
+            for India's<br />
+            voluntary blood network.
+          </h1>
+          <div class="cover-tagline">
+            रक्त दान करा. जीव वाचवा.
+            <span class="sub">Donate blood. Save a life.</span>
+          </div>
+          <p class="cover-lead">
+            Raktify is a free, life-critical platform that connects voluntary blood donors,
+            hospitals, blood banks and camp organisers. It mediates the moment between an
+            emergency request and a verified donor — privately, accountably, and in seconds.
+            This document explains how it works, who it serves, what's already built, and
+            what comes next.
+          </p>
+        </div>
+
+        <div class="cover-bottom">
+          <div class="cover-orgcard">
+            <strong>Choudhari EduHealth India Foundation</strong>
+            <p>
+              54, 2nd Lane, Rathi Nagar, VMV Road, Amravati, Maharashtra 444603, India<br />
+              <strong style="color: var(--stone-700); text-transform: none; letter-spacing: 0; display: inline">Founder:</strong>
+              Gaurav R. Choudhari · gaurav@choudhari.ngo · +91 98505 41412<br />
+              NGO-DARPAN MH/2025/0643345 · 80G eligible · CSR Schedule VII (i, xii)
+            </p>
+          </div>
+          <div class="cover-rev">
+            Document<br /><strong style="color: var(--stone-500); font-weight: 700">RAKTIFY-OVERVIEW-2026.05</strong><br />
+            Confidential — for shared distribution
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================
+         EXEC SUMMARY (page 2)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">01 · Executive summary</div>
+      </div>
+
+      <div class="section-eyebrow">In one page</div>
+      <h1 class="section-title">A permanent system,<br /><em>not a one-time camp.</em></h1>
+      <p class="section-lead">
+        India donates ~12.5 million units of blood a year. The country still falls 1 million units
+        short of demand, and almost every shortfall is solved by frantic WhatsApp messages,
+        phone trees and trust. Raktify replaces that improvised infrastructure with software —
+        carefully designed for the conditions Indian healthcare actually operates in.
+      </p>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="big">8</div>
+          <div class="lbl">phases of build, all code-complete and live on Azure today</div>
+        </div>
+        <div class="stat">
+          <div class="big">44</div>
+          <div class="lbl">database migrations · 44 API endpoints · 5 role portals</div>
+        </div>
+        <div class="stat">
+          <div class="big">₹0</div>
+          <div class="lbl">cost to donors, hospitals, blood banks, camp hosts — always</div>
+        </div>
+      </div>
+
+      <h2 class="sub">What the platform does</h2>
+      <ul class="bullets">
+        <li>Lets <strong>any donor</strong> register on mobile in under 90 seconds, in Marathi / Hindi / English, with full consent.</li>
+        <li>Lets <strong>any hospital</strong> raise an emergency request in a single screen — patient + units + urgency + needed-by — and matches against verified bank inventory in seconds.</li>
+        <li>Lets <strong>blood banks</strong> run their full bag lifecycle — donations recorded, TTI tested with 4-eyes verification, inventory tracked, recalls cascaded.</li>
+        <li>Lets <strong>NGO coordinators</strong> orchestrate the response district by district, with ring-escalation when supply doesn't materialise.</li>
+        <li>Lets <strong>anyone</strong> — a Rotary club, school, panchayat, corporate — host a donation camp through a public application, with NGO verification and a magic-link organiser dashboard.</li>
+      </ul>
+
+      <h2 class="sub">What makes Raktify different from a donor directory</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg>
+          </div>
+          <div class="ttl">End-to-end bag lifecycle</div>
+          <div class="desc">From donor consent to TTI clearance to bag issuance and post-transfusion confirmation — every step audited, every state legal.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" /></svg>
+          </div>
+          <div class="ttl">Privacy is a feature</div>
+          <div class="desc">Donor mobile numbers never reach hospitals. TTI results never leave the screening tab. AES-256-GCM encryption. Hash-chained audit log.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2c2.5 3 4 6.5 4 10s-1.5 7-4 10c-2.5-3-4-6.5-4-10S9.5 5 12 2Z"/></svg>
+          </div>
+          <div class="ttl">Built for Indian conditions</div>
+          <div class="desc">Mobile OTP first. Offline-capable PWA. Marathi-default. Free always. No app-store dependency.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 4v16M17 4v16M3 12h18"/></svg>
+          </div>
+          <div class="ttl">Component-level matching</div>
+          <div class="desc">Asks "PRBC for B+ patient, fallback to O+ allowed, expiry &gt; 8 days, recall-free" — not "have any B+ blood?"</div>
+        </div>
+      </div>
+
+      <div class="callout dark">
+        <strong>One sentence to remember.</strong> Raktify is not a donor directory; it's a
+        <strong>life-critical operating system</strong> for the moment when someone with a
+        rare blood type, in a small district, at 2 a.m., needs to find the one available unit
+        and have it in the operating theatre within two hours.
+      </div>
+
+      <div class="pg-tag">Raktify · System Overview</div>
+      <div class="pg-number">02</div>
+    </section>
+
+    <!-- =================================================================
+         THE PROBLEM (page 3)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">02 · The problem we're solving</div>
+      </div>
+
+      <div class="section-eyebrow">Why this matters</div>
+      <h1 class="section-title">A million units short.<br /><em>And the gap is closed by panic.</em></h1>
+      <p class="section-lead">
+        India has world-class hospitals and a culture of voluntary giving. What it lacks is
+        plumbing — a quiet, reliable layer that turns "we need a unit of B-negative for a
+        bleeding mother in a sub-district hospital" into "here is the verified unit,
+        in this fridge, with this bag ID, dispatched at this time."
+      </p>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="big">~12.5M</div>
+          <div class="lbl">units collected per year in India</div>
+        </div>
+        <div class="stat">
+          <div class="big">~1M</div>
+          <div class="lbl">annual shortfall — about 1 in every 13 requests</div>
+        </div>
+        <div class="stat">
+          <div class="big">35%</div>
+          <div class="lbl">of maternal deaths in India involve haemorrhage where timely blood matters</div>
+        </div>
+      </div>
+
+      <h2 class="sub">The shortfall is solved by <em style="font-style: normal; color: var(--rk-700)">improvisation</em></h2>
+      <div class="row2">
+        <div>
+          <ul class="bullets">
+            <li>A patient&rsquo;s family forwards a "B-negative urgently needed" WhatsApp message to dozens of strangers.</li>
+            <li>Coordinators run paper rosters and personal contact books that no one else can audit, update, or inherit.</li>
+            <li>Blood banks across districts have <em>no way</em> to see each other&rsquo;s inventory; surplus expires in one fridge while a hospital 50 km away dispatches a frantic search.</li>
+            <li>Rare phenotype donors (Bombay group, Rh-null) are tracked on the chairman&rsquo;s phone. When the chairman is unreachable, so is the donor.</li>
+            <li>Donors receive no feedback after donating — no proof, no impact, no tier recognition. Most drop off after their first donation.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="callout">
+            <strong>From a real case in Amravati, March 2025.</strong>
+            A six-year-old with thalassemia needed her monthly transfusion. The local blood
+            bank's stock had expired. A neighbouring district had stock — but no one knew. By
+            the time a Rotary volunteer phoned around, the child had skipped a cycle. Repeat
+            this 50,000 times a year, across India.
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="sub">Existing platforms are donor directories, not operating systems</h2>
+      <p style="margin-bottom: 14px; font-size: 13.5px; color: var(--stone-700)">
+        ublood, friends2support and similar tools answer "where is a B-positive donor?"
+        That is a useful but incomplete question. What hospitals and blood banks need is the
+        operational depth that turns a verified donor into a verified unit, on time.
+      </p>
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Donor directory apps</th>
+            <th>eRaktKosh</th>
+            <th class="us">Raktify</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Find me a B-positive donor nearby</td>
+            <td><span class="yes">●</span> yes</td>
+            <td><span class="partial">◐</span> partial</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Blood bank inventory + bag lifecycle</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="yes">●</span> yes</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>TTI screening + 4-eyes verification</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="no">○</span> no</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Lookback registry on reactive TTI</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="no">○</span> no</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Coordinator role + ring escalation</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="no">○</span> no</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Public camp host application + magic-link organiser dashboard</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="no">○</span> no</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Hash-chained audit log + RLS on every table</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="no">○</span> no</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Donor mobile is masked from hospitals</td>
+            <td><span class="no">○</span> no</td>
+            <td><span class="partial">◐</span> partial</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+          <tr>
+            <td>Free for every user — donor, hospital, bank, NGO</td>
+            <td><span class="partial">◐</span> some</td>
+            <td><span class="yes">●</span> yes</td>
+            <td class="us"><span class="yes">●</span> yes</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="pg-tag">Raktify · The problem</div>
+      <div class="pg-number">03</div>
+    </section>
+
+    <!-- =================================================================
+         HOW IT WORKS (page 4)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">03 · How it works</div>
+      </div>
+
+      <div class="section-eyebrow">Three moves, six actors</div>
+      <h1 class="section-title">The platform in <em>one diagram.</em></h1>
+      <p class="section-lead">
+        Raktify is a thin, fast, audited layer between the people who can give blood, the
+        institutions that store and test it, and the patients who need it now. The diagram
+        below shows the six actors and the three moves that connect them.
+      </p>
+
+      <!-- System diagram -->
+      <div class="diagram">
+        <div class="diag-actors">
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 22v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3"/></svg>
+            </div>
+            <div class="name">Donor</div>
+            <div class="role">Mobile OTP · PWA</div>
+          </div>
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M12 7v6M9 10h6"/></svg>
+            </div>
+            <div class="name">Hospital</div>
+            <div class="role">Raises requests · TOTP login</div>
+          </div>
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M7 14h10"/></svg>
+            </div>
+            <div class="name">Blood bank</div>
+            <div class="role">Inventory · TTI · Issue</div>
+          </div>
+        </div>
+
+        <div class="diag-core">
+          <div class="ttl">Raktify Platform</div>
+          <div class="sub">Matching engine · Notifications · Audit · RLS</div>
+          <div class="pillars">
+            <div class="pillar">Compatibility&nbsp;matrix</div>
+            <div class="pillar">Ring&nbsp;escalation</div>
+            <div class="pillar">Lookback&nbsp;recall</div>
+            <div class="pillar">Hash-chain&nbsp;audit</div>
+          </div>
+        </div>
+
+        <div class="diag-actors">
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2 22v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M14 22v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"/></svg>
+            </div>
+            <div class="name">Coordinator</div>
+            <div class="role">District orchestrator · OTP</div>
+          </div>
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <div class="name">NGO admin</div>
+            <div class="role">Trust gate · MoU eSign</div>
+          </div>
+          <div class="diag-actor">
+            <div class="icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M9 6V4h6v2M9 14h6M9 10h6"/></svg>
+            </div>
+            <div class="name">Camp organiser</div>
+            <div class="role">Magic-link · No signup</div>
+          </div>
+        </div>
+
+        <div class="divider" style="margin: 16px 0 12px"></div>
+
+        <div class="diag-back">
+          <div class="bk"><div class="lbl">Database</div><div class="v">PostgreSQL + RLS</div></div>
+          <div class="bk"><div class="lbl">Hosting</div><div class="v">Azure · Central India</div></div>
+          <div class="bk"><div class="lbl">Messaging</div><div class="v">WhatsApp Cloud + SMS</div></div>
+          <div class="bk"><div class="lbl">Secrets</div><div class="v">Azure Key Vault</div></div>
+        </div>
+      </div>
+
+      <h2 class="sub">Three moves</h2>
+      <div class="hsteps">
+        <div class="hs-card">
+          <div class="num">MOVE 01</div>
+          <div class="ttl">Build the pool</div>
+          <div class="desc">Donors sign up. Camps fill the pool. Blood banks onboard and record their inventory.</div>
+        </div>
+        <div class="arrow">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </div>
+        <div class="hs-card">
+          <div class="num">MOVE 02</div>
+          <div class="ttl">Match the moment</div>
+          <div class="desc">A hospital raises a request. The matching engine finds a bag or activates donors — in seconds.</div>
+        </div>
+        <div class="arrow">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </div>
+        <div class="hs-card">
+          <div class="num">MOVE 03</div>
+          <div class="ttl">Close the loop</div>
+          <div class="desc">Bag is issued. Crossmatch confirmed. Outcome recorded. Donor sees their impact.</div>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · How it works</div>
+      <div class="pg-number">04</div>
+    </section>
+
+    <!-- =================================================================
+         AN EMERGENCY IN MOTION (page 5)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">04 · An emergency in motion</div>
+      </div>
+
+      <div class="section-eyebrow">The 10-minute story</div>
+      <h1 class="section-title">A B-negative request,<br /><em>handled end-to-end.</em></h1>
+      <p class="section-lead">
+        To make the system tangible, here is one emergency from request to closure. Every
+        step happens inside Raktify; every step is logged in the audit chain; every step
+        respects the privacy invariants.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="ttl">10:42 — Hospital raises the request</div>
+            <div class="desc">
+              Irwin Hospital's casualty officer opens the <strong>Raise new request</strong> tab.
+              Patient initials, age, gender, blood group B-, component PRBC, 2 units, urgency
+              <span class="pill">Critical</span>, needed by 14:00. Clinical indication:
+              <em>postpartum haemorrhage</em>. Submit.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="ttl">10:42 — Matching engine fires</div>
+            <div class="desc">
+              The engine pulls the compatibility matrix (B- patients can receive B- or O-),
+              filters Amravati district blood banks for fresh, non-recalled PRBC bags, sorts
+              by expiry FIFO, and reserves the two best bags at Amravati Blood Centre. Response
+              returned to the hospital in <strong>under a second</strong>.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="ttl">10:43 — Coordinator on duty is notified</div>
+            <div class="desc">
+              Anjali, the Amravati district coordinator, sees the request appear in her queue
+              (auto-refreshes every 15 s). The matched blood bank is shown. The cross-role
+              thread is open for negotiation. The patient's mobile number is <em>never</em>
+              exposed to the hospital or the coordinator.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="ttl">11:02 — Blood bank issues the bags</div>
+            <div class="desc">
+              Amravati Blood Centre confirms the reservation in their portal and the bags move
+              from <span class="pill green">AV</span> Available to <span class="pill">IS</span>
+              Issued. The hospital is shown the bag IDs.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <div class="ttl">13:18 — Crossmatch confirmed by the hospital</div>
+            <div class="desc">
+              Post-transfusion, the hospital taps <strong>Confirm crossmatch</strong>. The
+              request flips to <span class="pill green">CL</span> Closed. The bags move from
+              IS → <span class="pill">TR</span> Transfused. Time-to-fulfilment: 2 hours 36
+              minutes — recorded as a KPI on the hospital dashboard.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <div class="ttl">Audit + outcome</div>
+            <div class="desc">
+              Every state change between steps 1 and 5 is captured in the hash-chained
+              <code>audit_log</code>. The donor who originally gave each bag sees their
+              donation tier tick up. The hemovigilance report aggregates this case in next
+              month's DHO submission.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>The whole flow took six clicks and was visible to everyone authorised to see
+        it.</strong> What used to take a Rotary chairman 90 minutes of phone calls now takes
+        Raktify under three hours, with full traceability. The improvement isn't speed alone —
+        it's that nobody dies because a chairman lost his phone.
+      </div>
+
+      <div class="pg-tag">Raktify · An emergency in motion</div>
+      <div class="pg-number">05</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: DONOR (page 6)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">05 · The donor's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 22v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 01 — The Donor</div>
+          <h2 class="stake-title">Ramesh, 34, civil engineer, Amravati. O+. Wants to help, hates spam.</h2>
+          <p class="stake-blurb">
+            A regular Indian who donates blood occasionally. Carries a mid-range smartphone,
+            uses WhatsApp constantly, reads in Marathi by default, dislikes installing apps,
+            and trusts an organisation more when it asks for less.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">What Ramesh actually does</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="ttl">Signs up in 90 seconds</div>
+            <div class="desc">Opens raktify.choudhari.ngo from a WhatsApp link. 4-step wizard: pre-screening questions → name + DOB + village → temporary-deferral notice → consent + OTP. No app, no install, no email.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="ttl">Sees one big toggle: "Mark me available today"</div>
+            <div class="desc">The donor dashboard has exactly one important control. He taps it green on weekends, leaves it grey when travelling. Works offline — the change syncs when he&rsquo;s back online.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="ttl">Gets WhatsApp'd about a nearby camp</div>
+            <div class="desc">Rotary Amravati hosts a camp on Saturday. Ramesh receives a WhatsApp message with a one-tap link, opens the public camp page, taps "I will be there." His RSVP shows up on the organiser&rsquo;s roster — but his phone number is <em>never</em> shared.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="ttl">Donates. Gets a tier badge.</div>
+            <div class="desc">After the camp, the blood bank records his donation. His donor dashboard shows a Bronze badge (1 donation) with progress towards Silver. An estimated-lives-saved counter ticks up. He shares the badge with friends. Three of them sign up that week.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <div class="ttl">Gets recalled. Quietly.</div>
+            <div class="desc">Three months later, his donation&rsquo;s TTI re-test surfaces a borderline reading. The platform recalls the bag, schedules him for re-testing through the hospital — never blasted publicly, never on a WhatsApp group, never named.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top: 18px">
+        <div>
+          <h3 class="label">What Ramesh sees that no other platform shows him</h3>
+          <ul class="bullets">
+            <li>Verified blood group, lab-confirmed (not "self-reported")</li>
+            <li>Next-eligible date, computed from his last donation + component shelf life</li>
+            <li>TTI clearance verdict per donation (verdict only — no field-level results)</li>
+            <li>Marathi by default — switches to Hindi or English on tap</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="label">What Ramesh never sees, by design</h3>
+          <ul class="bullets">
+            <li>Patient names or hospital identities behind a request</li>
+            <li>Other donors' phone numbers, even from his own community</li>
+            <li>Field-level TTI test results that could be misread by a non-clinician</li>
+            <li>Any nag for money — the platform is free to him, always</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · Donor journey</div>
+      <div class="pg-number">06</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: HOSPITAL (page 7)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">06 · The hospital's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M12 7v6M9 10h6"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 02 — The Hospital</div>
+          <h2 class="stake-title">Dr. Deshmukh, Medical Superintendent, Irwin Hospital, Amravati.</h2>
+          <p class="stake-blurb">
+            Runs a 200-bed government hospital with one casualty officer per shift. Has
+            seen patients die because the blood bank didn&rsquo;t have the right unit and the
+            phone trees were too slow. Wants something that just <em>works</em>, and that
+            their nurses can use in seconds.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">How a hospital onboards</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="ttl">Applies at /onboarding/apply — no Raktify account needed</div>
+            <div class="desc">Hospital fills its legal name, shortname, CDSCO licence (if it operates a bank), Clinical Establishments Act number, location, primary contact. Submits.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="ttl">NGO verifies + sends the MoU for eSign</div>
+            <div class="desc">The Choudhari Foundation verifies the licence (manually for now — automated check is on the roadmap), then sends an Aadhaar eSign request via LeegAlly to the primary contact&rsquo;s WhatsApp.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="ttl">eSign completes → admin login provisioned automatically</div>
+            <div class="desc">The eSign webhook fires, the institutional admin account is auto-created, and credentials are WhatsApp&rsquo;d to the signatory. From signup to login, no human intervention required after the NGO clicks "Send MoU".</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="sub">What the hospital portal looks like daily</h2>
+      <div class="cards three">
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+          </div>
+          <div class="ttl">Dashboard</div>
+          <div class="desc">90-day KPIs (open / critical / fulfilled / expired / avg time-to-fulfilment), district inventory grid (counts, not bag IDs), recent activity strip.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="ttl">My requests</div>
+          <div class="desc">Per-request card: urgency pill, status, fulfilled / required counts, raised time, matched blood bank, coordinator. One-tap <strong>Confirm crossmatch</strong> to close.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          </div>
+          <div class="ttl">Raise new request</div>
+          <div class="desc">One screen. Validates client-side. Backend runs the matching engine synchronously and returns matched bag count + fallback flag in the response.</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>What the hospital never sees.</strong> Donor mobile numbers. Bag IDs from
+        other blood banks. Another hospital&rsquo;s requests. TTI field-level results.
+        This isn&rsquo;t a limitation — it&rsquo;s how a hospital partner agreed to onboard.
+        Privacy is the gate that lets them participate.
+      </div>
+
+      <div class="pg-tag">Raktify · Hospital journey</div>
+      <div class="pg-number">07</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: BLOOD BANK (page 8)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">07 · The blood bank's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M7 14h10"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 03 — The Blood Bank</div>
+          <h2 class="stake-title">Dr. Kale, Director, Amravati Blood Centre. CDSCO-licensed.</h2>
+          <p class="stake-blurb">
+            Runs a district blood centre that processes ~60 donations a week, separates them
+            into components, and supplies four hospitals. Today, her staff handle inventory
+            on paper logs, dispatch by phone, and reconcile at month-end. She wants software
+            that her counter staff can use without a one-week training course.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">The four tabs of the blood-bank portal</h2>
+      <div class="cards">
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Dashboard</h3>
+          <div class="ttl">At a glance, every shift</div>
+          <div class="desc">5 KPI cards (Available units, Expiring &lt;48h, Pending TTI, Issued this month, Donations today). Inventory grid (8 groups × N components). Incoming requests in the district — the "Raise Hand" panel for matching.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Inventory</h3>
+          <div class="ttl">Bag-level, expiry colour-coded</div>
+          <div class="desc">Every bag has an ISBT barcode, blood group, component, volume, status (QA → AV → RE → IS → TR / EX / RC). Expiry &lt;48h is shown red, 2–7 days amber, &gt;7 days green. Single-tap recall.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Record donation</h3>
+          <div class="ttl">Mobile lookup → pre-filled form</div>
+          <div class="desc">Counter staff types the donor&rsquo;s mobile, the platform auto-fills their verified blood group + deferral state. Submit creates a QA bag automatically via trigger.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">TTI screening</h3>
+          <div class="ttl">5 panels, 4-eyes verify</div>
+          <div class="desc">HIV / HBsAg / HCV / Syphilis / Malaria entered as NR / RR / PE / ID. A <em>different</em> staff member must verify. Reactive results cascade to bag recall and a lookback investigation automatically.</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="sub">Why this is hard to build, and why we built it anyway</h2>
+      <div class="row2">
+        <div>
+          <ul class="bullets">
+            <li><strong>The 4-eyes rule for TTI</strong> is enforced by a database trigger — not a UI checkbox. The screening can&rsquo;t be verified by the same user who entered it. Application code has bugs; constraints don&rsquo;t.</li>
+            <li><strong>Component separation</strong> is modelled per-bag (PRBC, FFP, SDP, PLT, CRY, WB) with the correct shelf life and storage temperature per component. The matching engine respects this.</li>
+            <li><strong>Recalls</strong> are not a status change — they're an event. Every other related row (lookback registry entry, donor alert, hospital notification) cascades automatically.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="callout dark">
+            <strong>The CDSCO-grade promise.</strong> Raktify can&rsquo;t replace a blood
+            bank&rsquo;s lab work, but it gives the bank an auditable digital twin of every
+            bag it touches — searchable, reportable, recallable, and DHO-submission-ready.
+          </div>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · Blood bank journey</div>
+      <div class="pg-number">08</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: COORDINATOR (page 9)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">08 · The coordinator's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2 22v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M14 22v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 04 — The Coordinator</div>
+          <h2 class="stake-title">Anjali, 28, community volunteer, Amravati district lead.</h2>
+          <p class="stake-blurb">
+            One of the 3–8 NGO volunteers responsible for a district at any time. She knows
+            her hospitals, her donors and her bank chairmen by name. She&rsquo;s been doing
+            this on WhatsApp for four years. The platform&rsquo;s job is to amplify Anjali,
+            not replace her.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">What Anjali sees the moment she logs in</h2>
+      <div class="stats four">
+        <div class="stat">
+          <div class="big">12</div>
+          <div class="lbl">open requests in her district (live count)</div>
+        </div>
+        <div class="stat">
+          <div class="big">2</div>
+          <div class="lbl">Critical — red, top of the queue</div>
+        </div>
+        <div class="stat">
+          <div class="big">94</div>
+          <div class="lbl">reliability score (green; updated by outcome data)</div>
+        </div>
+        <div class="stat">
+          <div class="big">147</div>
+          <div class="lbl">lives saved estimate (her impact, denormalised)</div>
+        </div>
+      </div>
+
+      <h2 class="sub">What she can do</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="ttl">Accept or claim a request</div>
+            <div class="desc">Click <strong>Accept</strong> on an unassigned request, or <strong>Claim</strong> one her colleague hasn&rsquo;t responded to in time. The audit trail records the transfer.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="ttl">Run the cross-role thread</div>
+            <div class="desc">Talk to the hospital and the blood bank in one place. Each message has a visibility scope (who can read it). No more lost WhatsApp threads.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="ttl">Trigger ring escalation</div>
+            <div class="desc">If supply doesn&rsquo;t materialise, the platform widens the search ring (same district → adjacent districts → state) and notifies the next set of donors / banks. She can re-trigger manually too.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="ttl">Close with bag IDs + crossmatch confirmation</div>
+            <div class="desc">When the transfusion is done, she pastes the bag IDs and clicks Close. Status flips FU → CL. Hospital&rsquo;s avg-time-to-fulfilment KPI updates.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Why coordinator is a real role, not a volunteer add-on.</strong> Coordinators
+        have ID verification, sign a coordinator MoU, get a reliability score that updates
+        with outcomes, and are on an on-duty rotation. The platform invests in trust
+        signalling because every other actor in the system relies on coordinators making
+        good decisions, fast.
+      </div>
+
+      <div class="pg-tag">Raktify · Coordinator journey</div>
+      <div class="pg-number">09</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: NGO ADMIN (page 10)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">09 · The NGO admin's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 05 — The NGO admin</div>
+          <h2 class="stake-title">The Choudhari Foundation operations team.</h2>
+          <p class="stake-blurb">
+            The trust gate. Verifies every institution that wants to join, vets every
+            coordinator, reviews every camp application, monitors lookback investigations,
+            files the DHO hemovigilance report monthly, and audits the audit log itself.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">Ten tabs, one console</h2>
+      <div class="cards three">
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Onboarding</h3>
+          <div class="desc">Institution applications. Verify licence → send MoU eSign → activate. Default landing tab.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Coordinators</h3>
+          <div class="desc">Verify, suspend with reason, monitor reliability scores district-wide.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Camps</h3>
+          <div class="desc">Public camp-host applications. Review, approve (mint magic link), decline with reason.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Thalassemia</h3>
+          <div class="desc">Recurring-transfusion patient registry with due-soon highlighting. Record transfusion in one tap.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Rare blood</h3>
+          <div class="desc">Bombay, Rh-null, weak-D donors. Both donor-linked and shadow entries supported.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Duplicates</h3>
+          <div class="desc">Suspected duplicate donor pairs. Clear false positives. Merge (pending medical sign-off).</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Referrals</h3>
+          <div class="desc">Funnel from donor-referred-an-institution → onboarded. Conversion rate, recent referrals.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Lookback</h3>
+          <div class="desc">Open post-reactive-TTI investigations. Red highlight when older than 14 days.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Audit</h3>
+          <div class="desc">Filterable audit log + hash-chain integrity check. Detects any backdating or tampering.</div>
+        </div>
+      </div>
+
+      <div class="callout dark">
+        <strong>The audit chain is non-negotiable.</strong> Every state change in Raktify
+        — every consent flip, every TTI verification, every bag recall — is captured in a
+        cryptographic hash chain. Even a future super-admin can't backdate a row without
+        breaking the chain. The Audit tab&rsquo;s integrity check tells the auditor whether
+        the chain is intact in seconds.
+      </div>
+
+      <div class="row2">
+        <div>
+          <h3 class="label">Reports the admin can produce</h3>
+          <ul class="bullets">
+            <li><strong>District summary</strong> — requests raised / fulfilled / expired, avg response, shortages by group, donor pool, camps, wastage.</li>
+            <li><strong>Hemovigilance</strong> — DHO-eligible. Lookback opened / closed, reactive TTI counts, adverse reactions, donation source breakdown.</li>
+            <li><strong>Blood bank performance</strong> — inventory accuracy, fulfilment counts, avg TTI entry latency.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="label">Reports come out as</h3>
+          <ul class="bullets">
+            <li>JSON for partners who want to ingest the data</li>
+            <li>CSV for DHO submissions today</li>
+            <li>PDF generation (Puppeteer) on the Q4 2026 roadmap</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · NGO admin journey</div>
+      <div class="pg-number">10</div>
+    </section>
+
+    <!-- =================================================================
+         STAKEHOLDER: CAMP ORGANIZER (page 11)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">10 · The camp organizer's journey</div>
+      </div>
+
+      <div class="stake-hero">
+        <div class="stake-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M9 6V4h6v2M9 14h6M9 10h6"/></svg>
+        </div>
+        <div>
+          <div class="stake-name">Stakeholder 06 — The Camp organizer</div>
+          <h2 class="stake-title">Neha, President, Rotary Club of Amravati. Hosts 4 camps a year.</h2>
+          <p class="stake-blurb">
+            Not a Raktify user. Not a coordinator. Just a community organiser who wants to
+            host a blood drive and not deal with paperwork, accounts or app installations.
+            Raktify treats her with the lightest possible touch — and gives her serious tools.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="sub">Her end-to-end flow</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="ttl">Applies to host a camp — no signup</div>
+            <div class="desc">Opens <code>/camps/host</code>. Fills organisation name, venue, date, expected donors. Ticks "yes, train our volunteers". Submits.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="ttl">NGO reviews + approves</div>
+            <div class="desc">Choudhari Foundation reviews her application in the Camps tab. Approves. Optionally pairs her with a partner blood bank and assigns a coordinator for training.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="ttl">Gets a magic link on WhatsApp</div>
+            <div class="desc">No password, no signup. She bookmarks the link. It&rsquo;s scoped to her camp only — she can never see other camps, other donors, other anything.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="ttl">Invites donors through six channels</div>
+            <div class="desc">Her organiser dashboard has a share toolkit: <strong>Copy URL</strong> · <strong>QR code</strong> (Raktify red, print-ready) · WhatsApp · Facebook · X · Email · Instagram-copy. Each carries a different <code>?via=</code> tag so the platform tracks which channels work.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <div class="ttl">Watches the roster grow live</div>
+            <div class="desc">Donors RSVP through the share links. The dashboard&rsquo;s "Where RSVPs came from" panel shows: WhatsApp 14 · QR poster 6 · Facebook 3 · Direct 8. She iterates her sharing strategy in real time.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <div class="ttl">Day of the camp — marks attendance</div>
+            <div class="desc">She opens the magic link on her phone. Each row in the roster has Attended / No-show buttons. The KPI cards (Registered, Attended, No-shows, Units collected) update in real time.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-body">
+            <div class="ttl">Broadcasts reminders / thank-yous</div>
+            <div class="desc">A 500-character box. She sends "venue moved to room 204, bring ID" the morning of the camp, and "thank you for showing up — your unit might save up to three lives" after. The notification chokepoint routes via WhatsApp.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>The promise to Neha:</strong> the link in her bookmarks gives her real
+        operational tools without ever exposing donor mobile numbers, requiring an app
+        install, or making her log into a CRM. The token is the credential. The roster is
+        scoped to her camp by Row-Level Security at the database layer.
+      </div>
+
+      <div class="pg-tag">Raktify · Camp organizer journey</div>
+      <div class="pg-number">11</div>
+    </section>
+
+    <!-- =================================================================
+         PLATFORM DEEP DIVE — what's built (page 12)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">11 · What's already built</div>
+      </div>
+
+      <div class="section-eyebrow">Status: live on Azure</div>
+      <h1 class="section-title">The complete <em>MVP is shipping today.</em></h1>
+      <p class="section-lead">
+        Eight phases of work, 14 months from first commit to staging deployment. Below is
+        the full inventory of what a partner sees when they visit
+        <strong>raktify.choudhari.ngo</strong> right now.
+      </p>
+
+      <div class="stats four">
+        <div class="stat">
+          <div class="big">44</div>
+          <div class="lbl">DB migrations · 34 tables · 100+ triggers · 71 RLS policies</div>
+        </div>
+        <div class="stat">
+          <div class="big">44</div>
+          <div class="lbl">API endpoints across 13 route groups</div>
+        </div>
+        <div class="stat">
+          <div class="big">5</div>
+          <div class="lbl">role portals · 10-tab NGO admin · 3 reports</div>
+        </div>
+        <div class="stat">
+          <div class="big">PWA</div>
+          <div class="lbl">offline-capable, ~500 KiB gzipped, no app store</div>
+        </div>
+      </div>
+
+      <h2 class="sub">Phase-by-phase</h2>
+      <table class="compare">
+        <thead>
+          <tr>
+            <th style="width: 48%">Phase</th>
+            <th>What landed</th>
+            <th style="width: 16%">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>0 — Infrastructure</td><td>Monorepo, CI/CD, env scaffolding</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>1 — Database foundation</td><td>30 base migrations, RLS, audit hash chain</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>2 — Auth + onboarding</td><td>OTP, TOTP, MoU eSign integration</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>3 — Donor registration + passport</td><td>4-step wizard, consent, blood-group verification</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>4 — Inventory + TTI</td><td>Bag lifecycle, 4-eyes verification, recall cascade</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>5 — Request engine + matching</td><td>4-tier requests, compatibility matrix, ring escalation</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>6 — Notifications + WhatsApp + Lookback</td><td>Provider abstraction, chokepoint, bot state machine</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>7 — Frontend (React PWA)</td><td>5 role portals, public surfaces, i18n MR/HI/EN</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>8 — Admin + reporting + deploy</td><td>10-tab admin, 3 reports, Azure infra</td><td><span class="pill green">Done</span></td></tr>
+          <tr><td>Post-Phase-8 additions (Q2 2026)</td><td>Donor tier badges · End-to-end camp flow · Public landing + share toolkit · Channel attribution · Thalassemia + rare-blood registries · Public geo lookup</td><td><span class="pill green">Done</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout dark">
+        <strong>The 21 explicitly deferred items</strong> (WhatsApp Cloud Meta activation,
+        pan-India geo activation, real-time live queue via Socket.io, map view, Aadhaar XML
+        KYC, IoT cold-chain, insurance integration, FHIR export …) all have schemas, route
+        stubs, or provider abstractions <em>already in the repo</em>. CSR funding moves them
+        from "designed" to "deployed". Nothing in the roadmap requires greenfield research.
+      </div>
+
+      <div class="pg-tag">Raktify · What's built</div>
+      <div class="pg-number">12</div>
+    </section>
+
+    <!-- =================================================================
+         PRIVACY & SAFETY (page 13)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">12 · Privacy &amp; safety</div>
+      </div>
+
+      <div class="section-eyebrow">Non-negotiable</div>
+      <h1 class="section-title">Privacy is a <em>load-bearing pillar</em>,<br />not a checkbox.</h1>
+      <p class="section-lead">
+        A life-critical platform that handles encrypted health data, mobile numbers, and
+        screening results needs to be defensible against curious admins, leaked database
+        connections, malicious app servers, and a future hostile audit. Raktify is
+        engineered to meet that bar.
+      </p>
+
+      <div class="cards three">
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/></svg>
+          </div>
+          <div class="ttl">Row-Level Security</div>
+          <div class="desc">Every table has RLS policies keyed off the actor&rsquo;s role and identity. A coordinator can&rsquo;t read another district&rsquo;s data, even if they have the database password.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          </div>
+          <div class="ttl">Hybrid encryption</div>
+          <div class="desc">PII columns are AES-256-GCM encrypted with two distinct KMS keys — main + screening. A compromised app server can&rsquo;t read TTI data without separately compromising the screening key.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="ttl">Hash-chained audit</div>
+          <div class="desc"><code>audit_log</code> is INSERT-only. Every row contains a SHA-256 hash of the previous row's salient fields. Backdating a record breaks the chain — the integrity check detects it in seconds.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+          </div>
+          <div class="ttl">Mobile masking</div>
+          <div class="desc">Donor mobile numbers are encrypted at rest, never returned to hospitals or camp organisers, and shown only to admins as <code>+91XXXXX1234</code>.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>
+          </div>
+          <div class="ttl">TTI never leaks</div>
+          <div class="desc">Field-level TTI results never leave the screening tab. Donors and coordinators see only the verdict: Pending / Cleared / Investigation / Held.</div>
+        </div>
+        <div class="card">
+          <div class="icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8M5 12V5h14v7M5 12l-2 4h18l-2-4"/></svg>
+          </div>
+          <div class="ttl">Self-reported ≠ verified</div>
+          <div class="desc">Donor self-reported blood group is rendered with an "Unverified" badge and is <em>never</em> queried by the matching engine. Lab-verified only.</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="sub">The clinical safety rules live in the database</h2>
+      <p style="font-size: 13.5px; color: var(--stone-700)">
+        Application code has bugs. Database constraints, triggers, and CHECK clauses don&rsquo;t.
+        That&rsquo;s why every patient-safety rule lives at the database layer:
+      </p>
+      <ul class="bullets">
+        <li><strong>4-eyes TTI verification</strong> is enforced by a trigger that rejects any verification where the verifier and the entry user match.</li>
+        <li><strong>Self-reported blood group can never be promoted to the matching column</strong> without going through the blood-bank-only verification endpoint.</li>
+        <li><strong>Consent grants must be self-initiated</strong> by the donor — a trigger blocks any other actor from setting <code>consent_data_use=TRUE</code>.</li>
+        <li><strong>Audit log is INSERT-only</strong> at the role level — no application role has UPDATE or DELETE.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>Compliance posture.</strong> Aligned with DPDP Act 2023 (data-fiduciary
+        obligations), CSR Schedule VII (i) preventive healthcare &amp; (xii) disaster
+        management. Data residency in Azure Central India. Subject-access export endpoint
+        on the roadmap.
+      </div>
+
+      <div class="pg-tag">Raktify · Privacy &amp; safety</div>
+      <div class="pg-number">13</div>
+    </section>
+
+    <!-- =================================================================
+         TECHNICAL ARCHITECTURE (page 14)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">13 · Technical architecture</div>
+      </div>
+
+      <div class="section-eyebrow">For the technically curious</div>
+      <h1 class="section-title">Boring tech. <em>Carefully composed.</em></h1>
+      <p class="section-lead">
+        We chose well-understood components over novelty. Postgres over a NoSQL store.
+        Server-rendered HTML for crawlers and SPA-style React for users. Provider
+        abstractions for every external integration so we&rsquo;re never locked in.
+      </p>
+
+      <h2 class="sub">The stack</h2>
+      <table class="compare">
+        <tbody>
+          <tr>
+            <td style="width: 22%"><strong>Database</strong></td>
+            <td>PostgreSQL 17 with Row-Level Security on every table</td>
+            <td>Azure PG Flexible Server · B1ms · Central India · Multi-AZ ready</td>
+          </tr>
+          <tr>
+            <td><strong>Backend API</strong></td>
+            <td>Node.js 22 LTS · Express · pg · Zod validators · pino structured logs</td>
+            <td>Azure App Service · Linux B1 · Oryx build</td>
+          </tr>
+          <tr>
+            <td><strong>Frontend</strong></td>
+            <td>React 18 · Vite 5 · Tailwind 3 · React Query 5 · PWA with offline outbox</td>
+            <td>Azure Static Web Apps · Free tier · Cloudflare DNS</td>
+          </tr>
+          <tr>
+            <td><strong>Auth — donors</strong></td>
+            <td>Mobile OTP, JWT, mobile-OTP-only login</td>
+            <td>WhatsApp Cloud (Meta-direct) / MSG91 / console</td>
+          </tr>
+          <tr>
+            <td><strong>Auth — staff</strong></td>
+            <td>Email + bcrypt + TOTP for institutional admins</td>
+            <td>Rate-limited 10/15min per IP</td>
+          </tr>
+          <tr>
+            <td><strong>Encryption</strong></td>
+            <td>AES-256-GCM, two-key hybrid (main + screening)</td>
+            <td>Local key in dev · Azure Key Vault / AWS KMS in prod</td>
+          </tr>
+          <tr>
+            <td><strong>File storage</strong></td>
+            <td>Storage provider abstraction</td>
+            <td>Local disk (dev) · Azure Blob (prod) — same API</td>
+          </tr>
+          <tr>
+            <td><strong>Digital MoU</strong></td>
+            <td>LeegAlly Aadhaar eSign with provider stub for local dev</td>
+            <td>Webhook-driven auto-provisioning</td>
+          </tr>
+          <tr>
+            <td><strong>Geo data</strong></td>
+            <td>LGD (Local Government Directory) bulk importer</td>
+            <td>API or CSV mode · idempotent re-imports</td>
+          </tr>
+          <tr>
+            <td><strong>CI/CD</strong></td>
+            <td>GitHub Actions with Azure OIDC federated identity</td>
+            <td>Backend + Frontend deploy on push to main</td>
+          </tr>
+          <tr>
+            <td><strong>Observability</strong></td>
+            <td>Pino structured logs · planned Sentry + Application Insights</td>
+            <td>Health check at /health · DB ok flag</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 class="sub">Three architectural commitments</h2>
+      <div class="cards three">
+        <div class="card">
+          <div class="ttl">Patient safety in the DB</div>
+          <div class="desc">CHECK constraints, triggers and RLS — not application code. Apps have bugs; constraints don&rsquo;t.</div>
+        </div>
+        <div class="card">
+          <div class="ttl">Provider abstractions</div>
+          <div class="desc">Notifications, encryption, storage, eSign are all swappable behind a one-env-var flag. No vendor lock-in.</div>
+        </div>
+        <div class="card">
+          <div class="ttl">Immutable migrations</div>
+          <div class="desc">Every migration has a SHA-256 checksum + rollback block. The runner refuses to re-apply a changed migration.</div>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · Technical architecture</div>
+      <div class="pg-number">14</div>
+    </section>
+
+    <!-- =================================================================
+         ROADMAP TIMELINE (page 15)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">14 · The 18-month roadmap</div>
+      </div>
+
+      <div class="section-eyebrow">What partnership unlocks</div>
+      <h1 class="section-title">Six quarters,<br /><em>aggressive but finite.</em></h1>
+      <p class="section-lead">
+        Every line item below has a schema, a stub, or a provider abstraction already in
+        the repo. CSR funding moves them from designed to deployed. Targets are conservative.
+      </p>
+
+      <div class="timeline">
+        <div class="tl-row">
+          <div class="qtr">Q3 2026 · Jul–Sep</div>
+          <div class="ttl">Go-live foundations</div>
+          <div class="desc">
+            WhatsApp Cloud API <strong>live</strong> (OTP, alerts, MoU eSign delivery, camp links) ·
+            Pan-India LGD geography activated for top 8 states ·
+            Real-time queue via Socket.io ·
+            Workbox BackgroundSync for offline-first donor availability.<br>
+            <strong>Target:</strong> 3 districts · 500 donors · 50 emergency requests / month.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">Q4 2026 · Oct–Dec</div>
+          <div class="ttl">Reach + clinical depth</div>
+          <div class="desc">
+            Map view + PostGIS distance-based donor search ·
+            Devanagari design pass (Noto Sans Devanagari, type scale, motion) ·
+            Clinical-copy Marathi + Hindi translations ·
+            Dynamic Open Graph tags for camp share previews ·
+            DHO PDF report generation (Puppeteer).<br>
+            <strong>Target:</strong> 10 districts · 2,000 donors · first DHO hemovigilance filing.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">Q1 2027 · Jan–Mar</div>
+          <div class="ttl">Identity + governance</div>
+          <div class="desc">
+            <strong>Aadhaar XML KYC</strong> for donors and institutional signatories ·
+            Donor merge endpoint (duplicate consolidation) ·
+            Adverse-transfusion-reaction tracking ·
+            Camp Captain role (persistent host login for repeat organisers) ·
+            audit_reader integrity-check grant.<br>
+            <strong>Target:</strong> 25 districts · 5,000 donors · 15 institutions onboarded.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">Q2 2027 · Apr–Jun</div>
+          <div class="ttl">Hardware + insurance</div>
+          <div class="desc">
+            <strong>IoT cold-chain pilot</strong> — 10 LoRaWAN fridge sensors + transport bag tags ·
+            Insurance API integration (Ayushman Bharat / PMJAY / MJPJAY patient verification) ·
+            Hospital network expansion (50 hospitals across 3 states) ·
+            Citizen-tier request audit + community moderation tooling.<br>
+            <strong>Target:</strong> 50 hospitals · 10,000 donors · first cold-chain alert prevents wastage.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">Q3 2027 · Jul–Sep</div>
+          <div class="ttl">Intelligence + government</div>
+          <div class="desc">
+            AI-assisted donor recommendation (next-eligible date × reliability × distance) ·
+            Lab integration with major chains for post-transfusion outcome tracking ·
+            <strong>State Government MoUs</strong> (Maharashtra, Karnataka, Tamil Nadu) ·
+            Bi-directional sync with eRaktKosh.<br>
+            <strong>Target:</strong> 3 state MoUs · 25,000 donors · 100 institutions.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">Q4 2027 · Oct–Dec</div>
+          <div class="ttl">Scale + native app</div>
+          <div class="desc">
+            Public-health dashboard for DHOs (district shortage heatmaps, lookback velocity) ·
+            FHIR-conformant export for academic / research partners ·
+            <strong>National rare-blood registry federation</strong> (cross-state alert routing) ·
+            Native Android donor app (Capacitor wrapper of the PWA).<br>
+            <strong>Target:</strong> Pan-India rare-blood national network · Android Play Store launch.
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="qtr">2028 · FY27-28</div>
+          <div class="ttl">Federation + international</div>
+          <div class="desc">
+            Federated patient registries (thalassemia / sickle-cell across hospitals) ·
+            International rollout (Nepal, Bangladesh) ·
+            Predictive demand forecasting per blood bank (ML on historical pattern) ·
+            Donor wellness layer (post-donation health check, anaemia monitoring).<br>
+            <strong>Target:</strong> 100,000+ donors · self-sustaining unit economics · grant-readiness for Tata, Gates Foundation · 10+ NGO white-label deployments.
+          </div>
+        </div>
+      </div>
+
+      <div class="pg-tag">Raktify · Roadmap</div>
+      <div class="pg-number">15</div>
+    </section>
+
+    <!-- =================================================================
+         WHY US + CLOSING (page 16)
+         ================================================================= -->
+    <section class="page">
+      <div class="pg-header">
+        <div class="wordmark">
+          <span class="wm-rakt">Rakt</span><span class="wm-i"
+            ><span class="wm-stem">&#x131;</span
+            ><svg class="wm-drop" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" /></svg></span
+          ><span class="wm-fy">fy</span>
+        </div>
+        <div class="pg-header-meta">15 · Why us, what's next</div>
+      </div>
+
+      <div class="section-eyebrow">If you only read one page</div>
+      <h1 class="section-title">A working system,<br />and a serious partner <em>to scale it.</em></h1>
+      <p class="section-lead">
+        Most CSR proposals are pitches for things that will exist. This one is a tour of a
+        system that already exists, is operating on Azure, and is one funding decision away
+        from saving lives in three districts by September.
+      </p>
+
+      <h2 class="sub">Why Choudhari EduHealth India Foundation</h2>
+      <ul class="bullets">
+        <li><strong>Built by a multidisciplinary team.</strong> Engineering, healthcare, government liaison, and community outreach — under one roof at the foundation.</li>
+        <li><strong>Amravati-based, district-deep.</strong> Located where the problem is acute — semi-urban Maharashtra. Not headquartered in Mumbai or Bangalore. Knows what panchayat blood drives, taluka hospitals, and Rotary chairmen actually need.</li>
+        <li><strong>NGO-DARPAN registered (MH/2025/0643345)</strong>, 80G-eligible, CSR Schedule VII aligned. Audited financials available on request.</li>
+        <li><strong>Software-first thinking.</strong> The foundation built and owns the platform end-to-end. No vendor markups, no SaaS lock-in, no per-seat licensing.</li>
+        <li><strong>Open to white-labelling.</strong> The platform is designed to be re-deployable for partner NGOs in other states without code duplication.</li>
+      </ul>
+
+      <div class="divider"></div>
+
+      <h2 class="sub">The ask — three tiers</h2>
+      <div class="cards three">
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Lean</h3>
+          <div class="ttl" style="color: var(--rk-700); font-size: 22px">₹ 10 lakh</div>
+          <div class="desc">Core platform + advisor honorarium. Foundation self-maintains the system.</div>
+        </div>
+        <div class="card">
+          <h3 class="label" style="margin: 0 0 4px">Recommended</h3>
+          <div class="ttl" style="color: var(--rk-700); font-size: 22px">₹ 19 lakh</div>
+          <div class="desc">Above + part-time engineer + district coordinator stipends + contingency. Funds the full 18-month roadmap.</div>
+        </div>
+        <div class="card" style="border: 2px solid var(--rk-700); background: var(--rk-50)">
+          <h3 class="label" style="margin: 0 0 4px">Full programme</h3>
+          <div class="ttl" style="color: var(--rk-700); font-size: 22px">₹ 22 lakh</div>
+          <div class="desc">Above + IoT cold-chain pilot. The pilot alone prevents ~₹1.5L of bag wastage per year per partner blood bank.</div>
+        </div>
+      </div>
+
+      <div class="callout dark" style="margin-top: 20px">
+        <strong>What we&rsquo;d like from a partner beyond money:</strong> district roll-out
+        introductions (DHO offices, blood bank associations), medical-advisor referrals for
+        the clinical-data sign-off, and a chance to demo to your hospital network.
+        Raktify becomes real the moment it serves real patients.
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="sub">Next steps</h2>
+      <ul class="bullets">
+        <li>Schedule a live walk-through of the platform at <strong>raktify.choudhari.ngo</strong>.</li>
+        <li>Receive the detailed CSR budget (<code>Raktify_CSR_Budget.html</code>) and the technical feature reference (<code>Raktify_Feature_Reference.md</code>).</li>
+        <li>Convene a short technical due-diligence call with the engineering lead + medical advisor.</li>
+        <li>Agree a phased disbursement aligned to the quarterly roadmap.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>Get in touch</strong><br />
+        Gaurav R. Choudhari · gaurav@choudhari.ngo · +91 98505 41412<br />
+        Choudhari EduHealth India Foundation · 54, 2nd Lane, Rathi Nagar, VMV Road, Amravati, Maharashtra 444603
+      </div>
+
+      <div style="margin-top: 24px; text-align: center; color: var(--stone-400); font-size: 11px; letter-spacing: 0.06em">
+        © Choudhari EduHealth India Foundation · Raktify is a free, India-first digital public good
+      </div>
+
+      <div class="pg-tag">Raktify · Closing</div>
+      <div class="pg-number">16</div>
+    </section>
+
+  </body>
+</html>

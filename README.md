@@ -10,9 +10,10 @@ The full product specification is `docs/Raktify_Master_Prompt.md`. The build is 
 
 | Document | Use it for |
 |----------|-----------|
-| `docs/Raktify_Feature_Reference.md` | Exhaustive snapshot of every feature shipped (roles, screens, endpoints, schemas). |
+| `docs/Raktify_System_Overview.html` | **16-page illustrated narrative** — for partners, hospitals, CSR funders, board members. Cover → problem → system diagram → emergency walk-through → six stakeholder journeys → privacy & safety → technical architecture → roadmap → ask. Open in a browser; print to PDF for sharing. |
+| `docs/Raktify_Feature_Reference.md` | Exhaustive technical snapshot of every feature shipped (roles, screens, endpoints, schemas). |
 | `docs/Raktify_Demo_Guide.md` | Click-by-click runbook with all test accounts and demo flows. |
-| `docs/Raktify_CSR_Budget.html` | Two-year operating budget + aggressive feature roadmap (open in a browser, A4 print-ready). |
+| `docs/Raktify_CSR_Budget.html` | Two-year operating budget + aggressive 18-month roadmap (A4 print-ready). |
 | `docs/DEPLOYMENT.md` | Azure infra recipe + production env matrix. |
 
 **Live staging:** `https://raktify.choudhari.ngo` (frontend) ·
