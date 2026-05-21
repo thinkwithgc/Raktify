@@ -323,18 +323,28 @@ export function Landing() {
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="border-t border-sand bg-cream">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row">
-          <div className="flex flex-col gap-1">
-            <Wordmark className="text-xl" />
-            <div className="text-xs text-stone-500">{t('lp_footer_org')}</div>
+        <div className="mx-auto max-w-6xl px-5 py-8">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex flex-col gap-1">
+              <Wordmark className="text-xl" />
+              <div className="text-xs text-stone-500">{t('lp_footer_org')}</div>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-stone-500">
+              <Link to="/login" className="hover:text-rk-700">
+                {t('role_donor')}
+              </Link>
+              <Link to="/staff/login" className="hover:text-rk-700">
+                {t('lp_cta_staff')}
+              </Link>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-stone-500">
-            <Link to="/login" className="hover:text-rk-700">
-              {t('role_donor')}
-            </Link>
-            <Link to="/staff/login" className="hover:text-rk-700">
-              {t('lp_cta_staff')}
-            </Link>
+          <div className="mt-6 border-t border-sand pt-5 text-center">
+            <p className="font-display text-sm font-semibold tracking-tight text-rk-700 sm:text-base">
+              A mission-critical operating system for India&rsquo;s bloodstream.
+            </p>
+            <p className="mt-1 text-xs italic text-stone-500">
+              An operating system, not an app.
+            </p>
           </div>
         </div>
       </footer>

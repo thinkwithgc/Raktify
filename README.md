@@ -1,5 +1,8 @@
 # Raktify
 
+> **A mission-critical operating system for India's bloodstream.**
+> _An operating system, not an app._
+
 Life-critical community blood donation and emergency matching platform operated by **Choudhari EduHealth India Foundation**, Amravati, Maharashtra.
 
 > ⚠️ **Life-critical system.** A bug in blood-group matching, eligibility screening, or lookback can kill a patient. All patient-safety-critical rules are enforced at the **database** layer (CHECK constraints, triggers, RLS) — never in application code alone.
