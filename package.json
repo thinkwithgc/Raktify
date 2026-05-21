@@ -18,6 +18,7 @@
     "migrate:status": "node scripts/run_migrations.js status",
     "migrate:dry": "node scripts/run_migrations.js dry-run",
     "lgd:import": "node scripts/import_lgd.js",
+    "og:build": "node scripts/build_og_image.js",
     "smoke": "node scripts/smoke_test.js",
     "smoke:frontend": "npm --workspace frontend run build",
     "verify": "npm run lint && npm run format:check && npm run migrate:status && npm run smoke",
