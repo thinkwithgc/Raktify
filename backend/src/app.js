@@ -79,7 +79,20 @@ function createApp() {
     }),
   );
 
-  app.use(express.json({ limit: '1mb' }));
+  // Capture the raw request body buffer during JSON parsing so the
+  // WhatsApp webhook can verify Meta's X-Hub-Signature-256 HMAC against
+  // the exact bytes Meta signed. JSON.stringify(req.body) won't work —
+  // key ordering and whitespace differ and the HMAC mismatches.
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        // Only attach for routes that need it; on other routes this is
+        // a tiny no-cost Buffer pointer that gets GC'd with the request.
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
   // Global rate limit: 100 req/IP/min. Spec §10.

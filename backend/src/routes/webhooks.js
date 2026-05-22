@@ -38,6 +38,37 @@ function verifyMsg91Signature(req) {
   );
 }
 
+// Meta WhatsApp Cloud API signs every webhook POST with
+// `X-Hub-Signature-256: sha256=<hex>` where the HMAC is computed over the
+// RAW request body bytes, keyed by the App Secret. Skip verification only
+// when the secret is unset (dev convenience) — the same posture as
+// verifyMsg91Signature. In prod, WHATSAPP_APP_SECRET MUST be set; otherwise
+// anyone with our webhook URL can spoof delivery receipts and inbound
+// messages.
+function verifyMetaSignature(req) {
+  if (!env.whatsapp.appSecret) {
+    logger.warn(
+      'WHATSAPP_APP_SECRET not set — skipping Meta webhook signature verification (dev only).',
+    );
+    return true;
+  }
+  const header = req.headers['x-hub-signature-256'];
+  if (!header || typeof header !== 'string' || !header.startsWith('sha256=')) {
+    return false;
+  }
+  const provided = header.slice('sha256='.length);
+  const expected = crypto
+    .createHmac('sha256', env.whatsapp.appSecret)
+    .update(req.rawBody || Buffer.alloc(0))
+    .digest('hex');
+  if (provided.length !== expected.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
 // ── POST /webhooks/msg91/delivery ────────────────────────────────────────
 const deliverySchema = z.object({
   notification_id: z.union([z.number(), z.string()]).optional(),
@@ -123,10 +154,22 @@ const incomingSchema = z.object({
 const META_STATUS = { sent: 'SE', delivered: 'DL', read: 'RD', failed: 'FA' };
 
 async function handleMetaWebhook(req, res) {
-  // NOTE: Meta signs the POST with X-Hub-Signature-256 (HMAC-SHA256 of the
-  // RAW request body, keyed by the app secret). Verifying it correctly needs
-  // the raw body captured before JSON parsing — a small app.js change.
-  // TODO: capture raw body and verify X-Hub-Signature-256 vs WHATSAPP_APP_SECRET.
+  // Meta signs the POST with X-Hub-Signature-256 (HMAC-SHA256 of the raw
+  // request body, keyed by WHATSAPP_APP_SECRET). The raw body is captured
+  // by the express.json `verify` callback in app.js and attached to
+  // req.rawBody. Reject silently with 401 on mismatch.
+  if (!verifyMetaSignature(req)) {
+    logger.warn(
+      {
+        ip: req.ip,
+        hasHeader: Boolean(req.headers['x-hub-signature-256']),
+        rawBodyBytes: req.rawBody?.length || 0,
+      },
+      'WhatsApp webhook signature verification failed — rejecting',
+    );
+    return res.status(401).json({ error: 'invalid_signature' });
+  }
+
   for (const entry of Array.isArray(req.body.entry) ? req.body.entry : []) {
     for (const change of entry.changes || []) {
       const value = change.value || {};
