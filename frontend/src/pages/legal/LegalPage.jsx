@@ -32,8 +32,8 @@ export function LegalPage({ title, lastUpdated, version = 'v1', children }) {
           prepared by the engineering team and aligned with the Digital Personal Data Protection
           Act 2023. A licensed healthcare lawyer will review and finalise these documents before
           Raktify accepts donors at scale. For specific concerns, write to{' '}
-          <a href="mailto:hello@choudhari.ngo" className="font-semibold text-rk-700 underline">
-            hello@choudhari.ngo
+          <a href="mailto:contact@choudhari.ngo" className="font-semibold text-rk-700 underline">
+            contact@choudhari.ngo
           </a>.
         </div>
 
@@ -43,8 +43,8 @@ export function LegalPage({ title, lastUpdated, version = 'v1', children }) {
 
         <div className="mt-12 border-t border-sand pt-6 text-xs text-stone-500">
           Have a question or want to exercise one of your rights under DPDP Act 2023? Email{' '}
-          <a href="mailto:hello@choudhari.ngo" className="text-rk-700 hover:underline">
-            hello@choudhari.ngo
+          <a href="mailto:contact@choudhari.ngo" className="text-rk-700 hover:underline">
+            contact@choudhari.ngo
           </a>{' '}
           or call{' '}
           <a href="tel:+919850541412" className="text-rk-700 hover:underline">

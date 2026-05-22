@@ -30,7 +30,7 @@ export function DataDeletion() {
 
       <h3>Option B — Email</h3>
       <p>
-        Send an email to <a href="mailto:hello@choudhari.ngo">hello@choudhari.ngo</a> from
+        Send an email to <a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a> from
         the email address or mobile number associated with your account. Include:
       </p>
       <ul>
@@ -143,7 +143,7 @@ export function DataDeletion() {
       <h2>8. Contact for this process</h2>
       <p>
         <strong>Grievance Officer:</strong> Gaurav R. Choudhari<br />
-        <strong>Email:</strong> <a href="mailto:hello@choudhari.ngo">hello@choudhari.ngo</a><br />
+        <strong>Email:</strong> <a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a><br />
         <strong>Phone:</strong> <a href="tel:+919850541412">+91 98505 41412</a><br />
         <strong>Working hours:</strong> 10:00–18:00 IST, Monday–Saturday
       </p>

@@ -97,8 +97,8 @@ export function Footer({ variant = 'full' }) {
               Choudhari EduHealth India Foundation<br />
               54, 2nd Lane, Rathi Nagar, VMV Road<br />
               Amravati, Maharashtra 444603, India<br />
-              <a href="mailto:hello@choudhari.ngo" className="hover:text-rk-700">
-                hello@choudhari.ngo
+              <a href="mailto:contact@choudhari.ngo" className="hover:text-rk-700">
+                contact@choudhari.ngo
               </a>
               {' · '}
               <a href="tel:+919850541412" className="hover:text-rk-700">

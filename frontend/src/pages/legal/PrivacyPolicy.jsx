@@ -178,7 +178,7 @@ export function PrivacyPolicy() {
       </p>
       <p>
         <strong>Grievance Officer:</strong> Gaurav R. Choudhari<br />
-        <strong>Email:</strong> <a href="mailto:hello@choudhari.ngo">hello@choudhari.ngo</a><br />
+        <strong>Email:</strong> <a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a><br />
         <strong>Phone:</strong> <a href="tel:+919850541412">+91 98505 41412</a><br />
         <strong>Address:</strong> Choudhari EduHealth India Foundation, 54, 2nd Lane, Rathi Nagar, VMV Road, Amravati, Maharashtra 444603
       </p>

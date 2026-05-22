@@ -194,7 +194,7 @@ export function TermsOfService() {
         Choudhari EduHealth India Foundation<br />
         54, 2nd Lane, Rathi Nagar, VMV Road<br />
         Amravati, Maharashtra 444603, India<br />
-        <a href="mailto:hello@choudhari.ngo">hello@choudhari.ngo</a> ·{' '}
+        <a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a> ·{' '}
         <a href="tel:+919850541412">+91 98505 41412</a>
       </p>
     </LegalPage>
