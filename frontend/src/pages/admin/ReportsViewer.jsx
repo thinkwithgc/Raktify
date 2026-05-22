@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { apiRequest, tokenStore } from '../../lib/api.js';
 
 // Phase 8 reports viewer. Three reports, common month picker. JSON view +
@@ -75,9 +76,9 @@ export function ReportsViewer() {
   }
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle="Reports" />
-      <main className="mx-auto max-w-5xl px-4 py-6 space-y-4">
+      <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6">
         <Link to="/admin" className="text-sm font-medium text-rk-700 hover:underline">
           ← Back to dashboard
         </Link>
@@ -167,6 +168,7 @@ export function ReportsViewer() {
 
         {q.data ? <ReportRender data={q.data} kind={tab} /> : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }

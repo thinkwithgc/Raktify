@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { useT } from '../../i18n/useT.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -91,9 +92,9 @@ export function RequestDetail() {
   const apiError = requestQuery.error?.response?.data?.error;
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle="Request detail" />
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+      <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6">
         <div>
           <Link to="/coordinator" className="text-sm text-rk-700 hover:underline">
             ← Back to queue
@@ -145,6 +146,7 @@ export function RequestDetail() {
           </>
         ) : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }

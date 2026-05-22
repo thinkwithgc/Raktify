@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { CoordinatorsTab } from './CoordinatorsTab.jsx';
 import { DuplicatesTab } from './DuplicatesTab.jsx';
 import { ReferralsTab } from './ReferralsTab.jsx';
@@ -34,9 +35,9 @@ export function AdminDashboard() {
   const [tab, setTab] = useState('onboarding');
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle="NGO admin" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6">
         <nav className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-200">
           {TABS.map((tt) => (
             <button
@@ -72,6 +73,7 @@ export function AdminDashboard() {
         {tab === 'audit' ? <AuditTab /> : null}
         {tab === 'jobs' ? <JobsTab /> : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }

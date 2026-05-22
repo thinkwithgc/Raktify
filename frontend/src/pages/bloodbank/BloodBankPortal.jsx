@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { donationSchema, openingStockSchema, zodFlatten } from '../../lib/schemas.js';
 import { useT } from '../../i18n/useT.js';
@@ -26,9 +27,9 @@ export function BloodBankPortal() {
   const TABS = tabsFor(t);
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle="Blood bank portal" />
-      <main className="mx-auto max-w-4xl px-4 py-6">
+      <main className="mx-auto w-full max-w-4xl px-4 py-6">
         <nav className="mb-4 flex gap-2 border-b border-slate-200">
           {TABS.map((tt) => (
             <button
@@ -53,6 +54,7 @@ export function BloodBankPortal() {
         {tab === 'screening' ? <ScreeningEntry /> : null}
         {tab === 'opening' ? <OpeningStock /> : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }

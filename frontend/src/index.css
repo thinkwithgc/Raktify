@@ -36,4 +36,45 @@
   .rk-label {
     @apply mb-1 block text-sm font-medium text-slate-700;
   }
+
+  /* Long-form legal copy (Privacy, Terms, Data Deletion).
+     Targets descendants so individual pages stay clean. */
+  .rk-legal h2 {
+    @apply mt-10 text-xl font-semibold tracking-tight text-stone-900;
+  }
+  .rk-legal h3 {
+    @apply mt-6 text-base font-semibold text-stone-900;
+  }
+  .rk-legal p {
+    @apply my-3 leading-relaxed;
+  }
+  .rk-legal ul,
+  .rk-legal ol {
+    @apply my-3 ml-6 list-outside space-y-1;
+  }
+  .rk-legal ul {
+    @apply list-disc;
+  }
+  .rk-legal ol {
+    @apply list-decimal;
+  }
+  .rk-legal li {
+    @apply leading-relaxed;
+  }
+  .rk-legal a {
+    @apply text-rk-700 hover:underline;
+  }
+  .rk-legal strong {
+    @apply font-semibold text-stone-900;
+  }
+  .rk-legal table {
+    @apply my-4 w-full border-collapse text-sm;
+  }
+  .rk-legal th,
+  .rk-legal td {
+    @apply border-b border-sand px-3 py-2 text-left align-top;
+  }
+  .rk-legal th {
+    @apply font-semibold text-stone-900;
+  }
 }

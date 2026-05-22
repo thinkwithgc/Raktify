@@ -1,20 +1,33 @@
 #!/usr/bin/env node
 /**
- * Render the OG preview SVG to a PNG at 1200×630.
+ * Render Raktify brand images from SVG sources to PNG.
  *
- * WhatsApp, Facebook, LinkedIn and iMessage scrape <meta property="og:image">
- * and expect a PNG / JPG (SVG support is patchy). We author the source as SVG
- * (so it stays editable in any vector tool / a text editor) and rasterise
- * it to PNG at the standard 1200×630 OG dimensions during the build.
+ * Two outputs:
+ *   • og-image.png (1200×630) — used by WhatsApp / Facebook / LinkedIn for
+ *     link previews. Source: frontend/public/og-image.svg
+ *   • app-icon.png (1024×1024) — used by Meta App Dashboard, Android Play
+ *     Store, iOS App Store, PWA installer, favicon-large. Source:
+ *     frontend/public/app-icon.svg
  *
  * Usage:
  *   node scripts/build_og_image.js
  *
- * Output:
- *   frontend/public/og-image.png   ← committed; Vite copies it to dist/
+ * Outputs committed to frontend/public/; Vite copies them to frontend/dist/
+ * during the production build.
  */
 const fs = require('fs');
 const path = require('path');
+
+async function render(sharp, svgPath, pngPath, width, height, label) {
+  const svg = fs.readFileSync(svgPath);
+  await sharp(svg, { density: 320 })
+    .resize(width, height, { fit: 'cover', position: 'centre' })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toFile(pngPath);
+  const { size } = fs.statSync(pngPath);
+  // eslint-disable-next-line no-console
+  console.log(`✓ wrote ${label.padEnd(12)} ${pngPath} (${(size / 1024).toFixed(1)} KiB)`);
+}
 
 (async () => {
   // npm workspaces hoist common deps to the root node_modules. Try the root
@@ -26,21 +39,28 @@ const path = require('path');
     sharp = require(path.join(__dirname, '..', 'frontend', 'node_modules', 'sharp'));
   }
 
-  const svgPath = path.join(__dirname, '..', 'frontend', 'public', 'og-image.svg');
-  const pngPath = path.join(__dirname, '..', 'frontend', 'public', 'og-image.png');
+  const pub = path.join(__dirname, '..', 'frontend', 'public');
 
-  const svg = fs.readFileSync(svgPath);
+  // OG preview image — 1200×630, the standard for FB / WhatsApp link cards.
+  await render(
+    sharp,
+    path.join(pub, 'og-image.svg'),
+    path.join(pub, 'og-image.png'),
+    1200, 630,
+    'og-image',
+  );
 
-  await sharp(svg, { density: 200 })
-    .resize(1200, 630, { fit: 'cover', position: 'centre' })
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toFile(pngPath);
-
-  const { size } = fs.statSync(pngPath);
-  // eslint-disable-next-line no-console
-  console.log(`✓ wrote ${pngPath} (${(size / 1024).toFixed(1)} KiB)`);
+  // App icon — 1024×1024, the standard for Meta App Dashboard, Play Store,
+  // App Store, PWA installer.
+  await render(
+    sharp,
+    path.join(pub, 'app-icon.svg'),
+    path.join(pub, 'app-icon.png'),
+    1024, 1024,
+    'app-icon',
+  );
 })().catch((err) => {
   // eslint-disable-next-line no-console
-  console.error('OG image build failed:', err.message);
+  console.error('Brand image build failed:', err.message);
   process.exit(1);
 });

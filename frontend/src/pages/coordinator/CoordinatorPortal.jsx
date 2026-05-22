@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CoordinatorDashboard } from './CoordinatorDashboard.jsx';
 import { CoordinatorQueue } from './CoordinatorQueue.jsx';
@@ -14,9 +15,9 @@ export function CoordinatorPortal() {
   ];
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle={role === 'coordinator' ? 'Coordinator portal' : role} />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6">
         <nav className="mb-4 flex gap-2 border-b border-slate-200">
           {TABS.map((tt) => (
             <button
@@ -40,6 +41,7 @@ export function CoordinatorPortal() {
         ) : null}
         {tab === 'queue' ? <CoordinatorQueue /> : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }

@@ -15,6 +15,9 @@ import { InstitutionApply } from './pages/onboarding/InstitutionApply.jsx';
 import { HostCamp } from './pages/camps/HostCamp.jsx';
 import { CampOrganizerDashboard } from './pages/camps/CampOrganizerDashboard.jsx';
 import { PublicCampPage } from './pages/camps/PublicCampPage.jsx';
+import { PrivacyPolicy } from './pages/legal/PrivacyPolicy.jsx';
+import { TermsOfService } from './pages/legal/TermsOfService.jsx';
+import { DataDeletion } from './pages/legal/DataDeletion.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -42,6 +45,9 @@ export default function App() {
       <Route path="/camps/host" element={<HostCamp />} />
       <Route path="/camp/:token" element={<CampOrganizerDashboard />} />
       <Route path="/c/:slug" element={<PublicCampPage />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/data-deletion" element={<DataDeletion />} />
 
       <Route
         path="/donor"

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { Header } from '../../components/Header.jsx';
+import { Footer } from '../../components/Footer.jsx';
 import { HospitalActiveRequests } from './HospitalActiveRequests.jsx';
 import { HospitalDashboard } from './HospitalDashboard.jsx';
 import { HospitalRaiseRequest } from './HospitalRaiseRequest.jsx';
@@ -18,9 +19,9 @@ export function HospitalPortal() {
   // Hospital portal uses a slightly wider canvas than the original two-tab
   // layout so the district-availability grid + KPI row breathe on desktop.
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <Header subtitle="Hospital portal" />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6">
         <nav className="mb-4 flex gap-2 border-b border-slate-200">
           {TABS.map((tt) => (
             <button
@@ -43,6 +44,7 @@ export function HospitalPortal() {
         {tab === 'mine' ? <HospitalActiveRequests /> : null}
         {tab === 'raise' ? <HospitalRaiseRequest /> : null}
       </main>
+      <Footer variant="compact" />
     </div>
   );
 }
