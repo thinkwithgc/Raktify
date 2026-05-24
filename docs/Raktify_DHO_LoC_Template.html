@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Letter of Cooperation — DHO Office &amp; Choudhari EduHealth India Foundation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --rk-700: #b8231a;
+        --rk-100: #ffe7e1;
+        --ink: #1c1917;
+        --stone-700: #44403c;
+        --stone-500: #78716c;
+        --stone-300: #d6d3d1;
+        --paper: #ffffff;
+        --tan: #f7f1e8;
+        --sand: #f5ece4;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        background: var(--tan);
+        color: var(--ink);
+        font-family: 'Noto Serif', Georgia, serif;
+        font-size: 13.5px;
+        line-height: 1.6;
+      }
+      .sheet {
+        background: var(--paper);
+        max-width: 794px;
+        min-height: 1123px;
+        margin: 24px auto;
+        padding: 48px 56px 56px;
+        box-shadow: 0 8px 32px -8px rgba(0,0,0,0.15);
+        position: relative;
+        page-break-after: always;
+      }
+      .sheet:last-of-type { page-break-after: auto; }
+      @media print {
+        body { background: #fff; }
+        .sheet { box-shadow: none; margin: 0; }
+        @page { size: A4; margin: 0; }
+      }
+
+      .header-band {
+        text-align: center;
+        padding-bottom: 14px;
+        border-bottom: 2px solid var(--ink);
+        margin-bottom: 22px;
+      }
+      .header-band .eyebrow {
+        font-family: 'Inter', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--rk-700);
+      }
+      .header-band h1 {
+        font-family: 'Inter', sans-serif;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin-top: 4px;
+        color: var(--ink);
+      }
+      .header-band .sub {
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        color: var(--stone-700);
+        margin-top: 4px;
+      }
+
+      .parties {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+        margin-bottom: 24px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11.5px;
+        color: var(--stone-700);
+      }
+      .party {
+        background: var(--sand);
+        border-left: 3px solid var(--rk-700);
+        padding: 12px 14px;
+      }
+      .party .role {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--rk-700);
+        margin-bottom: 4px;
+      }
+      .party .name { font-weight: 700; color: var(--ink); font-size: 13px; }
+      .party .meta { color: var(--stone-500); font-size: 11px; margin-top: 4px; }
+
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Inter', sans-serif;
+        font-size: 11.5px;
+        color: var(--stone-700);
+        margin-bottom: 18px;
+      }
+      .meta-row .label { color: var(--stone-500); margin-right: 6px; }
+      .fill {
+        display: inline-block;
+        min-width: 100px;
+        border-bottom: 1px dotted var(--stone-300);
+        padding: 0 4px;
+      }
+
+      h2 {
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--rk-700);
+        margin-top: 22px;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--sand);
+      }
+      h2 .num {
+        display: inline-block;
+        background: var(--rk-700);
+        color: #fff;
+        font-size: 10.5px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 4px;
+        margin-right: 8px;
+      }
+
+      p { margin-bottom: 10px; text-align: justify; }
+      p strong { font-weight: 700; }
+
+      ul.points {
+        list-style: none;
+        padding-left: 0;
+        margin: 8px 0 12px;
+      }
+      ul.points > li {
+        padding-left: 22px;
+        position: relative;
+        margin-bottom: 6px;
+        text-align: justify;
+      }
+      ul.points > li::before {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 9px;
+        width: 6px;
+        height: 6px;
+        background: var(--rk-700);
+        border-radius: 999px;
+      }
+
+      table.boundaries {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 8px 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11.5px;
+      }
+      table.boundaries th, table.boundaries td {
+        padding: 7px 10px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--sand);
+      }
+      table.boundaries th {
+        background: var(--sand);
+        color: var(--ink);
+        font-weight: 700;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      table.boundaries td.yes { color: #15803d; font-weight: 600; }
+      table.boundaries td.no { color: #b8231a; font-weight: 600; }
+
+      .signature-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        margin-top: 40px;
+      }
+      .signature-row .sig {
+        font-family: 'Inter', sans-serif;
+      }
+      .signature-row .sig .seal-line {
+        height: 70px;
+        border-bottom: 1px solid var(--ink);
+        margin-bottom: 6px;
+      }
+      .signature-row .sig .name {
+        font-weight: 700;
+        font-size: 12.5px;
+        color: var(--ink);
+      }
+      .signature-row .sig .title {
+        font-size: 11.5px;
+        color: var(--stone-700);
+      }
+      .signature-row .sig .meta {
+        font-size: 10.5px;
+        color: var(--stone-500);
+        margin-top: 3px;
+      }
+      .witnesses {
+        margin-top: 30px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11px;
+        color: var(--stone-500);
+      }
+      .witnesses .w {
+        border-top: 1px solid var(--stone-300);
+        padding-top: 6px;
+      }
+      .witnesses .label {
+        font-weight: 700;
+        color: var(--stone-700);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 9.5px;
+      }
+
+      .draft-note {
+        background: var(--rk-100);
+        border-left: 4px solid var(--rk-700);
+        padding: 10px 14px;
+        margin-bottom: 22px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11px;
+        color: var(--ink);
+      }
+      .draft-note strong { color: var(--rk-700); }
+
+      .page-footer {
+        position: absolute;
+        bottom: 28px;
+        left: 56px;
+        right: 56px;
+        font-family: 'Inter', sans-serif;
+        font-size: 9.5px;
+        color: var(--stone-400, #a8a29e);
+        text-align: center;
+        letter-spacing: 0.06em;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- ── Sheet 1 ─────────────────────────────────────────────── -->
+    <div class="sheet">
+      <div class="draft-note">
+        <strong>TEMPLATE.</strong> Replace the {placeholders} with the relevant details
+        before printing for signature. This document is a non-binding letter of cooperation,
+        not a commercial MoU. Pending legal review prior to wider distribution.
+      </div>
+
+      <header class="header-band">
+        <div class="eyebrow">Letter of Cooperation</div>
+        <h1>Office of the District Health Officer &amp; Choudhari EduHealth India Foundation</h1>
+        <div class="sub">For implementation of the Raktify voluntary-blood-donation platform in {District Name} District</div>
+      </header>
+
+      <!-- Parties -->
+      <div class="parties">
+        <div class="party">
+          <div class="role">Party A · The DHO Office</div>
+          <div class="name">Office of the District Health Officer</div>
+          <div class="meta">
+            {District Name} District<br/>
+            Government of Maharashtra<br/>
+            {Full office address}<br/>
+            Represented by: <strong>{DHO Name}</strong>, IAS / MBBS, District Health Officer
+          </div>
+        </div>
+        <div class="party">
+          <div class="role">Party B · The Foundation</div>
+          <div class="name">Choudhari EduHealth India Foundation</div>
+          <div class="meta">
+            54, 2nd Lane, Rathi Nagar, VMV Road<br/>
+            Amravati, Maharashtra 444603<br/>
+            NGO-DARPAN: MH/2025/0643345 · 80G eligible<br/>
+            Represented by: <strong>Gaurav R. Choudhari</strong>, Founder &amp; Chairman
+          </div>
+        </div>
+      </div>
+
+      <!-- Date / Ref -->
+      <div class="meta-row">
+        <div>
+          <span class="label">Ref. No:</span>
+          <span class="fill">CEHIF/RAKTIFY/{DD}/LOC/2026/____</span>
+        </div>
+        <div>
+          <span class="label">Effective from:</span>
+          <span class="fill">____ / ____ / 2026</span>
+        </div>
+      </div>
+
+      <!-- Preamble -->
+      <h2><span class="num">1</span> Preamble</h2>
+      <p>
+        Whereas the District Health Officer, {District Name} District (hereafter "the DHO Office")
+        is the nodal authority for implementation of the National Blood Policy 2002, the
+        National Hemovigilance Programme, and related public-health programmes in the district;
+      </p>
+      <p>
+        And whereas the <strong>Choudhari EduHealth India Foundation</strong> (hereafter "the
+        Foundation") has developed and operates <strong>Raktify</strong>, a free voluntary
+        blood-donation coordination platform aligned with the Drugs &amp; Cosmetics Act, 1940
+        and the Digital Personal Data Protection Act, 2023;
+      </p>
+      <p>
+        And whereas both parties share an interest in strengthening voluntary blood donation,
+        reducing emergency-response time, improving transfusion-transmissible-infection (TTI)
+        traceability, and modernising hemovigilance reporting in {District Name} District;
+      </p>
+      <p>
+        The parties hereby document the following understanding for cooperation, with no
+        financial obligation on either party.
+      </p>
+
+      <!-- What Foundation provides -->
+      <h2><span class="num">2</span> Responsibilities of the Foundation</h2>
+      <ul class="points">
+        <li>Provide access to the Raktify platform, at <em>raktify.choudhari.ngo</em>, free of charge to all donors, hospitals, blood banks, NGOs and camp organisers in {District Name} District in perpetuity.</li>
+        <li>Provide a read-only district governance dashboard, with secure login, to the DHO Office and any officer the DHO Office nominates.</li>
+        <li>Provide onboarding support to every licensed blood bank and Government hospital in the district within 30 days of their request.</li>
+        <li>Train counter staff at each onboarded blood bank in TTI screening, four-eyes verification, and inventory recording on the platform.</li>
+        <li>Deploy and maintain a district coordinator team to assist with emergency-request triage and donor activation.</li>
+        <li>Maintain all donor and patient personal data in encrypted form at rest, with row-level access controls, an immutable audit log, and data residency within India (Microsoft Azure, Central India region).</li>
+        <li>Submit a quarterly platform-performance summary to the DHO Office, including donations, requests handled, average response time, and any policy-relevant incidents.</li>
+      </ul>
+
+      <p class="page-footer">Raktify · Letter of Cooperation v1 — pending legal review · Page 1 of 2</p>
+    </div>
+
+    <!-- ── Sheet 2 ─────────────────────────────────────────────── -->
+    <div class="sheet">
+      <!-- DHO responsibilities -->
+      <h2><span class="num">3</span> Responsibilities of the DHO Office</h2>
+      <ul class="points">
+        <li>Issue an official circular to all licensed blood banks and Government hospitals in {District Name} District directing them to register on the Raktify platform within 30 days of the circular date.</li>
+        <li>Include Raktify onboarding and active usage in the routine quality-audit checklist used during scheduled inspections of blood banks.</li>
+        <li>Designate a nodal officer (typically the Programme Officer, Blood Cell) as the single point of contact for the Foundation's coordinator team.</li>
+        <li>Facilitate introductions between the Foundation and Government hospitals, Civil Surgeon, Medical Superintendents, and the Maharashtra State Blood Transfusion Council as relevant.</li>
+        <li>Provide feedback on platform functionality, with particular reference to the operational requirements of the district's hospitals and blood banks.</li>
+      </ul>
+
+      <!-- Data principles -->
+      <h2><span class="num">4</span> Data principles and privacy</h2>
+      <p>
+        The parties recognise that compliance with the Digital Personal Data Protection Act,
+        2023 is paramount. The following data-handling principles shall be observed at all
+        times:
+      </p>
+      <table class="boundaries">
+        <thead>
+          <tr>
+            <th>Data category</th>
+            <th>DHO Office sees</th>
+            <th>Foundation processes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Aggregate donation counts per institution / month</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>Institutional compliance grades (A/B/C/Flag)</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>Lookback investigation counts and average resolution time</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>Reactive-TTI counts per pathogen, per month</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>Names, mobile numbers, or addresses of donors</td><td class="no">No</td><td>Yes (encrypted, restricted)</td></tr>
+          <tr><td>Field-level TTI results for any individual donor</td><td class="no">No</td><td>Yes (encrypted with a separate key)</td></tr>
+          <tr><td>Identities of patients in emergency requests</td><td class="no">No</td><td>Yes (encrypted, restricted)</td></tr>
+          <tr><td>Donor mobile numbers shared with hospitals</td><td class="no">Never</td><td class="no">Never</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The Foundation shall not share district donor or patient data with any other district,
+        any other State, or any third party (commercial, research or otherwise) without the
+        prior written consent of the DHO Office, except where such disclosure is required by
+        an order of a court of competent jurisdiction or by a competent regulatory authority.
+      </p>
+
+      <!-- Term -->
+      <h2><span class="num">5</span> Term, renewal and termination</h2>
+      <ul class="points">
+        <li>This Letter of Cooperation is initially valid for <strong>twelve (12) months</strong> from the effective date noted on page 1.</li>
+        <li>Renewal at the end of the term is automatic, by exchange of a brief letter from either party affirming continued cooperation; no fresh signature is required if both parties are satisfied.</li>
+        <li>Either party may withdraw cooperation with <strong>thirty (30) days written notice</strong> to the other party, with no penalty.</li>
+        <li>On withdrawal, the Foundation shall continue to maintain district data already collected for the statutory retention periods (Drugs &amp; Cosmetics Act: 5 years; hemovigilance: 7 years; audit log: permanent) and shall make it available to the DHO Office upon request during those periods.</li>
+      </ul>
+
+      <!-- Nature of the agreement -->
+      <h2><span class="num">6</span> Nature of this agreement</h2>
+      <p>
+        This is a non-binding Letter of Cooperation, not a commercial contract. No fees are
+        paid by either party to the other. No exclusivity is granted to either party. Neither
+        party assumes any liability for the operational performance of the other. Disputes, if
+        any, shall be resolved by good-faith discussion between the parties; should that fail,
+        the parties shall approach the State Blood Transfusion Council for mediation prior to
+        any other recourse.
+      </p>
+
+      <!-- Signatures -->
+      <h2><span class="num">7</span> Signatures</h2>
+      <div class="signature-row">
+        <div class="sig">
+          <div class="seal-line"></div>
+          <div class="name">{DHO Name}</div>
+          <div class="title">District Health Officer · {District Name}</div>
+          <div class="meta">Office seal &amp; date: ____ / ____ / 2026</div>
+        </div>
+        <div class="sig">
+          <div class="seal-line"></div>
+          <div class="name">Gaurav R. Choudhari</div>
+          <div class="title">Founder &amp; Chairman</div>
+          <div class="meta">Choudhari EduHealth India Foundation · ____ / ____ / 2026</div>
+        </div>
+      </div>
+
+      <div class="witnesses">
+        <div class="w">
+          <div class="label">Witness 1 (DHO side)</div>
+          <div style="height: 28px"></div>
+          <div>Name &amp; designation: ___________________</div>
+        </div>
+        <div class="w">
+          <div class="label">Witness 2 (Foundation side)</div>
+          <div style="height: 28px"></div>
+          <div>Name &amp; designation: ___________________</div>
+        </div>
+      </div>
+
+      <p class="page-footer">Raktify · Letter of Cooperation v1 — pending legal review · Page 2 of 2</p>
+    </div>
+
+  </body>
+</html>

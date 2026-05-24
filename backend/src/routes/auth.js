@@ -228,7 +228,7 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
   const r = await pool.query(
-    `SELECT pu.id, pu.role, pu.institution_id, pu.password_hash,
+    `SELECT pu.id, pu.role, pu.institution_id, pu.district_id, pu.password_hash,
             pu.totp_secret, pu.totp_enabled,
             pu.is_locked, pu.locked_until, pu.force_password_change,
             i.onboarding_status
@@ -250,7 +250,8 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
     return res.status(401).json({ error: 'invalid_credentials' });
   }
 
-  // For staff roles, ensure their institution is ACTIVE.
+  // For staff roles, ensure their institution is ACTIVE. DHOs have no
+  // institution (district_id binding instead), so the check is skipped for them.
   if (['hospital', 'blood_bank'].includes(u.role) && u.onboarding_status !== 'AC') {
     return res.status(403).json({ error: 'institution_not_active' });
   }
@@ -269,12 +270,19 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
   await pool.query(`UPDATE platform_users SET last_login_at = clock_timestamp() WHERE id = $1`, [
     u.id,
   ]);
-  const token = sign({ sub: u.id, role: u.role, sid: sessionId, inst: u.institution_id });
+  const token = sign({
+    sub: u.id,
+    role: u.role,
+    sid: sessionId,
+    inst: u.institution_id,
+    dist: u.district_id,
+  });
   res.json({
     token,
     role: u.role,
     user_id: u.id,
     institution_id: u.institution_id,
+    district_id: u.district_id,
     totp_required: !u.totp_enabled,
     force_password_change: u.force_password_change,
   });
@@ -282,7 +290,7 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
 
 // ── POST /auth/institutional/setup-totp ──────────────────────────────────
 router.post('/institutional/setup-totp', verifyJWT, async (req, res) => {
-  if (!['hospital', 'blood_bank', 'ngo_admin', 'super_admin'].includes(req.user.role)) {
+  if (!['hospital', 'blood_bank', 'ngo_admin', 'super_admin', 'dho'].includes(req.user.role)) {
     return res.status(403).json({ error: 'forbidden' });
   }
 

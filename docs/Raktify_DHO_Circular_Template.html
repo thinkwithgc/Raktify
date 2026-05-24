@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DHO Circular Template — Raktify adoption</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --rk-700: #b8231a;
+        --rk-100: #ffe7e1;
+        --ink: #1c1917;
+        --stone-700: #44403c;
+        --stone-500: #78716c;
+        --stone-300: #d6d3d1;
+        --paper: #ffffff;
+        --tan: #f7f1e8;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        background: var(--tan);
+        color: var(--ink);
+        font-family: 'Noto Serif', Georgia, serif;
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .sheet {
+        background: var(--paper);
+        max-width: 794px;
+        min-height: 1123px;
+        margin: 24px auto;
+        padding: 48px 56px 56px;
+        box-shadow: 0 8px 32px -8px rgba(0,0,0,0.15);
+        position: relative;
+      }
+      @media print {
+        body { background: #fff; }
+        .sheet { box-shadow: none; margin: 0; }
+        @page { size: A4; margin: 0; }
+      }
+
+      .letterhead {
+        text-align: center;
+        padding-bottom: 14px;
+        border-bottom: 2px solid var(--ink);
+        margin-bottom: 22px;
+      }
+      .letterhead .gov {
+        font-family: 'Inter', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--rk-700);
+      }
+      .letterhead h1 {
+        font-family: 'Inter', sans-serif;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin-top: 4px;
+        color: var(--ink);
+      }
+      .letterhead .office {
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--stone-700);
+        margin-top: 2px;
+      }
+      .letterhead .addr {
+        font-family: 'Inter', sans-serif;
+        font-size: 10.5px;
+        color: var(--stone-500);
+        margin-top: 2px;
+      }
+
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Inter', sans-serif;
+        font-size: 11.5px;
+        color: var(--stone-700);
+        margin-bottom: 22px;
+      }
+      .meta-row .label {
+        display: inline-block;
+        color: var(--stone-500);
+        margin-right: 6px;
+      }
+      .fill {
+        display: inline-block;
+        min-width: 100px;
+        border-bottom: 1px dotted var(--stone-300);
+        padding: 0 4px;
+      }
+
+      .ref-no {
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        color: var(--ink);
+        margin-bottom: 8px;
+      }
+
+      .subject {
+        font-weight: 700;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+      .subject .label {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 11.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-right: 8px;
+        color: var(--stone-500);
+        text-decoration: none;
+      }
+
+      .ref-clause {
+        margin: 6px 0 18px;
+        font-size: 12px;
+        color: var(--stone-700);
+      }
+      .ref-clause .label {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 10.5px;
+        color: var(--stone-500);
+      }
+
+      p { margin-bottom: 12px; text-align: justify; }
+      p strong { font-weight: 700; }
+
+      ol.numbered {
+        list-style: decimal;
+        padding-left: 26px;
+        margin: 12px 0;
+      }
+      ol.numbered > li {
+        padding-left: 4px;
+        margin-bottom: 10px;
+        text-align: justify;
+      }
+
+      .signature-block {
+        margin-top: 40px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .signature-block .sig {
+        text-align: center;
+        min-width: 240px;
+        font-family: 'Inter', sans-serif;
+      }
+      .signature-block .sig .seal-line {
+        height: 60px;
+        border-bottom: 1px solid var(--ink);
+        margin-bottom: 6px;
+      }
+      .signature-block .sig .name {
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--ink);
+      }
+      .signature-block .sig .title {
+        font-size: 11.5px;
+        color: var(--stone-700);
+      }
+      .signature-block .sig .office {
+        font-size: 10.5px;
+        color: var(--stone-500);
+      }
+
+      .copy-to {
+        margin-top: 24px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11.5px;
+        color: var(--stone-700);
+      }
+      .copy-to .heading {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 10.5px;
+        color: var(--stone-500);
+        margin-bottom: 4px;
+      }
+      .copy-to ul {
+        list-style: none;
+        padding-left: 0;
+      }
+      .copy-to li {
+        padding-left: 20px;
+        text-indent: -20px;
+        line-height: 1.5;
+      }
+      .copy-to li::before {
+        content: '— ';
+        color: var(--stone-500);
+      }
+
+      .draft-note {
+        background: var(--rk-100);
+        border-left: 4px solid var(--rk-700);
+        padding: 10px 14px;
+        margin-bottom: 22px;
+        font-family: 'Inter', sans-serif;
+        font-size: 11px;
+        color: var(--ink);
+      }
+      .draft-note strong { color: var(--rk-700); }
+
+      .annexure {
+        margin-top: 30px;
+        padding-top: 16px;
+        border-top: 1px dashed var(--stone-300);
+        font-family: 'Inter', sans-serif;
+        font-size: 11px;
+        color: var(--stone-500);
+      }
+      .annexure strong { color: var(--stone-700); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <!-- Draft / instruction banner (remove before printing official copy) -->
+      <div class="draft-note">
+        <strong>TEMPLATE.</strong> Replace the {placeholders} with your details before printing.
+        This text is a starting point, not an official Government communication until you
+        sign and seal it. Compatible with Office of the District Health Officer letterhead.
+      </div>
+
+      <!-- Letterhead -->
+      <header class="letterhead">
+        <div class="gov">Government of Maharashtra · Department of Public Health</div>
+        <h1>Office of the District Health Officer</h1>
+        <div class="office">{District Name} District</div>
+        <div class="addr">{Full office address} · Tel: {phone} · Email: {office email}</div>
+      </header>
+
+      <!-- Reference no + date -->
+      <div class="meta-row">
+        <div>
+          <span class="label">Ref. No:</span>
+          <span class="fill">DHO/{DD}/RAKTIFY/2026/____</span>
+        </div>
+        <div>
+          <span class="label">Date:</span>
+          <span class="fill">____ / ____ / 2026</span>
+        </div>
+      </div>
+
+      <!-- Subject -->
+      <p class="subject">
+        <span class="label">Subject:</span>
+        Mandatory registration on the Raktify voluntary-blood-donation coordination
+        platform by all licensed blood banks and Government hospitals in
+        {District Name} District.
+      </p>
+
+      <!-- Reference clause -->
+      <p class="ref-clause">
+        <span class="label">Reference:</span>
+        (i) National Blood Policy 2002 · (ii) Drugs &amp; Cosmetics Act, 1940 and the Rules
+        thereunder · (iii) National Hemovigilance Programme guidelines, National Institute of
+        Biologicals · (iv) Maharashtra State Blood Transfusion Council circulars on voluntary
+        donation strengthening.
+      </p>
+
+      <!-- Body -->
+      <p>
+        In the interest of strengthening voluntary blood donation, reducing emergency-response
+        time for critical-tier blood requests, and improving transfusion-transmissible-infection
+        (TTI) traceability in this district, the undersigned hereby directs that:
+      </p>
+
+      <ol class="numbered">
+        <li>
+          All blood banks holding a valid CDSCO licence under the Drugs &amp; Cosmetics Act,
+          1940 (whether Government, charitable, or in-house hospital-based) operating in
+          {District Name} District shall complete onboarding on the <strong>Raktify
+          platform</strong> (<em>raktify.choudhari.ngo</em>) within <strong>30 (thirty) days</strong>
+          from the date of this circular.
+        </li>
+        <li>
+          All Government hospitals, civil hospitals, sub-district hospitals, rural hospitals
+          and primary health centres in {District Name} District that raise blood requests
+          shall complete onboarding on the same platform within the same window.
+        </li>
+        <li>
+          Onboarded institutions shall use the platform for: (a) recording donations and TTI
+          screening; (b) inventory tracking; (c) raising and fulfilling emergency blood
+          requests; (d) recording crossmatch confirmations; (e) submitting monthly
+          hemovigilance data via the platform's automated report export. Use of the platform
+          is free of cost; no fee shall be levied on patients, donors, or institutions.
+        </li>
+        <li>
+          The Raktify platform is operated by <strong>Choudhari EduHealth India Foundation</strong>
+          (NGO-DARPAN registration MH/2025/0643345, 80G eligible), a non-profit organisation,
+          under a Letter of Cooperation with this office dated {dd/mm/yyyy}. The Foundation
+          shall provide free onboarding support, volunteer training, and technical assistance
+          to all institutions in {District Name} District.
+        </li>
+        <li>
+          Compliance with this circular shall be incorporated into the routine quality-audit
+          checklist of this office. The next scheduled inspection of each licensed blood bank
+          shall include verification of Raktify onboarding and active usage. Non-compliance
+          shall be recorded in the inspection report and may be considered during licence
+          renewal review.
+        </li>
+        <li>
+          Donor and patient privacy under the Digital Personal Data Protection Act, 2023 shall
+          be maintained at all times. The platform is designed to mask donor mobile numbers
+          from hospital users; institutions shall not attempt to circumvent these privacy
+          safeguards.
+        </li>
+        <li>
+          A monthly district-level usage report shall be generated by this office through the
+          DHO governance dashboard provided by the platform, and shared with the State Blood
+          Transfusion Council for inclusion in the State hemovigilance return.
+        </li>
+        <li>
+          The Programme Officer (Blood Cell), this office, is hereby designated as the
+          district nodal officer for Raktify implementation. All implementation queries shall
+          be addressed to the nodal officer in the first instance, and through the nodal
+          officer to the Foundation's coordinator team.
+        </li>
+      </ol>
+
+      <p>
+        All concerned officers and institutions are directed to take immediate action and
+        report compliance to this office within the stipulated period.
+      </p>
+
+      <!-- Signature -->
+      <div class="signature-block">
+        <div class="sig">
+          <div class="seal-line"></div>
+          <div class="name">({DHO Name in capitals})</div>
+          <div class="title">District Health Officer</div>
+          <div class="office">{District Name} District</div>
+        </div>
+      </div>
+
+      <!-- Copy to -->
+      <div class="copy-to">
+        <div class="heading">Copy to:</div>
+        <ul>
+          <li>The Director, Health Services, Government of Maharashtra (for kind information)</li>
+          <li>The Member Secretary, Maharashtra State Blood Transfusion Council (for kind information)</li>
+          <li>The Civil Surgeon, {District Name} District (for action)</li>
+          <li>All Medical Superintendents of Government hospitals in {District Name} District (for compliance)</li>
+          <li>All licensees holding CDSCO blood-bank licence in {District Name} District (for compliance)</li>
+          <li>The Programme Officer (Blood Cell), this office (for follow-up action)</li>
+          <li>Choudhari EduHealth India Foundation (for information and support)</li>
+          <li>Office record</li>
+        </ul>
+      </div>
+
+      <!-- Annexure note -->
+      <div class="annexure">
+        <strong>Annexure A (attached separately):</strong> Letter of Cooperation dated
+        {dd/mm/yyyy} signed between this office and Choudhari EduHealth India Foundation,
+        outlining respective responsibilities and data-sharing principles.<br/>
+        <strong>Annexure B (attached separately):</strong> Onboarding instructions for blood
+        banks and hospitals, including the platform URL, contact details for the Foundation's
+        coordinator team, and a one-page summary of platform features.
+      </div>
+    </div>
+  </body>
+</html>

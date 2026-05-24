@@ -72,7 +72,7 @@ Master Prompt):
 
 ## 2. Roles and what each one can do
 
-The system has 9 distinct roles (4 user-bearing + 4 special + 1 magic-link).
+The system has 10 distinct roles (5 user-bearing + 4 special + 1 magic-link).
 Every database table is gated by Row-Level Security keyed off
 `raktify.actor_role` and `raktify.actor_user_id`.
 
@@ -84,6 +84,7 @@ Every database table is gated by Row-Level Security keyed off
 | **blood_bank** | Institutional user at an onboarded blood bank | Email + password + TOTP | Record donations, run TTI screening, dual-eyes verify TTI, manage inventory (recall, reserve, issue), respond to incoming requests via Raise-Hand, enrol rare-blood donors | Modify another bank's inventory, override TTI without 4-eyes |
 | **ngo_admin** | NGO operations staff | Email + password + TOTP | Verify institution applications, send MoU eSign, verify coordinators, manage duplicates, review lookback investigations, query audit log, run scheduler jobs manually, view all reports | Write to `audit_log` directly, modify clinical reference data |
 | **super_admin** | Platform super-user | Email + password + TOTP | Everything ngo_admin can plus suspend institutions, decommission coordinators | Bypass `audit_log` constraints |
+| **dho** | District Health Officer (government governance) | Email + password + TOTP | Read-only district-scoped governance dashboard at `/dho` — KPIs, institutional compliance grades, shortage heatmap, critical-request timeline, hemovigilance summary, monthly report exports | See any individual donor / patient PII, see field-level TTI results, modify any data, see other districts |
 | **system** | Service-account context for triggers, scheduled jobs, notification chokepoint | none (set by middleware) | Insert into `audit_log`, run cross-table reads for routing notifications, run match engine inside requests | Be authenticated as via API |
 | **onboarding** | Synthetic role used by public apply endpoints (`/onboarding/apply`, `/camps/apply`, `/camps/host`) | none | Insert institutions / camp applications in `PE` (pending) state only | Read any data, write any other state |
 | **camp_organizer** | Magic-link bearer for one camp | Token IS the credential | Read their camp's roster (name + blood group only, mobile masked), broadcast updates, mark attendance, see channel attribution | See any other camp, see donor mobiles, RSVP donors directly |
@@ -320,6 +321,58 @@ Both JSON and CSV download supported.
 
 ---
 
+## 8.12 DHO governance dashboard (`/dho`)
+
+The **District Health Officer dashboard** is a read-only, district-scoped governance instrument introduced to support top-down adoption: when individual hospitals or blood banks resist onboarding, the foundation approaches the DHO with concrete district-level evidence, and the DHO can issue an official circular mandating platform use. Six sections, top to bottom:
+
+### Top band
+- District name, period picker (7 / 30 / 90 / 180 / 365 days)
+- Link out to `/admin/reports` for multi-month exports
+
+### KPI row (6 cards)
+- Donations collected in window
+- Emergency requests raised (with fulfilled + expired sub-counts)
+- Critical-within-4-hours percentage (green ≥ 80 / amber ≥ 50 / red below)
+- Lives saved estimate (units × 3)
+- Wastage rate percentage (green ≤ 5 / amber ≤ 15 / red above)
+- Active institutions (hospitals + blood banks)
+
+### Camp band (3 cards)
+- Camps held in window · Upcoming camps · Units from camps
+
+### Compliance matrix
+Per-institution row with: name, kind, last donation, donations in window, 4-eyes verification %, requests in window, licence expiry date, and a computed compliance grade (A / B / C / Flag).
+
+### Live blood availability heatmap
+8 blood groups × N components, district-wide. Numbers colour-coded (red = none, amber < 3). "↘N" indicator for units expiring within 48 hours.
+
+### Critical request timeline
+Last 30 critical-tier requests in the district with fulfilment time and status. Useful for proving the platform responds within target time.
+
+### Hemovigilance summary
+Lookback investigations (opened, closed, overdue, avg resolution time) + reactive TTI counts (HIV, HBsAg, HCV, syphilis, malaria). One-click CSV export for the monthly DGHS / State Blood Transfusion Council filing.
+
+### Backend endpoints
+- `GET /dho/dashboard` — KPI bundle
+- `GET /dho/compliance` — institution rows with grade
+- `GET /dho/shortages` — inventory heatmap
+- `GET /dho/critical-timeline` — recent critical requests
+- `GET /dho/hemovigilance` — district-scoped lookback + reactive TTI summary
+
+All endpoints elevate to `actor_role='system'` internally for the aggregate reads (permitted by migration 240) and explicitly aggregate before returning — no donor / patient PII flows to the DHO role.
+
+### Auth model
+- Email + password + TOTP (same as other institutional staff)
+- New `dho` role in `platform_users.role` enum (migration 265)
+- `platform_users.district_id` binds the DHO to one district; enforced by `dho_must_have_district` CHECK
+- DHOs can use either a foundation-provided email (`dho.<district>@choudhari.ngo`) or their own gov email (`@gov.in`, `@nic.in`) — both are equally supported
+
+### Supporting documents in `/docs`
+- `Raktify_DHO_Circular_Template.html` — A4 print-ready template for the DHO to circulate to district hospitals + blood banks mandating Raktify adoption (8 numbered directives, reference clause, copy-to list, signature block)
+- `Raktify_DHO_LoC_Template.html` — 2-page Letter of Cooperation template between the DHO Office and the Foundation. Lightweight (non-binding), with explicit data-handling boundaries table.
+
+---
+
 ## 9. Camp lifecycle
 
 A 5-stage flow with multiple entry surfaces and a magic-link organizer
@@ -534,7 +587,7 @@ A compromised app server with main-key access cannot decrypt screening data with
 
 ---
 
-## 14. API surface (44 endpoints)
+## 14. API surface (49 endpoints)
 
 | Group | Endpoints |
 |-------|-----------|
@@ -553,11 +606,12 @@ A compromised app server with main-key access cannot decrypt screening data with
 | **Webhooks** | `POST /webhooks/msg91/delivery`, `POST /webhooks/whatsapp/incoming` |
 | **Admin** | `GET /admin/coordinators`, `POST /admin/coordinators/:id/verify`, `POST /admin/coordinators/:id/suspend`, `GET /admin/duplicates`, `POST /admin/duplicates/:id/clear`, `POST /admin/duplicates/:id/merge` (501 stub), `GET /admin/referrals`, `GET /admin/audit`, `GET /admin/audit/integrity`, `GET /admin/jobs`, `POST /admin/jobs/run` |
 | **Reports** | `GET /reports/district/:district_id/summary`, `GET /reports/hemovigilance`, `GET /reports/blood-bank/:id/performance` |
+| **DHO governance** | `GET /dho/dashboard`, `GET /dho/compliance`, `GET /dho/shortages`, `GET /dho/critical-timeline`, `GET /dho/hemovigilance` |
 | **Health** | `GET /health` |
 
 ---
 
-## 15. Database (44 migrations)
+## 15. Database (49 migrations)
 
 Sequential, immutable. Numbered with prefix groups:
 - `001–035` — schema (geographic, reference, platform_users, institutions, mou_versions, coordinators, communities, donors, institution_referrals, donation_history, donor_screening, screening_audit_log, blood_inventory, thalassemia_patients, rare_blood_registry, blood_requests, request_assignments, request_documents, donor_alerts, escalation_log, request_threads, donation_camps, notification_log, lookback_registry, audit_log)
@@ -572,6 +626,7 @@ Sequential, immutable. Numbered with prefix groups:
 - `262` — `camp_access_tokens` (magic-link)
 - `263` — `referral_channel` on camp_registrations
 - `264` — relax `last_used_ip` from INET → TEXT
+- `265` — `dho` role + `district_id` on `platform_users` + helper
 
 All migrations end with a `-- ROLLBACK` block. The runner refuses to re-apply a migration whose SHA-256 checksum changed.
 

@@ -56,7 +56,9 @@ export function StaffLogin() {
               ? '/admin'
               : r.role === 'coordinator'
                 ? '/coordinator'
-                : '/';
+                : r.role === 'dho'
+                  ? '/dho'
+                  : '/';
       navigate(dest, { replace: true });
     } catch (err) {
       const code = err?.response?.data?.error;

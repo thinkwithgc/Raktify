@@ -50,7 +50,7 @@ async function resetDemo(c) {
        (SELECT id FROM platform_users WHERE mobile LIKE '+9190000000%')`,
   );
   await c.query(
-    `DELETE FROM platform_users WHERE email LIKE '%@raktify.ngo' OR mobile LIKE '+9190000000%'`,
+    `DELETE FROM platform_users WHERE email LIKE '%@raktify.ngo' OR email LIKE 'dho.%@choudhari.ngo' OR mobile LIKE '+9190000000%'`,
   );
   await c.query(
     `DELETE FROM institutions WHERE shortname IN ('irwin-hospital', 'amravati-bloodbank')`,
@@ -141,11 +141,11 @@ async function main() {
 
     // ── 3. Platform users + coordinator profile ──────────────────────────
     console.log('▸ users');
-    async function staff(role, email, institutionId) {
+    async function staff(role, email, institutionId, districtId = null) {
       const r = await c.query(
-        `INSERT INTO platform_users (role, email, password_hash, password_set_at, institution_id)
-         VALUES ($1, $2, $3, NOW(), $4) RETURNING id`,
-        [role, email, pwHash, institutionId],
+        `INSERT INTO platform_users (role, email, password_hash, password_set_at, institution_id, district_id)
+         VALUES ($1, $2, $3, NOW(), $4, $5) RETURNING id`,
+        [role, email, pwHash, institutionId, districtId],
       );
       return r.rows[0].id;
     }
@@ -153,6 +153,10 @@ async function main() {
     await staff('ngo_admin', 'admin@raktify.ngo', null);
     await staff('hospital', 'hospital@raktify.ngo', hospital);
     await staff('blood_bank', 'bloodbank@raktify.ngo', bloodBank);
+    // DHO for Amravati district (501). District-scoped read-only governance role.
+    // Per founder's preference, foundation-provided email for demo — the DHO can
+    // switch to a real gov email or add it as a CC after the first meeting.
+    await staff('dho', 'dho.amravati@choudhari.ngo', null, 501);
 
     const coordUser = (
       await c.query(
@@ -266,6 +270,7 @@ async function main() {
     console.log(`  ngo_admin     admin@raktify.ngo      ${DEMO_PASSWORD}`);
     console.log(`  hospital      hospital@raktify.ngo   ${DEMO_PASSWORD}`);
     console.log(`  blood_bank    bloodbank@raktify.ngo  ${DEMO_PASSWORD}`);
+    console.log(`  dho           dho.amravati@choudhari.ngo  ${DEMO_PASSWORD}`);
     console.log('Coordinator (mobile OTP login):  +91 90000 00007');
     console.log('Demo donors (mobile OTP):        +91 90000 00001 … 00006');
   } finally {

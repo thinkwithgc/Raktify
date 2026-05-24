@@ -27,7 +27,7 @@ async function verifyJWT(req, res, next) {
 
   // Verify the user still exists and is not locked.
   const r = await pool.query(
-    'SELECT id, role, institution_id, is_locked FROM platform_users WHERE id = $1',
+    'SELECT id, role, institution_id, district_id, is_locked FROM platform_users WHERE id = $1',
     [payload.sub],
   );
   if (r.rowCount === 0) return res.status(401).json({ error: 'user_not_found' });
@@ -39,6 +39,7 @@ async function verifyJWT(req, res, next) {
     userId: u.id,
     role: u.role,
     institutionId: u.institution_id,
+    districtId: u.district_id,
     sessionId: payload.sid,
   };
   next();

@@ -24,6 +24,7 @@ login screen as `dev_otp echoed by backend: 123456` (no SMS provider needed).
 | Hospital | `hospital@raktify.ngo` | `RaktifyDemo@2026` |
 | Blood bank | `bloodbank@raktify.ngo` | `RaktifyDemo@2026` |
 | Admin (legacy alias) | `admin@raktify.ngo` | `RaktifyDemo@2026` |
+| **DHO (Amravati)** | `dho.amravati@choudhari.ngo` | `RaktifyDemo@2026` |
 
 Sign in at `/staff/login`. None of these have TOTP enabled in staging — a
 real production account will.
@@ -172,6 +173,43 @@ the audience cares about the operational depth, not the conversion story.
 10. **(Window 1)** Hospital dashboard refreshes. "Fulfilled this month" KPI ticks up. The request moves to "Recent activity".
 
 Total time: ~10 minutes. This is the operational depth story.
+
+---
+
+### Flow C — DHO governance dashboard → district circular → top-down adoption
+
+This is the *adoption-strategy* flow, useful when speaking to CSR partners,
+prospective DHOs, or healthcare officials. It demonstrates that Raktify is
+not just a tool for hospitals to opt into voluntarily — it is also a
+governance instrument that lets the District Health Officer mandate
+adoption across the district through a single official circular.
+
+**Setup:**
+
+- Sign in to `/staff/login` as `dho.amravati@choudhari.ngo` (password `RaktifyDemo@2026`)
+- Have `docs/Raktify_DHO_Circular_Template.html` and `docs/Raktify_DHO_LoC_Template.html` open in two browser tabs
+
+**Walk-through (~6 minutes):**
+
+1. **Login.** You're auto-routed to `/dho`. Show the audience the heading: "Amravati District · Raktify governance dashboard."
+2. **6 KPI cards** — point out donations, requests raised, critical-within-4h percentage, lives-saved estimate, wastage rate, active institutions. These are the metrics a DHO files monthly to the State Blood Transfusion Council.
+3. **Compliance matrix** — every institution in the district as a row, with compliance grade. Highlight that this is the audit instrument: the DHO can see at a glance which blood bank is slipping on 4-eyes verification, which hospital hasn't logged in.
+4. **Shortage heatmap** — 8×N grid showing live district inventory. The "↘N" indicator shows units expiring in 48 hours.
+5. **Critical request timeline** — every Critical-tier request in the window with fulfilment time. Color-coded: green = within 4 hours, amber = within 8, red = late.
+6. **Hemovigilance summary** — the headline: *we make the DHO's monthly DGHS filing one click.* Open `/admin/reports` from the corner button, show the CSV download.
+
+**Then close with the two documents:**
+
+7. Open `Raktify_DHO_Circular_Template.html`. Walk through the 8 numbered directives, the reference clause, the copy-to list. Frame it: "This is what the DHO signs and circulates to enforce platform adoption. It saves them 90 minutes of drafting."
+8. Open `Raktify_DHO_LoC_Template.html`. Highlight the two-column "DHO sees / Foundation processes" table that makes data boundaries explicit. Frame it: "Lightweight cooperation letter — not a commercial MoU. Gives the DHO political cover to issue the circular."
+
+**The pitch:** when a hospital or blood bank resists adoption, the foundation
+takes the demo to the DHO. The DHO sees concrete district-level value
+(better hemovigilance reporting, faster emergency response, cleaner audit
+trail). They sign the LoC. They issue the circular. Compliance follows.
+
+Total time: ~6 minutes if the audience is technical, ~10 if you let the
+documents breathe.
 
 ---
 

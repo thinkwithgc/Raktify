@@ -17,6 +17,8 @@ The full product specification is `docs/Raktify_Master_Prompt.md`. The build is 
 | `docs/Raktify_Feature_Reference.md` | Exhaustive technical snapshot of every feature shipped (roles, screens, endpoints, schemas). |
 | `docs/Raktify_Demo_Guide.md` | Click-by-click runbook with all test accounts and demo flows. |
 | `docs/Raktify_CSR_Budget.html` | Two-year operating budget + aggressive 18-month roadmap (A4 print-ready). |
+| `docs/Raktify_DHO_Circular_Template.html` | A4 template for a DHO to circulate to district hospitals + blood banks mandating Raktify adoption. |
+| `docs/Raktify_DHO_LoC_Template.html` | 2-page Letter of Cooperation template between a DHO Office and Choudhari EduHealth India Foundation. |
 | `docs/DEPLOYMENT.md` | Azure infra recipe + production env matrix. |
 
 **Live staging:** `https://raktify.choudhari.ngo` (frontend) ·
