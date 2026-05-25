@@ -2,12 +2,18 @@
 /**
  * Render Raktify brand images from SVG sources to PNG.
  *
- * Two outputs:
+ * Three outputs:
  *   • og-image.png (1200×630) — used by WhatsApp / Facebook / LinkedIn for
  *     link previews. Source: frontend/public/og-image.svg
  *   • app-icon.png (1024×1024) — used by Meta App Dashboard, Android Play
- *     Store, iOS App Store, PWA installer, favicon-large. Source:
+ *     Store, iOS App Store, PWA installer, favicon-large. Rounded-square
+ *     with the "R" letter inside the droplet. Source:
  *     frontend/public/app-icon.svg
+ *   • social-avatar.png (640×640) — used for social-platform profile
+ *     pictures (WhatsApp Business, Facebook Page, Instagram, LinkedIn,
+ *     Telegram, X). Full-bleed square, larger droplet, no "R" — designed
+ *     for the circular crop these platforms apply. Source:
+ *     frontend/public/social-avatar.svg
  *
  * Usage:
  *   node scripts/build_og_image.js
@@ -58,6 +64,17 @@ async function render(sharp, svgPath, pngPath, width, height, label) {
     path.join(pub, 'app-icon.png'),
     1024, 1024,
     'app-icon',
+  );
+
+  // Social avatar — 640×640, WhatsApp Business profile + every other social
+  // platform that crops uploads to a circle. Full-bleed square, larger
+  // droplet, no "R" letter (the platform shows "Raktify" beside the avatar).
+  await render(
+    sharp,
+    path.join(pub, 'social-avatar.svg'),
+    path.join(pub, 'social-avatar.png'),
+    640, 640,
+    'social-avatar',
   );
 })().catch((err) => {
   // eslint-disable-next-line no-console

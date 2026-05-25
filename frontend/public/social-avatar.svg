@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640">
+  <!--
+    Raktify social avatar — square Raktify mark sized for the circular crop
+    every social platform applies to profile pictures (WhatsApp, Facebook,
+    Instagram, LinkedIn Page, Telegram, X).
+
+    Differences vs. app-icon.svg:
+      • Full-bleed square (no rounded corners) — the circular crop hides
+        the corners anyway; filling them avoids dead pixels.
+      • Larger droplet (~66% of canvas height) — reads at 32×32 thumbnails.
+      • No "R" letter — the platform shows "Raktify" as the contact name
+        beside the avatar; the picture doesn't need to repeat the name.
+      • No concentric rings — invisible at thumbnail size.
+  -->
+  <defs>
+    <radialGradient id="bg" cx="0.3" cy="0.25" r="0.95">
+      <stop offset="0%" stop-color="#dc2f1d" />
+      <stop offset="55%" stop-color="#b8231a" />
+      <stop offset="100%" stop-color="#7c1d1b" />
+    </radialGradient>
+    <linearGradient id="droplet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#ffe7e1" />
+    </linearGradient>
+    <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12" />
+      <feOffset dx="0" dy="10" result="off" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.32" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Full-bleed brand-red background. -->
+  <rect width="640" height="640" fill="url(#bg)" />
+
+  <!-- The droplet, centred vertically on the canvas. Sized to occupy ~66% of
+       canvas height so it remains readable at WhatsApp's chat-list thumbnail
+       (≈48×48 px). -->
+  <g transform="translate(320, 110)" filter="url(#ds)">
+    <path
+      d="M 0 0
+         C 97 113 150 209 150 271
+         a 150 150 0 0 1 -300 0
+         C -150 209 -97 113 0 0 Z"
+      fill="url(#droplet)"
+    />
+    <!-- Inner highlight — gives the droplet form, not just a flat shape. -->
+    <ellipse cx="-50" cy="227" rx="23" ry="41" fill="#ffffff" opacity="0.28" />
+  </g>
+</svg>
