@@ -1,7 +1,13 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useT } from '../i18n/useT.js';
 import { Wordmark } from '../components/Wordmark.jsx';
 import { Footer } from '../components/Footer.jsx';
+
+// Language code → native-script label. Marathi-first users recognise their
+// own script faster than a Roman abbreviation; English speakers see "English"
+// either way.
+const LANG_LABELS = { mr: 'मराठी', hi: 'हिन्दी', en: 'English' };
 
 // ── Inline icons (lucide-style, stroke-based — no icon-lib dependency) ──────
 function Icon({ path, className = 'h-6 w-6', fill = false }) {
@@ -67,67 +73,292 @@ const UserPlusIcon = (p) => (
 );
 const SendIcon = (p) => <Icon {...p} path={<path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />} />;
 
+// Small chevron used inside dropdown triggers. Rotates 180° when open.
+function NavChevron({ open }) {
+  return (
+    <svg
+      className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <path d="m3 5 3 3 3-3" />
+    </svg>
+  );
+}
+
 export function Landing() {
   const { t, lang, setLang, supported } = useT();
+
+  // Three clusters in the top nav: brand · primary CTAs · utility (language,
+  // institutions, log in). The institutions and language buttons are
+  // dropdowns; clicking outside closes them. Mobile collapses everything
+  // except the brand + the donor CTA + a hamburger into a drawer.
+  const [langOpen, setLangOpen] = useState(false);
+  const [instOpen, setInstOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const navRef = useRef(null);
+
+  useEffect(() => {
+    function onPointerDown(e) {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        setLangOpen(false);
+        setInstOpen(false);
+      }
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        setLangOpen(false);
+        setInstOpen(false);
+        setMobileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
   return (
     <div className="min-h-full bg-cream font-sans text-stone-800">
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-sand/80 bg-cream/85 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+      <header
+        ref={navRef}
+        className="sticky top-0 z-30 border-b border-sand/80 bg-cream/85 backdrop-blur"
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
+          {/* Cluster 1 — brand */}
           <Link to="/" className="flex items-center" aria-label="Raktify home">
             <Wordmark className="text-2xl" />
           </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden rounded-full bg-white p-0.5 shadow-soft ring-1 ring-sand sm:flex">
-              {supported.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLang(l)}
-                  className={
-                    'rounded-full px-3 py-1 text-xs font-semibold uppercase transition-colors ' +
-                    (lang === l
-                      ? 'bg-rk-700 text-white'
-                      : 'text-stone-500 hover:text-stone-800')
-                  }
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <Link
-              to="/camps/host"
-              className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 md:inline"
-            >
-              Host a camp
-            </Link>
-            <Link
-              to="/onboarding/apply"
-              className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 md:inline"
-            >
-              Join as a partner
-            </Link>
-            <Link
-              to="/staff/login"
-              className="hidden text-sm font-semibold text-stone-600 hover:text-rk-700 sm:inline"
-            >
-              {t('lp_cta_staff')}
-            </Link>
-            <Link
-              to="/login"
-              className="text-sm font-semibold text-stone-700 hover:text-rk-700"
-            >
-              {t('lp_cta_login')}
-            </Link>
+
+          {/* Cluster 2 — primary public CTAs (desktop only) */}
+          <div className="hidden items-center gap-2 md:flex">
             <Link
               to="/register"
               className="rounded-lg bg-rk-700 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-rk-800"
             >
               {t('lp_cta_donor')}
             </Link>
+            <Link
+              to="/camps/host"
+              className="rounded-lg border border-rk-700/40 px-4 py-2 text-sm font-semibold text-rk-700 transition-colors hover:bg-rk-50"
+            >
+              {t('lp_nav_host_camp')}
+            </Link>
+          </div>
+
+          {/* Cluster 3 — utility (language, institutions, log in, mobile menu) */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Visual divider between primary CTAs and utility chrome */}
+            <div className="hidden h-6 w-px bg-sand md:block" />
+
+            {/* Language dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setLangOpen((o) => !o);
+                  setInstOpen(false);
+                }}
+                className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold uppercase text-stone-600 shadow-soft ring-1 ring-sand transition-colors hover:text-stone-900"
+                aria-haspopup="true"
+                aria-expanded={langOpen}
+                aria-label={t('lp_nav_lang_label')}
+              >
+                {lang}
+                <NavChevron open={langOpen} />
+              </button>
+              {langOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-40 mt-1 w-44 rounded-xl border border-sand bg-white p-1.5 shadow-lift"
+                >
+                  {supported.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setLang(l);
+                        setLangOpen(false);
+                      }}
+                      className={
+                        'flex w-full items-center justify-between rounded-lg px-3 py-2 transition-colors ' +
+                        (lang === l ? 'bg-cream' : 'hover:bg-cream')
+                      }
+                    >
+                      <span
+                        className={
+                          'text-sm ' +
+                          (lang === l
+                            ? 'font-semibold text-stone-900'
+                            : 'font-medium text-stone-700')
+                        }
+                      >
+                        {LANG_LABELS[l]}
+                      </span>
+                      <span
+                        className={
+                          'text-xs font-semibold ' +
+                          (lang === l ? 'text-rk-700' : 'text-stone-400')
+                        }
+                      >
+                        {l.toUpperCase()}
+                        {lang === l ? ' ✓' : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Institutions dropdown (desktop only) */}
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstOpen((o) => !o);
+                  setLangOpen(false);
+                }}
+                className={
+                  'flex items-center gap-1 text-sm font-semibold transition-colors hover:text-rk-700 ' +
+                  (instOpen ? 'text-rk-700' : 'text-stone-600')
+                }
+                aria-haspopup="true"
+                aria-expanded={instOpen}
+              >
+                {t('lp_nav_institutions')}
+                <NavChevron open={instOpen} />
+              </button>
+              {instOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-40 mt-2 w-80 rounded-xl border border-sand bg-white p-2 shadow-lift"
+                >
+                  <Link
+                    to="/staff/login"
+                    role="menuitem"
+                    onClick={() => setInstOpen(false)}
+                    className="block rounded-lg p-3 transition-colors hover:bg-cream"
+                  >
+                    <div className="text-sm font-semibold text-stone-900">
+                      {t('lp_nav_inst_signin')}
+                    </div>
+                    <div className="mt-0.5 text-xs text-stone-500">
+                      {t('lp_nav_inst_signin_sub')}
+                    </div>
+                  </Link>
+                  <Link
+                    to="/onboarding/apply"
+                    role="menuitem"
+                    onClick={() => setInstOpen(false)}
+                    className="block rounded-lg p-3 transition-colors hover:bg-cream"
+                  >
+                    <div className="text-sm font-semibold text-stone-900">
+                      {t('lp_nav_inst_apply')}
+                    </div>
+                    <div className="mt-0.5 text-xs text-stone-500">
+                      {t('lp_nav_inst_apply_sub')}
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Donor log-in (desktop only) */}
+            <Link
+              to="/login"
+              className="hidden text-sm font-semibold text-stone-600 transition-colors hover:text-rk-700 md:inline"
+            >
+              {t('lp_cta_login')}
+            </Link>
+
+            {/* Mobile-only: keep the donor CTA visible + hamburger */}
+            <Link
+              to="/register"
+              className="rounded-lg bg-rk-700 px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-rk-800 md:hidden"
+            >
+              {t('lp_cta_donor')}
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMobileOpen((o) => !o)}
+              className="rounded-md p-1.5 text-stone-700 ring-1 ring-sand transition-colors hover:bg-white md:hidden"
+              aria-label={t('lp_nav_menu')}
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? (
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M6 6l12 12M18 6l-12 12" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Mobile drawer — only visible when hamburger is open */}
+        {mobileOpen && (
+          <nav className="border-t border-sand bg-white px-2 py-2 md:hidden">
+            <Link
+              to="/camps/host"
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-lg px-3 py-3 text-sm font-semibold text-stone-800 transition-colors hover:bg-cream"
+            >
+              {t('lp_nav_host_camp')}
+            </Link>
+            <div className="my-1 border-t border-sand/70" />
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+              {t('lp_nav_institutions')}
+            </div>
+            <Link
+              to="/staff/login"
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm text-stone-700 transition-colors hover:bg-cream"
+            >
+              {t('lp_nav_inst_signin')}
+            </Link>
+            <Link
+              to="/onboarding/apply"
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm text-stone-700 transition-colors hover:bg-cream"
+            >
+              {t('lp_nav_inst_apply')}
+            </Link>
+            <div className="my-1 border-t border-sand/70" />
+            <Link
+              to="/login"
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-lg px-3 py-3 text-sm font-semibold text-stone-800 transition-colors hover:bg-cream"
+            >
+              {t('lp_cta_login')}
+            </Link>
+          </nav>
+        )}
       </header>
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
