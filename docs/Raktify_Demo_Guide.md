@@ -314,6 +314,7 @@ licence — that's months of paperwork and on the roadmap, not built.
 - [ ] Mobile hotspot ready in case the venue Wi-Fi is flaky — the platform is offline-capable for donor availability toggles, but live demos need network.
 - [ ] Restart the App Service if it's been idle (cold start ≈ 10–20 s on B1).
 - [ ] If you plan to demo the camp magic-link share, have wa.me opened on your phone so you can show the actual WhatsApp share intent.
+- [ ] **If you want a LIVE WhatsApp message to land during the demo** (e.g. an OTP or a critical alert on your own phone): the WABA is connected + templates approved + Business Verification done, but two Meta-side prerequisites must be satisfied first — (1) a **payment method** on the WABA (else Meta returns `accepted` but silently drops delivery), and (2) the recipient phone must be **allow-listed** as a test recipient (≤5) until the WABA matures. Add both in WhatsApp Manager beforehand and send yourself one test message to confirm. If you'd rather not risk it, leave `NOTIFICATIONS_PROVIDER` on the console outbox and narrate "this fires on WhatsApp in production."
 
 ---
 
@@ -325,17 +326,17 @@ licence — that's months of paperwork and on the roadmap, not built.
 | Login redirects to wrong portal | Logout, sign in again. We fixed the routing in commit `626c699`. |
 | Camp magic link returns 500 | Already fixed (commit `e397f5e`). If it reproduces, the App Service hasn't redeployed the latest main yet — check `git log -1` on the deploy. |
 | Backend cold start (slow first request) | Hit `/health` once before the demo to warm it up. |
-| Postgres connection timeout | Firewall — add the venue's public IP to `raktify-db-staging` → Networking. |
+| Postgres connection timeout | Staging DB is **Neon** (not Azure Postgres). Neon allows connections from anywhere by default; if it's an idle-suspend cold start, the first query wakes it (~1–2 s) — just retry. The App Service → Neon link uses the pooled `DATABASE_URL`. |
 | Static Web App build looks stale | Hard-refresh (Ctrl+F5 / Cmd+Shift+R). The PWA service worker can cache aggressively. |
 
 ---
 
 ## 7. Closing slide (suggested talking points)
 
-1. **Code-complete in 8 phases.** 44 migrations, 44 endpoints, 5 role portals, 10 admin tabs. Live on Azure now.
+1. **Code-complete in 8 phases + a post-Phase-8 pass.** 46 migrations, 104 route handlers, 6 role portals, 10 admin tabs, a DHO governance dashboard, and a full camp lifecycle. Live on Azure now.
 2. **Designed for real Indian conditions.** Mobile OTP first, offline-capable, Marathi-default with Hindi/English, free for everyone.
 3. **Privacy is a feature, not a footnote.** RLS on every table, AES-GCM column encryption, two-KMS-key hybrid for TTI data, hash-chained audit log.
-4. **What CSR funding accelerates** — WhatsApp activation, pan-India geo, real-time queue, Aadhaar KYC, IoT cold-chain, insurance integration, design pass. (See `Raktify_CSR_Budget.html`.)
+4. **WhatsApp is wired** — Business Cloud API integrated Meta-direct (no BSP, no DLT), templates approved, Business Verification done. **What CSR funding accelerates** — completing WhatsApp billing/scale-out, pan-India geo, real-time queue, Aadhaar KYC, IoT cold-chain, insurance integration, design pass. (See `Raktify_CSR_Budget.html`.)
 5. **What we need from partners** — district roll-out introductions (DHO offices, blood bank associations), medical-advisor referrals for the clinical-data sign-off, and the CSR commitment itself.
 
 Good luck.

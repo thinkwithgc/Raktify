@@ -11,7 +11,7 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | Phase | Status | Smoke test | Notes |
 |-------|--------|------------|-------|
 | 0 — Infrastructure | ✅ done | `node scripts/smoke_test.js` | commit `1a8ee3e` |
-| 1 — DB foundation  | ✅ done (18/18) | `node scripts/smoke_test_phase1_full.js` | 30 migrations, 34 tables, 100 triggers, 71 RLS policies — commit `1a8ee3e` |
+| 1 — DB foundation  | ✅ done (18/18) | `node scripts/smoke_test_phase1_full.js` | 30 migrations *at Phase 1* (46 total now — see summary below), 34 tables, 100 triggers, 71 RLS policies — commit `1a8ee3e` |
 | 2 — Auth + onboarding | ✅ done (21/21) | `node scripts/smoke_test_phase2.js` | OTP, TOTP, MoU eSign — commit `c3b758c` |
 | 3 — Donor reg + passport | ✅ scaffold (18/18) | `node scripts/smoke_test_phase3.js` | See **Phase 3 handoff** below |
 | 4 — Inventory + TTI | ✅ core (17/17) | `node scripts/smoke_test_phase4.js` | See **Phase 4 status** below |
@@ -19,6 +19,155 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | 6 — Notifications + WhatsApp + Lookback | ✅ core (19/19) | `node scripts/smoke_test_phase6.js` | See **Phase 6 status** below |
 | 7 — Frontend (React PWA) | ✅ core | `npm run smoke:frontend` (vite build) | See **Phase 7 status** below |
 | 8 — Admin + reporting + deploy | ✅ core (code-complete) | `npm run lint && npm run smoke:frontend` | See **Phase 8 status** below |
+| Post-8 — Live deploy + feature gap-close | ✅ live on Azure staging | `npm run lint && npm run smoke:frontend` | See **Post-Phase-8 status** below |
+
+> **Current totals (2026-05-26):** 46 migrations (latest `266_staff_constraint_allow_dho`),
+> 104 route handlers across 17 resource routers, 6 frontend role-portals + public
+> surfaces, 3 notification providers (console / MSG91 / WhatsApp Cloud). Phases 0–8
+> **and** all post-Phase-8 additions are code-complete and live on Azure staging
+> (`raktify.choudhari.ngo` + `raktify-api-staging` App Service).
+
+## Post-Phase-8 status (live on Azure staging — May 2026)
+
+Everything below shipped **after** the 8-phase build and is deployed. Grouped by area.
+
+### Deployment is real (Azure)
+- **Frontend** → Azure Static Web Apps (`raktify.choudhari.ngo`), workflow
+  `.github/workflows/azure-static-web-apps-jolly-bay-08008c700.yml`. `VITE_API_URL`
+  is baked into the Vite build at deploy time so the SPA calls the live API origin.
+- **Backend** → Azure App Service Linux (`raktify-api-staging`, Central India),
+  workflow `.github/workflows/main_raktify-api-staging.yml`.
+- **Both workflows trigger only on push to `main`.** The working pattern in this
+  worktree is `git push origin <local-branch>:main` (fast-forward) — that single
+  push fans out to both deploys. DB migrations + seed are **not** in the workflow;
+  they are run manually against the staging `DATABASE_URL` (`npm run migrate`,
+  `node scripts/seed_demo.js`).
+- **DB** → still Neon for staging (Azure DB for PostgreSQL Flexible Server is the
+  production target per `docs/DEPLOYMENT.md`, not yet provisioned).
+- Azure free-trial credit (~₹18,900) expires **17 Jun 2026**; subscription
+  auto-deletes **17 Jul 2026** unless upgraded to Pay-As-You-Go. Cheapest steady
+  state: PAYG + App Service F1/Static Web Apps free + DB on Neon free tier = ~₹0/mo.
+
+### WhatsApp Business Cloud API — now the primary notification channel
+- **New provider** `backend/src/services/notifications/whatsappCloudProvider.js`
+  (`NOTIFICATIONS_PROVIDER=whatsapp_cloud`). Sends template messages **directly via
+  the Meta Graph API** (`POST graph.facebook.com/<ver>/<phone-number-id>/messages`)
+  — **no BSP, no India DLT** (WhatsApp clears Meta's own template review, not the
+  telecom DLT system this is the key divergence from the MSG91/SMS path).
+- **Migration 250** widens `notification_log.provider` CHECK to allow `'WC'`
+  (alongside `'M9'` MSG91, `'LO'` local-console).
+- Env surface (`backend/src/config/env.js` → `env.whatsapp`): `WHATSAPP_PHONE_NUMBER_ID`,
+  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WABA_ID`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
+  `WHATSAPP_APP_SECRET`, `WHATSAPP_API_VERSION` (default `v21.0`), plus per-template
+  IDs `WHATSAPP_TEMPLATE_{OTP,EMERGENCY,THANKYOU,REMINDER,CRED}`.
+- **OTP templates are Authentication-category** — the code goes in BOTH the body
+  param and the URL/copy-code button param (`buildComponents()` in the provider).
+  All other templates are Utility-category, positional `{{1}}…{{n}}` filled from
+  `variables` **in insertion order** (caller order MUST match the approved template).
+- `provider.isConfigured()` returns a clean failure (not a throw) when the WABA /
+  token / templates aren't set, so dev + CI keep working on the console provider.
+- **`OTP_ECHO` flag** (`env.otpEcho`, default `false`) — when `true`, the OTP is
+  echoed in the API response body so a live staging site can be demoed without a
+  working SMS/WhatsApp send. **Never enable in production.**
+- Approved Meta templates as of 2026-05-26: `donor_otp` (auth, MR/HI/EN),
+  `donor_alert_critical` (utility, MR/EN), `camp_reminder`, `camp_organizer_link`,
+  `mou_esign_link` (utility, EN). Template copy lives in `docs/Raktify_WhatsApp_Templates.md`.
+- **Live blockers (Meta-side, not code):** (1) a **payment method** must be on the
+  WABA before any business-initiated template delivers — the Graph API returns
+  `accepted` + a `wamid` but Meta silently drops delivery until billing is set;
+  (2) until Business Verification + 30-day maturity, sends only reach **allow-listed
+  test recipients** (≤5). Business Verification itself is **done** (21 May 2026);
+  the green-tick / Official Business Account request stays greyed until WABA
+  maturity + brand notability accrue (4–12 months, gated on press coverage).
+- **Webhook**: `POST /webhooks/whatsapp/incoming` verifies Meta's
+  `X-Hub-Signature-256` HMAC against `WHATSAPP_APP_SECRET`; `POST /webhooks/msg91/delivery`
+  remains for the MSG91 path.
+
+### Camps — full lifecycle (public host → verify → organizer dashboard → attendance)
+Migrations **260–264**, router `backend/src/routes/camps.js` (14 endpoints),
+frontend public + organizer + admin surfaces.
+- **260 camp_registrations** — donor sign-ups attached to a camp.
+- **261 public_camp_applications** — anyone can apply to host a camp; NGO verifies.
+- **262 camp_access_tokens** — magic-link tokens for the organizer dashboard (no
+  login; token in URL). Single-purpose, scoped to one camp.
+- **263 camp_referral_channel** — attribution: which share channel (WA/SMS/poster
+  QR/etc.) drove each registration.
+- **264 camp_token_ip_text** — fixed a `22P02` (token IP stored as text, not inet).
+- Flow: public **apply** → NGO **review/verify** in `/admin` Camps tab → organizer
+  gets a **magic-link dashboard** (roster, attendance, share toolkit with per-channel
+  links) → **public camp landing** page → day-of **attendance** marking → post-camp
+  roster export. See Feature Reference §9 for the click-path.
+
+### DHO (District Health Officer) governance role
+Migrations **265** (role + `platform_users.district_id`) + **266** (staff CHECK allows
+`dho`), router `backend/src/routes/dho.js` (5 endpoints), frontend `/dho` dashboard.
+- DHO is a **governance, read-only** user: district-scoped **aggregates only** —
+  never donor PII, patient PII, or field-level TTI.
+- Auth: email + password + TOTP (same as institutional staff).
+- **PII boundary by design**: DHO endpoints query under `actor_role='system'`
+  (permitted by migration 240 for routing reads) and **aggregate before returning**.
+  Deliberately **no new direct-table RLS grants for DHO** — that would risk a PII
+  leak if a future endpoint forgets to aggregate.
+- Dashboard: adoption KPIs, compliance matrix, live blood-availability heatmap,
+  critical-request timeline, hemovigilance summary, camp band. Supporting docs:
+  `docs/Raktify_DHO_Circular_Template.html`, `docs/Raktify_DHO_LoC_Template.html`.
+
+### Role dashboards (overview tabs added to existing portals)
+- **Blood bank** `/bb` — at-a-glance overview tab (inventory health, expiry buckets).
+- **Hospital** `/hospital` — KPIs, district availability, recent activity.
+- **Coordinator** `/coordinator` — queue KPIs, impact metrics, district donor pool.
+
+### Institution self-apply onboarding
+Router `backend/src/routes/onboarding.js` (5 endpoints), frontend `/onboarding/apply`.
+- A hospital / blood bank can apply for an account themselves; NGO admin reviews in
+  `/admin` Onboarding tab. Funnel tracked in `institution_referrals.funnel_status`.
+
+### Patient + rare-blood registries
+Router `backend/src/routes/registries.js` (5 endpoints), `/admin` Thalassemia + Rare
+blood tabs. Migrations 024 (thalassemia_patients) + 026 (rare_blood_registry) were
+always present; the **API + UI** landed post-Phase-8.
+
+### Public surfaces + brand/marketing artifacts
+- **Public geo lookup** endpoints (`backend/src/routes/geography.js`) — state →
+  district → taluka → village cascade for the donor village picker, no auth.
+- **Landing page** (`frontend/src/pages/Landing.jsx`) — hero, how-it-works, trust,
+  CTA. **Top nav redesigned (this session)** into 3 clusters: brand · primary CTAs
+  (Become a donor / Host a camp) · utility (language dropdown showing native scripts
+  / "For hospitals & blood banks" dropdown / Log in), with a mobile hamburger drawer.
+  New i18n keys `lp_nav_*` in `frontend/src/i18n/strings.js` (MR/HI/EN).
+- **Brand assets** in `frontend/public/`, generated by `node scripts/build_og_image.js`
+  (uses `sharp`): `og-image.png` (1200×630 link preview), `app-icon.png` (1024×1024
+  rounded-square w/ "R", for PWA/stores), and **`social-avatar.png`** (640×640
+  full-bleed droplet, no "R" — for WhatsApp/FB/IG/LinkedIn circular-crop avatars;
+  added this session). SVG sources sit beside each PNG.
+- **Narrative docs**: `docs/Raktify_System_Overview.html` (16-page illustrated),
+  `docs/Raktify_CSR_Budget.html` (2-year budget + roadmap), 3 legal pages, shared
+  `Footer.jsx`, full OG / Twitter-Card meta. Public-facing email is `contact@choudhari.ngo`.
+
+### Demo seed
+- `node scripts/seed_demo.js` (`--reset` to wipe + reseed) populates staging with
+  **6 months of realistic activity** so every dashboard renders with data: donors
+  across blood groups + districts, donations + TTI, inventory with varied expiry,
+  blood requests across all 4 tiers + statuses, camps with rosters/attendance,
+  notifications, lookback cases, registries. Run manually against the staging
+  `DATABASE_URL` — it is **not** part of any deploy workflow.
+
+### Post-Phase-8 deferred items (still open)
+1. **MSG91 SMS path** — DLT registration still pending; SMS fallback (WA→SM→CA on
+   Critical) not wired. WhatsApp Cloud covers the primary channel today.
+2. **Camp QR registration rate-limit trap** — the global 100 req/IP/min limiter
+   keys on `req.ip`; 50+ donors registering from one camp WiFi will trip it. Fix:
+   key `/donors/register` + `/auth/otp/send` on `mobile`, not IP. **Do before any
+   real camp.** (~30 min.)
+3. **DB pool = 10** (`backend/src/config/db.js`) — bump to ~30 before second-district
+   rollout (Postgres allows ~75 conns). **PM2 cluster** not wired — vertical scale
+   past 1 vCore buys nothing until it is.
+4. **Synchronous matching** — `POST /requests` runs the matcher inline inside a
+   `withTransaction`. Async queue (BullMQ + Redis) is the right shape past ~1k
+   requests/day; deferred until post-CSR-funding.
+5. Carried over: WebSocket live queue, Workbox BackgroundSync, Devanagari design
+   pass, donor-merge endpoint (still 501), `audit_reader` grant for integrity check,
+   adverse-reaction table, PDF report generation, medical/legal advisor sign-offs.
 
 ## Phase 3 handoff (where the scaffold leaves off)
 
@@ -305,6 +454,27 @@ The Master Prompt assigns numbers 001–025 to schema migrations. To avoid colli
 | 025 | 025 | audit_log (placed early so feature triggers can attach via 099) |
 
 Internal-only repo migrations: `010_grant_helper_roles`, `011_grant_schema_to_helpers`, `099_attach_audit_triggers`, `100_rls_phase1`, `200_rls_phase1_extra`. Patches: `210`, `211`, `212`.
+
+**Post-Phase-8 migrations (220 → 266):** RLS + feature migrations added after the
+8-phase build. Use file numbers in the repo.
+
+| File | What it does |
+|------|--------------|
+| `220_rls_allow_system_auto_assign` | RLS: `system` actor may auto-assign coordinators during matching |
+| `221_rls_allow_system_donor_alerts` | RLS: `system` actor may create donor alerts during matching |
+| `230_bot_sessions` | WhatsApp bot conversation-state table (1h TTL) |
+| `240_rls_system_read_for_routing` | RLS: `system` may SELECT donors + platform_users for delivery routing + donor lookup |
+| `250_notif_provider_whatsapp_cloud` | Widen `notification_log.provider` CHECK to allow `'WC'` (WhatsApp Cloud) |
+| `260_camp_registrations` | Donor sign-ups attached to a camp |
+| `261_public_camp_applications` | Public "host a camp" applications (NGO verifies) |
+| `262_camp_access_tokens` | Magic-link tokens for the organizer dashboard |
+| `263_camp_referral_channel` | Per-registration share-channel attribution |
+| `264_camp_token_ip_text` | Fix: camp token IP stored as text (was `22P02` on inet) |
+| `265_dho_role` | DHO role + `platform_users.district_id` |
+| `266_staff_constraint_allow_dho` | Allow `dho` in the institutional-staff CHECK |
+
+**Total: 46 migration files, latest `266`.** Run `npm run migrate:status` for the
+applied/pending/drift view.
 
 ## Encryption policy (resolved 2026-05-01)
 

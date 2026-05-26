@@ -1,15 +1,19 @@
 # Raktify — Feature Reference
 
-> **Snapshot date:** 21 May 2026 — for the 27 May 2026 donor / partner meeting.
+> **Snapshot date:** 26 May 2026 — for the 27 May 2026 donor / partner meeting.
 > Authoritative source for *what is built*. The Master Prompt (`docs/Raktify_Master_Prompt.md`)
 > remains the source for *what the product is supposed to be*. The Demo Guide
 > (`docs/Raktify_Demo_Guide.md`) is the step-by-step runbook for live walk-throughs.
 
 Raktify is a life-critical blood donation and emergency-request platform
 operated by **Choudhari EduHealth India Foundation** (Amravati, Maharashtra).
-The product is built across 8 sequential phases. As of this snapshot all 8
-phases are **code-complete** and live on Azure staging at
-**`raktify.choudhari.ngo`**.
+The product is built across 8 sequential phases plus a post-Phase-8
+gap-close + live-deploy pass. As of this snapshot all 8 phases **and** the
+post-Phase-8 additions are **code-complete** and live on Azure staging at
+**`raktify.choudhari.ngo`** (frontend) + `raktify-api-staging` (Azure App
+Service, Central India). Current totals: **46 migrations** (latest `266`),
+**104 route handlers** across 17 resource routers, **6** frontend role-portals,
+**3** notification providers (console / MSG91 / WhatsApp Cloud).
 
 ---
 
@@ -28,8 +32,8 @@ phases are **code-complete** and live on Azure staging at
 11. Notifications & WhatsApp
 12. Geographic data
 13. Security & privacy invariants
-14. API surface (44 endpoints)
-15. Database (44 migrations)
+14. API surface (104 route handlers)
+15. Database (46 migrations)
 16. Deployment & infrastructure
 17. Build / lint / test / migrate commands
 18. Deferred items (deliberate non-goals for the demo)
@@ -106,8 +110,19 @@ The platform is **donor-conversion-driven**, so several pages are public:
 | `/c/<slug>` | **Public camp landing page** — the URL camp organizers share. RSVP CTA branches on auth state. Carries `?via=<channel>` for attribution. |
 | `/camp/<token>` | **Camp organizer magic-link dashboard** — no signup, scoped to one camp |
 
+**Landing-page top nav (redesigned May 2026)** — organised into three clusters
+with a divider between them: (1) brand wordmark; (2) primary public CTAs —
+*Become a donor* (filled red) + *Host a camp* (outlined); (3) utility — a
+language dropdown showing native scripts (मराठी / हिन्दी / English), a *For
+hospitals & blood banks* dropdown (Sign in to your institution · Onboard your
+hospital or blood bank), and *Log in*. On mobile the donor CTA stays visible and
+the rest collapses into a hamburger drawer. Dropdowns close on click-outside +
+Escape. Labels are i18n keys (`lp_nav_*`) in all three languages.
+
 All public endpoints are rate-limited (100 req/IP/min global, 3/h/mobile on
-OTP send, 10/15min/IP on institutional login).
+OTP send, 10/15min/IP on institutional login). **Note:** the global limiter keys
+on `req.ip`; a camp where many donors register from one WiFi can trip it — see
+§18 deferred items.
 
 ---
 
@@ -587,7 +602,11 @@ A compromised app server with main-key access cannot decrypt screening data with
 
 ---
 
-## 14. API surface (49 endpoints)
+## 14. API surface (104 route handlers across 17 routers)
+
+> The table below enumerates the endpoints by group. The raw count of
+> `router.{get,post,put,patch,delete}(…)` handlers is **104** (some endpoints
+> appear under multiple verbs); the grouped list is the canonical reference.
 
 | Group | Endpoints |
 |-------|-----------|
@@ -611,7 +630,7 @@ A compromised app server with main-key access cannot decrypt screening data with
 
 ---
 
-## 15. Database (49 migrations)
+## 15. Database (46 migrations)
 
 Sequential, immutable. Numbered with prefix groups:
 - `001–035` — schema (geographic, reference, platform_users, institutions, mou_versions, coordinators, communities, donors, institution_referrals, donation_history, donor_screening, screening_audit_log, blood_inventory, thalassemia_patients, rare_blood_registry, blood_requests, request_assignments, request_documents, donor_alerts, escalation_log, request_threads, donation_camps, notification_log, lookback_registry, audit_log)
@@ -627,8 +646,9 @@ Sequential, immutable. Numbered with prefix groups:
 - `263` — `referral_channel` on camp_registrations
 - `264` — relax `last_used_ip` from INET → TEXT
 - `265` — `dho` role + `district_id` on `platform_users` + helper
+- `266` — allow `dho` in the institutional-staff CHECK constraint
 
-All migrations end with a `-- ROLLBACK` block. The runner refuses to re-apply a migration whose SHA-256 checksum changed.
+**46 migration files total, latest `266`.** All migrations end with a `-- ROLLBACK` block. The runner refuses to re-apply a migration whose SHA-256 checksum changed.
 
 ---
 
@@ -677,12 +697,14 @@ npm run migrate                       # Apply pending
 node scripts/run_migrations.js dry-run
 
 # Data ops
-node scripts/seed_demo.js             # Seed staging demo data (idempotent --reset mode)
+node scripts/seed_demo.js             # Seed staging demo data (idempotent; --reset wipes + reseeds)
+node scripts/seed_demo.js --reset     # 6 months of realistic activity for dashboards
 node scripts/import_lgd.js --source=csv
+node scripts/build_og_image.js        # Render brand PNGs (og-image, app-icon, social-avatar) from SVG via sharp
 
 # Production smoke tests (run during phase work)
 node scripts/smoke_test.js                # Phase 0
-node scripts/smoke_test_phase1_full.js    # Phase 1 (30 migrations, 34 tables, 100 triggers, 71 RLS policies)
+node scripts/smoke_test_phase1_full.js    # Phase 1 (schema, triggers, RLS — see CLAUDE.md for live counts)
 node scripts/smoke_test_phase2.js         # Phase 2
 node scripts/smoke_test_phase3.js         # Phase 3
 node scripts/smoke_test_phase4.js         # Phase 4
@@ -697,7 +719,17 @@ node scripts/smoke_test_phase6.js         # Phase 6
 These are scoped and partially stubbed; the CSR deck lists them as
 roadmap items. None are blockers for the 27 May demo.
 
-1. **WhatsApp Cloud API activation** — provider written, waiting on Meta WABA approval.
+1. **WhatsApp Cloud API — final live activation.** Provider is written + wired;
+   the WABA is created, the number `+91 98505 41412` is **Connected**, templates
+   are **approved** (donor_otp auth + donor_alert_critical / camp_reminder /
+   camp_organizer_link / mou_esign_link utility), and **Business Verification is
+   done (21 May 2026)**. Two Meta-side prerequisites remain before messages
+   actually deliver: (a) a **payment method** on the WABA (Graph API returns
+   `accepted` + a `wamid` but Meta drops delivery until billing is set), and
+   (b) until WABA maturity, sends only reach **allow-listed test recipients**
+   (≤5). The Official Business Account / green-tick request is greyed pending
+   WABA maturity + brand notability (4–12 months). `institutional_credential`
+   template was rejected as Utility — Meta wants it as Authentication; deferred.
 2. **Pan-India geographic activation** — LGD importer ready, only Maharashtra + Amravati + Pune are active.
 3. **WebSocket / Socket.io live queue** — coordinator queue currently polls (15 s). Real-time updates are the next-major-feature.
 4. **Workbox BackgroundSync** — offline outbox replays on `online` + on hook mount; doesn't yet leverage the SW BackgroundSync API.
@@ -718,6 +750,15 @@ roadmap items. None are blockers for the 27 May demo.
 19. **Aadhaar XML KYC** — needs UIDAI AUA/KUA licence.
 20. **Insurance integration** (Ayushman Bharat / PMJAY) — needs state-health-mission MoU.
 21. **IoT cold-chain integration** — schema and notification chokepoint are ready; needs hardware partner + MQTT broker.
+22. **Camp QR registration rate-limit trap** — the global 100 req/IP/min limiter
+    keys on `req.ip`. 50+ donors registering from one camp WiFi (shared egress IP)
+    will trip it after ~25 registrations/min. Fix before any real camp: key the
+    `/donors/register` + `/auth/otp/send` limiters on `mobile`, not IP (~30 min).
+23. **Concurrency headroom** — DB pool is `max: 10` (`backend/src/config/db.js`);
+    bump to ~30 before a second district (Postgres allows ~75 conns). No PM2
+    cluster yet, so vertical scale past 1 vCore is wasted until it's wired.
+    Matching runs **synchronously** inside `POST /requests`; an async queue
+    (BullMQ + Redis) is the right shape past ~1k requests/day.
 
 ---
 

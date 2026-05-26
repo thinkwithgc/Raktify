@@ -90,13 +90,64 @@ JWT_EXPIRES_IN=8h
 ENCRYPTION_PROVIDER=local
 LOCAL_ENCRYPTION_KEY_HEX=@Microsoft.KeyVault(.../secrets/enc-key/)
 LOCAL_SCREENING_ENCRYPTION_KEY_HEX=@Microsoft.KeyVault(.../secrets/screening-key/)
-NOTIFICATIONS_PROVIDER=console  # flip to msg91 when DLT templates are live
+NOTIFICATIONS_PROVIDER=whatsapp_cloud   # primary live channel; 'console' for dev, 'msg91' for the SMS path
 STORAGE_PROVIDER=local
 MAIL_PROVIDER=console
 SCHEDULER_ENABLED=true
+OTP_ECHO=false                          # NEVER true in prod — echoes OTP in API response for staging demos
+
+# WhatsApp Business Cloud API (Meta-direct — no BSP, no India DLT).
+# Required when NOTIFICATIONS_PROVIDER=whatsapp_cloud.
+WHATSAPP_PHONE_NUMBER_ID=@Microsoft.KeyVault(.../secrets/wa-phone-number-id/)
+WHATSAPP_ACCESS_TOKEN=@Microsoft.KeyVault(.../secrets/wa-access-token/)
+WHATSAPP_WABA_ID=@Microsoft.KeyVault(.../secrets/wa-waba-id/)
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=@Microsoft.KeyVault(.../secrets/wa-webhook-verify/)
+WHATSAPP_APP_SECRET=@Microsoft.KeyVault(.../secrets/wa-app-secret/)   # verifies X-Hub-Signature-256 on inbound webhooks
+WHATSAPP_API_VERSION=v21.0
+WHATSAPP_TEMPLATE_OTP=donor_otp
+WHATSAPP_TEMPLATE_EMERGENCY=donor_alert_critical
+WHATSAPP_TEMPLATE_REMINDER=camp_reminder
+WHATSAPP_TEMPLATE_THANKYOU=camp_organizer_link
+WHATSAPP_TEMPLATE_CRED=mou_esign_link
 ```
 > **Note:** `server.js` reads `env.port` from `PORT`. App Service Linux injects
 > `PORT` (commonly 8080) — the app already honours it.
+>
+> **WhatsApp delivery prerequisites (Meta-side, not code):** the WABA needs a
+> **payment method on file** before any business-initiated template delivers (the
+> Graph API returns `accepted` + a `wamid` but Meta silently drops delivery until
+> billing is set), and until the WABA matures, sends only reach **allow-listed
+> test recipients** (≤5). Business Verification is done (21 May 2026). Set the
+> access token to a **System User long-lived token**, not a temporary one — temp
+> tokens expire in 24 h. The webhook callback URL in the Meta App dashboard must
+> point at `https://api.raktify.choudhari.ngo/webhooks/whatsapp/incoming` with the
+> verify token above.
+
+### 2.1 Staging deployment (current reality — May 2026)
+
+Staging is **already live** and differs from the prod recipe above:
+
+| Concern | Staging today | Prod target (this doc) |
+|---|---|---|
+| Backend | `raktify-api-staging` App Service (Central India) | `raktify-api-prod` |
+| Frontend | Azure Static Web Apps `raktify.choudhari.ngo` | `raktify-web-prod` |
+| Database | **Neon** (dev/staging DB) | Azure PostgreSQL Flexible Server |
+| Deploy trigger | **push to `main`** fires both GitHub Actions automatically | same |
+
+- Workflows: `.github/workflows/main_raktify-api-staging.yml` (backend) and
+  `.github/workflows/azure-static-web-apps-jolly-bay-08008c700.yml` (frontend).
+  Both trigger **only on push to `main`**. `VITE_API_URL` is baked into the Vite
+  build at deploy time (set in the SWA workflow env).
+- The working pattern in the Claude worktree is `git push origin <local-branch>:main`
+  (fast-forward) — one push fans out to both deploys, frontend in ~2 min, backend
+  in ~3–5 min.
+- **Migrations + seed are NOT in the workflow.** Run them manually against the
+  staging `DATABASE_URL`: `npm run migrate` then (optionally) `node scripts/seed_demo.js --reset`.
+- **Azure free-trial credit (~₹18,900) expires 17 Jun 2026; the subscription
+  auto-deletes 17 Jul 2026** unless upgraded to Pay-As-You-Go. Cheapest steady
+  state: PAYG + App Service F1 + Static Web Apps Free + DB on Neon free tier ≈
+  ₹0/mo (Azure managed Postgres has no free tier — keep the DB on Neon or budget
+  ~₹1–1.5k/mo for Burstable B1ms). Set a Cost Management budget alert at ₹100/mo.
 
 ## 3. Frontend — Azure Static Web Apps
 
@@ -145,7 +196,7 @@ Add each as a custom domain in the respective Azure resource; Azure issues manag
 |---|---|---|
 | Encryption | `ENCRYPTION_PROVIDER=local` — AES-256-GCM, key material held in Key Vault and injected as an app setting. Data is encrypted; you just don't get cloud-managed key rotation. | An Azure Key Vault crypto provider in `services/encryption`. |
 | File storage | `STORAGE_PROVIDER=local` — disk on the App Service. Fine for low document volume at launch; not durable across scale-out. | An Azure Blob Storage provider in `services/storage`. |
-| Notifications | `console` until MSG91 DLT templates are approved. | Flip to `msg91`. |
+| Notifications | **`whatsapp_cloud`** is the primary live channel (Meta-direct Cloud API — no BSP, no DLT). `console` for dev/CI; `msg91` is the stubbed SMS path. | Wire MSG91 SMS as the WA→SM→CA fallback chain once DLT registration lands. |
 | DB at-rest encryption | Provided by Azure PostgreSQL Flexible Server automatically. | Customer-managed key via Key Vault (optional). |
 
 ## 7. Monitoring & alerting
@@ -174,7 +225,10 @@ The Master Prompt has the full list. Launch blockers:
 2. Reference data seeded; compatibility matrix promoted out of `_DRAFT_PENDING_REVIEW` only after haematologist sign-off.
 3. RLS smoke (`scripts/test_rls.sql`) green per role.
 4. Audit hash chain verified over a 100-row sample.
-5. MSG91 DLT templates approved; WhatsApp bot tested MR/HI/EN.
+5. WhatsApp Cloud API: payment method on the WABA, templates approved (donor_otp +
+   donor_alert_critical + camp_reminder + camp_organizer_link + mou_esign_link),
+   webhook verified, System-User long-lived token in Key Vault, WhatsApp bot tested
+   MR/HI/EN. (MSG91 DLT is only needed for the SMS fallback, not launch.)
 6. OTP, TOTP, LeegAlly e-sign tested in staging.
 7. Scheduled jobs registered (`SCHEDULER_ENABLED=true`).
 8. Lookback protocol tested end-to-end (reactive TTI → deferral → recall → lookback rows).

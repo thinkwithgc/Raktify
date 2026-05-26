@@ -47,12 +47,12 @@ The full product specification is `docs/Raktify_Master_Prompt.md`. The build is 
 | Database | PostgreSQL — Neon (dev) → Azure Database for PostgreSQL Flexible Server (prod) |
 | Backend | Node.js 22 LTS + Express → Azure App Service (Linux) |
 | Frontend | React + Vite + Tailwind (mobile-first PWA) → Azure Static Web Apps |
-| Auth (donors/coordinators) | Mobile OTP via MSG91 |
+| Auth (donors/coordinators) | Mobile OTP — delivered via WhatsApp Business Cloud API (Meta-direct); MSG91 SMS path stubbed |
 | Auth (institutions) | Email + bcrypt + TOTP |
 | Secrets | Azure Key Vault |
 | File storage | Local disk (dev) — Azure Blob Storage provider is future work |
 | Encryption | AES-256-GCM, key in env / Key Vault (`local` provider) |
-| Notifications | MSG91 (WhatsApp Business + SMS + voice) |
+| Notifications | **WhatsApp Business Cloud API** (Meta-hosted, no BSP/DLT) — primary channel, live. MSG91 (SMS/voice) + local console are the other two providers. |
 | Digital MoU | LeegAlly (Aadhaar eSign) |
 | Geographic data | LGD (Local Government Directory, Ministry of Panchayati Raj) |
 
@@ -102,24 +102,26 @@ npm run dev:frontend    # → http://localhost:5173
 
 ## Status
 
-Phases 0–8 are code-complete and live on Azure staging.
-See `CLAUDE.md` for the per-phase detail, `docs/Raktify_Feature_Reference.md`
-for the exhaustive feature catalogue, and `docs/Raktify_CSR_Budget.html`
-for the deferred-items roadmap.
+Phases 0–8 **and all post-Phase-8 additions** are code-complete and live on Azure
+staging. See `CLAUDE.md` for the per-phase detail (including the **Post-Phase-8
+status** section), `docs/Raktify_Feature_Reference.md` for the exhaustive feature
+catalogue, and `docs/Raktify_CSR_Budget.html` for the deferred-items roadmap.
 
 | Phase | Status |
 |-------|--------|
 | 0 — Infrastructure | ✅ |
-| 1 — Database foundation | ✅ (44 migrations) |
+| 1 — Database foundation | ✅ (46 migrations, latest `266`) |
 | 2 — Auth + onboarding | ✅ |
 | 3 — Donor registration + passport | ✅ |
 | 4 — Inventory + TTI | ✅ |
 | 5 — Request engine + matching | ✅ |
 | 6 — Notifications + WhatsApp + Lookback | ✅ |
-| 7 — Frontend (React PWA) | ✅ (5 role portals + public surfaces) |
+| 7 — Frontend (React PWA) | ✅ (6 role portals + public surfaces) |
 | 8 — Admin + reporting + deploy | ✅ (10-tab admin, 3 reports) |
-| Post-Phase-8 additions | Donor tier badges · Camps end-to-end (host → verify → magic-link organizer dashboard → public landing → share toolkit → channel attribution → roster → attendance) · Thalassemia & rare-blood registries · Public geo lookup |
+| Post-Phase-8 additions | **Live on Azure staging.** WhatsApp Business Cloud API as the primary notification channel (Meta-direct, no BSP/DLT) · DHO governance role + `/dho` dashboard · Donor tier badges · Camps end-to-end (host → verify → magic-link organizer dashboard → public landing → share toolkit → channel attribution → roster → attendance) · Hospital/blood-bank/coordinator overview dashboards · Institution self-apply onboarding · Thalassemia & rare-blood registries · Public geo lookup · Demo seed (`scripts/seed_demo.js`) · 3-cluster landing nav · `social-avatar` brand asset |
 | 9 — Offline-community onboarding | Planned |
+
+**Totals (2026-05-26):** 46 migrations · 104 route handlers across 17 resource routers · 6 frontend role-portals · 3 notification providers (console / MSG91 / WhatsApp Cloud).
 
 ### Outstanding external dependencies
 
@@ -127,9 +129,12 @@ for the deferred-items roadmap.
 |------------|--------|--------|
 | Medical advisor sign-off (compatibility matrix, TTI deferrals, eligibility rules) | Pending | Promoting clinical reference data out of `_DRAFT_PENDING_REVIEW` |
 | Healthcare lawyer sign-off (MoU template) | Pending | Institution onboarding go-live |
-| Azure account — PostgreSQL Flexible Server, App Service, Static Web Apps, Key Vault | In setup | Production deploy |
+| WhatsApp Cloud API — **payment method on the WABA** | **Pending — live blocker** | Template messages return `accepted` but Meta drops delivery until a card is on file |
+| WhatsApp Cloud API — Business Verification | ✅ Done (21 May 2026) | (was blocking test-mode exit / higher tiers) |
+| WhatsApp Cloud API — Official Business Account (green tick) | Greyed until WABA maturity + brand notability | Trust badge only; not deliverability |
+| Azure account — App Service + Static Web Apps live on staging; PostgreSQL Flexible Server + Key Vault not yet provisioned (staging still on Neon) | In progress | Production DB cutover. Free-trial credit expires 17 Jun 2026; upgrade to PAYG before then |
 | Google Workspace for Nonprofits | Blocked on FCRA registration | Institutional email provisioning |
-| MSG91 DLT registration + auth key | Pending | Live OTP / WhatsApp |
+| MSG91 DLT registration + auth key | Pending | SMS fallback channel (WhatsApp Cloud covers primary today) |
 | LGD geographic CSV / API access | API endpoint configured; not yet seeded | Donor village search |
 
 ---
