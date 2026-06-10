@@ -283,7 +283,7 @@ table shows the side-by-side.
 - Self-reported blood group is never used in matching (always lab-verified).
 - TTI field-level results never leave the screening tab — only the verdict (CL / PE / IN / HD).
 - Audit log is INSERT-only with a hash chain; even a compromised admin can't backdate or delete records.
-- Two KMS keys (main + screening) so a leaked app-server key can't decrypt TTI data.
+- Two encryption keys (main + screening, AES-256-GCM, held in Azure Key Vault) so a leaked app-server key can't decrypt TTI data.
 
 ### "What about regulatory approval?"
 - The clinical reference data (compatibility matrix, TTI deferrals, eligibility rules) is `_DRAFT_PENDING_REVIEW` until the medical advisor signs off.
@@ -335,7 +335,7 @@ licence — that's months of paperwork and on the roadmap, not built.
 
 1. **Code-complete in 8 phases + a post-Phase-8 pass.** 46 migrations, 104 route handlers, 6 role portals, 10 admin tabs, a DHO governance dashboard, and a full camp lifecycle. Live on Azure now.
 2. **Designed for real Indian conditions.** Mobile OTP first, offline-capable, Marathi-default with Hindi/English, free for everyone.
-3. **Privacy is a feature, not a footnote.** RLS on every table, AES-GCM column encryption, two-KMS-key hybrid for TTI data, hash-chained audit log.
+3. **Privacy is a feature, not a footnote.** RLS on every table, AES-GCM column encryption, **two-key hybrid encryption** (main + screening keys in Azure Key Vault) for TTI data, hash-chained audit log.
 4. **WhatsApp is wired** — Business Cloud API integrated Meta-direct (no BSP, no DLT), templates approved, Business Verification done. **What CSR funding accelerates** — completing WhatsApp billing/scale-out, pan-India geo, real-time queue, Aadhaar KYC, IoT cold-chain, insurance integration, design pass. (See `Raktify_CSR_Budget.html`.)
 5. **What we need from partners** — district roll-out introductions (DHO offices, blood bank associations), medical-advisor referrals for the clinical-data sign-off, and the CSR commitment itself.
 

@@ -56,7 +56,7 @@ The full product specification is `docs/Raktify_Master_Prompt.md`. The build is 
 | Digital MoU | LeegAlly (Aadhaar eSign) |
 | Geographic data | LGD (Local Government Directory, Ministry of Panchayati Raj) |
 
-External integrations are abstracted behind provider interfaces (`backend/src/services/{encryption,notifications,storage}`). Dev defaults are local providers; flipping a single env var swaps the backing service. Note: the encryption/storage abstractions currently ship `local` + AWS (`kms`/`s3`) providers — Azure-native providers are future work; on Azure the `local` providers run unchanged.
+External integrations are abstracted behind provider interfaces (`backend/src/services/{encryption,notifications,storage}`). Dev defaults are local providers; flipping a single env var swaps the backing service. **Notifications:** `whatsapp_cloud` (Meta WhatsApp Business Cloud API — live primary), `msg91` (SMS fallback, stubbed), `console` (dev file outbox). **Encryption + storage:** `local` providers in production today; the original AWS `kms` / `s3` provider stubs in the code are leftovers from the pre-Azure scaffold — Azure-native Key Vault / Blob Storage providers are future work, and on Azure the `local` providers run unchanged.
 
 ---
 

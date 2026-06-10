@@ -47,11 +47,11 @@ Service, Central India). Current totals: **46 migrations** (latest `266`),
 | Database | PostgreSQL 17 with Row-Level Security on every table | Azure Database for PostgreSQL Flexible Server (B1ms, Central India) |
 | Backend API | Node.js 22 LTS + Express + pg | Azure App Service (Linux B1) |
 | Frontend | React 18 + Vite 5 + Tailwind 3 PWA + React Query 5 | Azure Static Web Apps (Free, Central India) |
-| Auth — donors / coordinators | Mobile OTP (planned MSG91; staging echoes `dev_otp` for demos) | — |
+| Auth — donors / coordinators | Mobile OTP delivered via **Meta WhatsApp Business Cloud API** (live primary channel). MSG91 SMS is the stubbed fallback; staging supports `OTP_ECHO=true` to echo the OTP in the API response for demos when no provider is wired. | — |
 | Auth — institutions | Email + bcrypt + TOTP | — |
-| Notifications | Provider abstraction: console / msg91 / **whatsapp_cloud** (Meta) | Backend service |
-| Encryption | AES-256-GCM (local key, env-managed); KMS provider stub ready for AWS or Azure Key Vault | — |
-| File storage | Local disk in dev; S3 provider scaffolded | — |
+| Notifications | Provider abstraction: console / msg91 / **whatsapp_cloud** (Meta) — `whatsapp_cloud` is the live primary channel. | Backend service |
+| Encryption | AES-256-GCM via the `local` provider; key material held in Azure Key Vault (prod) and injected as App Service settings. Two distinct keys (main + screening). An Azure Key Vault crypto provider in `services/encryption` is future work. | — |
+| File storage | Local disk on App Service today (`STORAGE_PROVIDER=local`); Azure Blob Storage provider is future work. The original spec mentioned AWS S3 — superseded by the May 2026 Azure pivot. | — |
 | Digital MoU | LeegAlly (Aadhaar eSign) — local provider works in dev | — |
 | Geography | Local Government Directory (LGD) bulk importer | — |
 | CI/CD | GitHub Actions with Azure OIDC federated identity | `.github/workflows/main_raktify-api-staging.yml` + Static Web Apps workflow |
@@ -580,14 +580,14 @@ The `audit_log_safe` view masks `row_hash` and `previous_row_hash` so the safe v
 
 ### 13.3 PII handling
 **Storage:**
-- Fixed-width identifiers (CHAR(N)) — mobile, abha_id, aadhaar_last4 — plaintext in column. Protected by RDS-level + KMS storage encryption + RLS + column-level GRANTs.
-- Free-text PII (TEXT) — full_name, address, deferral_reason, screening notes — column-encrypted with AES-256-GCM. Ciphertext format `v1:<provider>:<keyKind>:<base64url>`.
+- Fixed-width identifiers (CHAR(N)) — mobile, abha_id, aadhaar_last4 — plaintext in column. Protected by **Azure Postgres Flexible Server disk-level encryption** (service-managed key; customer-managed key via Azure Key Vault optional) + RLS + column-level GRANTs.
+- Free-text PII (TEXT) — full_name, address, deferral_reason, screening notes — column-encrypted with AES-256-GCM via the `local` provider. Ciphertext format `v1:<provider>:<keyKind>:<base64url>`.
 
-**Two KMS keys for hybrid encryption:**
-- `KMS_MAIN_KEY_ARN` — general PII.
-- `KMS_SCREENING_KEY_ARN` — TTI screening data only.
+**Two distinct encryption keys for hybrid encryption** (kept in Azure Key Vault, injected as App Service settings):
+- `LOCAL_ENCRYPTION_KEY_HEX` — general PII (key kind `main`).
+- `LOCAL_SCREENING_ENCRYPTION_KEY_HEX` — TTI screening data only (key kind `screening`).
 
-A compromised app server with main-key access cannot decrypt screening data without separately compromising the screening key.
+A compromised app server with main-key access cannot decrypt screening data without separately compromising the screening key. (The original spec named these `KMS_MAIN_KEY_ARN` / `KMS_SCREENING_KEY_ARN` under AWS KMS — superseded by the May 2026 Azure pivot; an Azure Key Vault crypto provider that wraps the key material with a KV-hosted KEK is future work.)
 
 **Logger redaction:** `backend/src/config/logger.js` redacts known-sensitive paths. Extend the redact list when adding new fields.
 
@@ -672,10 +672,12 @@ See `docs/DEPLOYMENT.md` for the full matrix. Key flags:
 - `ENCRYPTION_KEY` (32-byte hex)
 - `FRONTEND_URL=https://raktify.choudhari.ngo`
 - `ALLOWED_ORIGINS` — comma-separated CORS whitelist
-- `NOTIFICATIONS_PROVIDER` — `console` / `msg91` / `whatsapp_cloud`
-- `STORAGE_PROVIDER` — `local` / `s3` (Azure Blob provider is future work)
-- `ENCRYPTION_PROVIDER` — `local` / `kms`
-- `OTP_ECHO=true` — staging-only; echoes OTPs in API response for demos when no SMS provider is wired.
+- `NOTIFICATIONS_PROVIDER` — `console` / `msg91` / `whatsapp_cloud` (live primary is `whatsapp_cloud`)
+- `STORAGE_PROVIDER` — `local` today (Azure Blob provider is future work; the original spec's `s3` is a leftover from the pre-Azure scaffold)
+- `ENCRYPTION_PROVIDER` — `local` (keys held in Azure Key Vault, referenced as App Service settings; an Azure-native crypto provider is future work)
+- `LOCAL_ENCRYPTION_KEY_HEX`, `LOCAL_SCREENING_ENCRYPTION_KEY_HEX` — 32-byte hex AES-256-GCM keys (main + screening)
+- `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WABA_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_API_VERSION`, `WHATSAPP_TEMPLATE_*` — Meta Graph API
+- `OTP_ECHO=true` — staging-only; echoes OTPs in API response for demos when no WhatsApp / SMS provider is wired. **Never enable in production.**
 
 ---
 
@@ -737,7 +739,7 @@ roadmap items. None are blockers for the 27 May demo.
 6. **`audit_reader` SELECT grant on raw `audit_log`** for the integrity-check endpoint — one-line migration.
 7. **Adverse-transfusion-reactions table** — hemovigilance report returns `{ reported: 0, note: 'adverse_reaction_table_pending' }`.
 8. **PDF generation** for DHO submission — CSV exports work; PDF needs Puppeteer / wkhtmltopdf.
-9. **DHO contact** (ring 4 escalation) — schema ready; the WhatsApp + voice send is deferred until MSG91 / WhatsApp Cloud lands.
+9. **DHO contact** (ring 4 escalation) — schema ready; the WhatsApp template send works on the live WhatsApp Cloud channel once the WABA payment-method blocker clears. The voice-call fallback is still deferred (requires MSG91 voice-API DLT registration on the SMS-fallback path).
 10. **Synthetic legacy donor for opening-stock** — opening-stock currently piggybacks on the BB's first verified donation_id. A clean per-institution synthetic donor is staged.
 11. **Distance-based donor sort** — `services/escalation/index.js` sorts by reliability_score; the spec calls for `ST_Distance` once PostGIS is enabled.
 12. **NMC registry check** for Tier 2 GH requests — stored as `guest_nmc_check_status='PE'`.

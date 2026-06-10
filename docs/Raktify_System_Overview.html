@@ -2070,7 +2070,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
           </div>
           <div class="ttl">Hybrid encryption</div>
-          <div class="desc">PII columns are AES-256-GCM encrypted with two distinct KMS keys — main + screening. A compromised app server can&rsquo;t read TTI data without separately compromising the screening key.</div>
+          <div class="desc">PII columns are AES-256-GCM encrypted with two distinct keys &mdash; main + screening &mdash; held in Azure Key Vault. A compromised app server can&rsquo;t read TTI data without separately compromising the screening key.</div>
         </div>
         <div class="card">
           <div class="icon">
@@ -2181,7 +2181,7 @@
           <tr>
             <td><strong>Encryption</strong></td>
             <td>AES-256-GCM, two-key hybrid (main + screening)</td>
-            <td>Local key in dev · Azure Key Vault / AWS KMS in prod</td>
+            <td>Local key in dev &middot; Azure Key Vault in prod</td>
           </tr>
           <tr>
             <td><strong>File storage</strong></td>

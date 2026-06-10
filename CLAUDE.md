@@ -276,7 +276,7 @@ always present; the **API + UI** landed post-Phase-8.
 5. **DHO contact** (ring 4 escalation) — `escalate_overdue` job stamps the row but the WhatsApp+voice send is deferred to MSG91 wiring.
 6. **Annual donor checkup** + **expiry alert** + **o_negative conservation** + **dho_alert** jobs — schemas exist, jobs not implemented yet (mostly notification-emitting; defer with MSG91).
 
-## Phase 7 status (core complete — design + WebSocket + S3 upload deferred)
+## Phase 7 status (core complete — design + WebSocket + cloud blob upload deferred)
 
 **Stack:** Vite 5 + React 18 + Tailwind 3 + React Query 5 + react-router-dom 6 + axios + zod + vite-plugin-pwa. Plain JS (no TS) to match backend conventions. Run `npm run dev:frontend` (Vite proxy forwards `/auth`, `/donors`, `/coordinator`, `/requests`, etc. to `http://localhost:3000`); `npm run smoke:frontend` compiles a production bundle and emits the service worker (~389 KiB precached).
 
@@ -303,13 +303,13 @@ always present; the **API + UI** landed post-Phase-8.
 
 **Deferrable for the next pass:**
 1. **WebSocket / Socket.io live queue** (spec §7.10) — coordinator queue + request detail still poll (15s + 20s). Blocked on backend Socket.io server.
-2. **Document upload via S3 presigned URL** — pending Phase 8 storage abstraction wire-up; backend route still emits local-disk URLs in dev. Request detail panel surfaces no document UI today.
+2. **Document upload via cloud-blob signed URL** — pending the Azure Blob Storage provider wire-up in `services/storage` (the spec originally said S3 — superseded by the May 2026 Azure pivot); backend route still emits local-disk URLs in dev. Request detail panel surfaces no document UI today.
 3. **Blood-bank incoming-request alerts** — "Raise Hand" panel that shows open requests matching this BB's available inventory (spec §7). Needs a new endpoint that joins `blood_requests` against `blood_inventory.blood_bank_id = me`.
 4. **Workbox `BackgroundSyncPlugin`** — the IDB outbox replays on `online` + on hook mount, but doesn't yet leverage the SW's BackgroundSync API (which can wake the SW even when no tab is open). Current implementation degrades gracefully — replay just waits until the user reopens the tab.
 5. **i18n widening** — clinical copy + form labels in coord/hospital/BB tabs are English. Translate after medical-advisor review of the donor-facing copy lands.
 6. **Design pass** — Tailwind utilities only, single brand colour, system font. A Devanagari-friendly font (`Noto Sans Devanagari`), proper type scale, spacing tokens, and motion/microinteractions are intentionally deferred until full screen inventory exists (post Phase 8).
 
-## Phase 8 status (code-complete — AWS infra + external accounts deferred)
+## Phase 8 status (code-complete — at the time, AWS infra + external accounts were deferred; both supplanted by the May 2026 Azure deploy — see Post-Phase-8 status above)
 
 **What landed in this pass:**
 
@@ -356,17 +356,19 @@ always present; the **API + UI** landed post-Phase-8.
 - `StaffLogin` routes those roles to `/admin` instead of `/coordinator`.
 
 ### Deployment doc (`docs/DEPLOYMENT.md`)
-- AWS RDS PostgreSQL recipe (Multi-AZ, KMS at rest, IAM auth, automated backups + PITR).
-- EC2 + ALB + ACM backend stack with PM2 cluster mode and CloudWatch wiring.
-- S3 + CloudFront frontend hosting with cache headers per asset type.
-- Production `.env` template covering all provider switches (`ENCRYPTION_PROVIDER=kms`, `STORAGE_PROVIDER=s3`, `NOTIFICATIONS_PROVIDER=msg91`, `MAIL_PROVIDER=workspace`).
-- Monitoring matrix (CloudWatch, Better Uptime, Sentry).
+- **Azure Database for PostgreSQL Flexible Server** recipe (Central India, zone-redundant HA, PITR, encryption at rest, VNet integration).
+- **Azure App Service Linux** backend with Always-On + `/health` probe; **Azure Static Web Apps** frontend with custom domain + free managed TLS.
+- **Azure Key Vault** for all secrets; managed identity on App Service references `@Microsoft.KeyVault(...)` values.
+- Production `.env` template covering current provider switches (`ENCRYPTION_PROVIDER=local`, `STORAGE_PROVIDER=local`, `NOTIFICATIONS_PROVIDER=whatsapp_cloud`, `MAIL_PROVIDER=console`) plus the full `WHATSAPP_*` env block + `OTP_ECHO`.
+- New **§2.1 "Staging deployment (current reality)"** documenting the live workflow: Neon DB, the two GitHub Actions, `git push origin <branch>:main` fast-forward pattern, Azure free-trial expiry, cost guidance.
+- Monitoring matrix (Application Insights, Azure Monitor alerts, Sentry).
 - Security-hardening verification checklist matching the spec §10 items.
 - Excerpted go-live checklist; full version stays in the Master Prompt.
+- (The original spec called for AWS RDS Mumbai / EC2+ALB+ACM / S3+CloudFront / `ENCRYPTION_PROVIDER=kms` / `STORAGE_PROVIDER=s3` — superseded by the May 2026 Azure pivot.)
 
 **What's deferred (out of scope for code work):**
-1. **AWS provisioning** — RDS instance, EC2/ALB, S3 bucket, CloudFront distribution, IAM roles, KMS keys. Pure infra work, no code change. Recipe in `docs/DEPLOYMENT.md`.
-2. **External accounts + keys** — MSG91 DLT templates, LeegAlly e-sign, Google Workspace admin, Sentry, Better Uptime / UptimeRobot. Each is a vendor signup with KYC.
+1. **Azure DB cutover** — Azure Database for PostgreSQL Flexible Server is the production target; staging continues on Neon free tier until the cutover. Provisioning + `pg_dump`/restore is pure infra work. (The original spec required AWS RDS / EC2 / S3 — those line items are obsolete post-Azure pivot. Azure Key Vault + App Service + Static Web Apps + the WhatsApp Cloud setup are all done.)
+2. **External accounts + keys** — Meta WABA payment-method on file (live blocker for delivery), MSG91 DLT templates (only needed for the SMS fallback channel), LeegAlly e-sign, Google Workspace admin, Sentry, Better Uptime / UptimeRobot. Each is a vendor signup with KYC.
 3. **PDF generation** for DHO submission — `routes/reports.js` returns CSV; PDF needs Puppeteer or wkhtmltopdf wired into the storage abstraction. CSV is acceptable for hemovigilance interim filings.
 4. **`audit_reader` SELECT grant on `audit_log`** for the integrity check — currently the role only has SELECT on `audit_log_safe` (which masks `row_hash` / `previous_row_hash`). One-line migration: `GRANT SELECT (id, event_time, table_name, record_id, row_hash, previous_row_hash) ON audit_log TO audit_reader;`. Endpoint already returns a clear diagnostic 500 in the meantime.
 5. **Adverse transfusion reactions table** — referenced in spec §10 hemovigilance; not in the schema yet. Hemovigilance report returns `{ reported: 0, note: 'adverse_reaction_table_pending' }` so the DHO PDF template can render the section.
@@ -394,9 +396,10 @@ backend/src/
   routes/          Express routers (one file per resource)
   middleware/      auth, RLS-session, error handler
   services/        domain services + provider abstractions
-    encryption/    local | kms (swap via ENCRYPTION_PROVIDER env)
-    notifications/ console | msg91 (swap via NOTIFICATIONS_PROVIDER env)
-    storage/       local | s3 (swap via STORAGE_PROVIDER env)
+    encryption/    local (AES-256-GCM; Azure Key Vault crypto provider future work) — swap via ENCRYPTION_PROVIDER
+    notifications/ console | msg91 | whatsapp_cloud (Meta Graph API — live primary) — swap via NOTIFICATIONS_PROVIDER
+    storage/       local (Azure Blob provider future work) — swap via STORAGE_PROVIDER
+    whatsapp/      bot conversation state machine + parsers
   utils/           pure helpers
 
 database/
@@ -412,14 +415,16 @@ scripts/           Migration runner, LGD importer, RLS test harness
 
 External services that aren't yet provisioned are stubbed with **local providers** that satisfy the same contract:
 
-| Service | Local provider | Real provider | Activates when |
+| Service | Local provider | Live / planned provider | Activates when |
 |---------|----------------|---------------|----------------|
-| Encryption | AES-256-GCM with env key | AWS KMS | `ENCRYPTION_PROVIDER=kms` + `KMS_*_KEY_ARN` set |
-| File storage | Local disk under `LOCAL_STORAGE_DIR` | AWS S3 | `STORAGE_PROVIDER=s3` |
-| Notifications | JSON files in `LOCAL_OUTBOX_DIR` | MSG91 (DLT-registered) | `NOTIFICATIONS_PROVIDER=msg91` |
+| Encryption | AES-256-GCM with env keys (kept in Azure Key Vault, injected as App Service settings) | An Azure Key Vault crypto provider that wraps the key material — future work | `ENCRYPTION_PROVIDER=local` today (only option); a future `azure-kv` value will swap |
+| File storage | Local disk under `LOCAL_STORAGE_DIR` | Azure Blob Storage provider — future work | `STORAGE_PROVIDER=local` today; a future `azure-blob` value will swap |
+| Notifications | JSON files in `LOCAL_OUTBOX_DIR` | **`whatsapp_cloud` = Meta WhatsApp Business Cloud API direct** (live primary) · `msg91` (SMS / voice fallback — stubbed pending DLT) | `NOTIFICATIONS_PROVIDER=whatsapp_cloud` (live) / `msg91` (fallback) |
 | Mail | Console / file outbox | Google Workspace API | `MAIL_PROVIDER=workspace` |
 
-When implementing new features, **always** call the abstraction (`require('../services/encryption')`), never call AWS/MSG91 SDKs directly from a route handler.
+The Master Prompt §1.3 originally specified AWS KMS and AWS S3 for the real-provider column; the May 2026 Azure pivot replaces both with Azure-native equivalents listed above. Implementation of the Azure-native crypto + storage providers is still future work — the `local` providers continue to run on Azure App Service unchanged.
+
+When implementing new features, **always** call the abstraction (`require('../services/encryption')`), never call cloud-provider or notification-vendor SDKs directly from a route handler.
 
 ## Migration numbering — divergence from spec
 
@@ -484,16 +489,17 @@ The spec's `// encrypted` comments on `CHAR` columns are misleading. Decision af
 
 | Column shape | Examples | Mechanism |
 |--------------|----------|-----------|
-| Fixed-width identifiers (`CHAR(N)`) | `donors.mobile`, `donors.abha_id`, `donors.aadhaar_last4`, all `*_contact_mobile`, `*.guardian_mobile` | Storage-level: AWS RDS + KMS encrypts the volume. Access enforced by RLS + column-level GRANTs. **Plaintext in the column.** |
+| Fixed-width identifiers (`CHAR(N)`) | `donors.mobile`, `donors.abha_id`, `donors.aadhaar_last4`, all `*_contact_mobile`, `*.guardian_mobile` | Storage-level: **Azure Database for PostgreSQL Flexible Server** encrypts the disk at rest (service-managed key; customer-managed via Azure Key Vault optional). Access enforced by RLS + column-level GRANTs. **Plaintext in the column.** (Spec originally said AWS RDS + KMS — superseded by the May 2026 Azure pivot.) |
 | Free-text PII (`TEXT`) | `full_name`, `address_line`, `deferral_reason`, `recall_reason`, `donor_screening.*_method`, `donor_screening.notes`, `lookback_registry.hospital_response`, `outcome_notes`, `notification_log.template_variables` (where appropriate), all encrypted-method columns | Column-level: AES-256-GCM via `backend/src/services/encryption`. Ciphertext format `v1:<provider>:<keyKind>:<base64url>`. |
 
 **Why CHAR columns can't be column-encrypted:**
 - Lookup by mobile (OTP login, duplicate detection) needs equality match. AES-GCM uses random IVs → same plaintext yields different ciphertexts → no equality match.
 - Length: ciphertext is much wider than the original 13/17 chars; widening to `TEXT` would cascade through the entire schema.
 
-**Why two KMS keys (per spec §1.3):**
-- `KMS_MAIN_KEY_ARN`: encrypts general PII text fields (name, address, etc.)
-- `KMS_SCREENING_KEY_ARN`: encrypts TTI screening data only — every method/notes column on `donor_screening` and any field on `screening_audit_log` whose name implies sensitive content.
+**Why two encryption keys (per spec §1.3, adapted for Azure):**
+- `LOCAL_ENCRYPTION_KEY_HEX` (key kind `main`): encrypts general PII text fields (name, address, etc.)
+- `LOCAL_SCREENING_ENCRYPTION_KEY_HEX` (key kind `screening`): encrypts TTI screening data only — every method/notes column on `donor_screening` and any field on `screening_audit_log` whose name implies sensitive content.
+- Both key materials live in **Azure Key Vault** in prod and are injected as App Service settings (the spec's original AWS-KMS naming `KMS_MAIN_KEY_ARN` / `KMS_SCREENING_KEY_ARN` is superseded by the May 2026 Azure pivot; an Azure Key Vault crypto provider that wraps these keys with a KV-hosted KEK is future work).
 - A compromised app server with main-key access cannot read screening data without separately compromising the screening key. The screening API endpoint is the only path that uses the screening provider; everything else must use main.
 
 **What the API code must do:**
@@ -518,7 +524,7 @@ Hospital role NEVER sees donor mobile in API responses, even though it's plainte
 
 - Real secrets only ever live in `.env` (gitignored). Never in code, never in commits, never in logs (logger has redaction rules; extend them when you add new fields).
 - Mobile numbers, full names, addresses, ABHA IDs, IP addresses, and TTI results are encrypted at rest. The encryption module returns ciphertext strings prefixed `v1:<provider>:<keyKind>:<payload>`.
-- TTI / screening data uses the **separate** `screening` key kind, backed by a different KMS key in production.
+- TTI / screening data uses the **separate** `screening` key kind, backed by a different encryption key in production (held in Azure Key Vault as `LOCAL_SCREENING_ENCRYPTION_KEY_HEX`).
 
 ## What "done" means for a phase
 

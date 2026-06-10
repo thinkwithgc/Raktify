@@ -2,8 +2,36 @@ Raktify
 Master Prompt — Phased Coding Agent Specification
 Choudhari EduHealth India Foundation
 Version 1.0  |  April 2026  |  Amravati, Maharashtra
+Infrastructure update applied: May 2026 (Azure + Meta WhatsApp Cloud)
 
 PURPOSE  This document is the complete technical specification for building Raktify v1. It is structured in 8 independent phases. Each phase is a self-contained prompt for a coding agent. Begin a fresh agent session for each phase. The agent must complete each phase fully before the next begins.
+
+INFRASTRUCTURE UPDATE — MAY 2026  Two foundational decisions in §1.3 of this
+spec were revised after Phases 0–8 shipped, and the live system reflects the
+new choices. Treat the AWS / MSG91 mentions below as **historical context for
+why a pattern was originally chosen**, not as instructions for current work:
+
+  • **Hosting & infra: AWS → Microsoft Azure.** Backend on Azure App Service
+    (Linux, Central India / Pune), frontend on Azure Static Web Apps, secrets in
+    Azure Key Vault, DB still Neon for dev+staging (Azure Database for PostgreSQL
+    Flexible Server is the production target, not yet provisioned). The application
+    code keeps the original `local` provider for encryption + storage (no AWS
+    KMS / no S3 — Azure-native providers are future work). See `docs/DEPLOYMENT.md`
+    for the live recipe.
+  • **Primary notification channel: MSG91 → Meta WhatsApp Business Cloud API
+    (direct, no BSP).** `backend/src/services/notifications/whatsappCloudProvider.js`
+    sends template messages straight to the Meta Graph API — no India DLT
+    registration needed for WhatsApp (Meta clears its own template review).
+    MSG91 is now the *SMS-fallback* provider, not the primary path. WABA
+    Business Verification is done (21 May 2026); the live blocker is a
+    payment-method-on-file requirement that Meta added for new WABAs.
+
+The 46 migrations, 104 route handlers, 6 role portals + DHO governance dashboard,
+camps end-to-end, registries, public surfaces, and demo seed are all live on
+Azure staging (`raktify.choudhari.ngo`). The phase-by-phase clinical/security
+design below (RLS philosophy, audit-log hash chain, hybrid two-key encryption,
+matching engine semantics, lookback protocol, etc.) is unchanged — only the
+*hosting and notification-provider* lines were affected by the May 2026 pivot.
 
 MEDICAL REVIEW STATUS  All clinical protocols in this specification (NBTC eligibility criteria, TTI deferral periods, compatibility matrix, lookback protocol) are pending validation by a qualified haematologist. Do not modify any clinical reference data without written confirmation from the medical advisor.
 
@@ -25,49 +53,52 @@ Security is non-negotiable. All PII and health data is encrypted at rest. Row Le
 The audit log is immutable. No application code writes to audit_log directly. Only database triggers write to it. No role has UPDATE or DELETE on audit_log ever.
 Donor contact information is always masked. Hospitals never see donor phone numbers. All donor contact is mediated through the platform.
 
-1.3  Technology Stack — Final, Non-Negotiable
+1.3  Technology Stack — Final (revised May 2026)
 Layer
 Technology
 Reason
-Database
-PostgreSQL on AWS RDS — Mumbai (ap-south-1)
-Life-critical system. AWS Mumbai is used by NPCI/UPI and cannot be blocked by Indian government. Zero ban risk. Point-in-time recovery, automated backups, multi-AZ failover.
-Dev Database
+Database (production target)
+Azure Database for PostgreSQL Flexible Server — Central India (Pune)
+Life-critical system. Central India region keeps data inside Maharashtra; zone-redundant HA + PITR + automated backups + encryption at rest by default. (Previously specified AWS RDS Mumbai; the foundation's Azure account replaces it post-May 2026.)
+Dev / Staging Database
 Neon (neon.tech)
-Free serverless PostgreSQL. Same engine as production. Exports standard pg_dump. Migrate to RDS without schema changes.
+Free serverless PostgreSQL. Same engine as production. Exports standard pg_dump. Migrate to Azure Postgres without schema changes. Staging currently runs on Neon free tier; the Azure Flexible Server is the cutover target.
 Backend
-Node.js + Express.js
+Node.js 22 LTS + Express.js
 Stable, well-documented, large ecosystem for Indian health tech.
 Backend Hosting
-AWS EC2 or Elastic Beanstalk — Mumbai
-Same region as RDS. Low latency. Same compliance boundary.
+Azure App Service (Linux, Node 22) — Central India
+Same region as the future DB. Low latency. Same compliance boundary. Staging slot live as `raktify-api-staging`. (Previously AWS EC2 / Elastic Beanstalk.)
 File Storage
-AWS S3 — Mumbai
-Prescription PDFs, lab reports, MoU documents. Encrypted at rest.
+Local disk at launch (`STORAGE_PROVIDER=local`); Azure Blob Storage provider is future work
+Prescription PDFs, lab reports, MoU documents. The provider abstraction in `services/storage` lets us flip when the Azure Blob provider lands. (Previously AWS S3.)
 Auth — OTP
-MSG91
-DLT pre-registered. WhatsApp Business API + SMS in same dashboard. Used by Practo and PharmEasy. India carrier routing.
+Mobile OTP delivered via Meta WhatsApp Business Cloud API (Meta-direct). SMS via MSG91 is the fallback path (deferred until DLT registration lands).
+WhatsApp clears Meta's own template review — no India DLT for WhatsApp messages. Higher engagement than SMS, lower cost. Live staging supports `OTP_ECHO=true` to echo the OTP in the API response when neither channel is wired.
 Auth — 2FA
 TOTP (Google Authenticator compatible)
-Mandatory for hospital and blood bank accounts.
+Mandatory for hospital, blood bank, NGO admin, and DHO accounts.
 Digital MoU
 LeegAlly API (Aadhaar eSign)
 Legally valid under IT Act 2000 Section 5. No ASP license needed.
 Email / Domain
-Google Workspace for Nonprofits — choudhari.ngo
+Google Workspace for Nonprofits — choudhari.ngo (pending FCRA registration); public-facing email today is `contact@choudhari.ngo`
 Free for NGOs. Institutional role accounts e.g. irwin@choudhari.ngo.
 Frontend
-React.js + Tailwind CSS
-Responsive, mobile-first. Donor-facing UI in Marathi and Hindi.
+React 18 + Vite 5 + Tailwind 3 + vite-plugin-pwa
+Responsive, mobile-first PWA. Donor-facing UI in Marathi (default), Hindi, English.
 Frontend Hosting
-AWS Amplify or Vercel
-Static hosting. CDN. Auto-deploy from GitHub.
+Azure Static Web Apps — `raktify.choudhari.ngo`
+Static hosting + global CDN + free SSL + SPA routing + custom domain. Auto-deploy from GitHub Actions on push to `main`. (Previously AWS Amplify / Vercel.)
 WhatsApp
-Meta WhatsApp Business API via MSG91
-Official channel. Not a third-party wrapper. DLT compliant.
+Meta WhatsApp Business Cloud API — direct (no BSP)
+Official channel. `whatsappCloudProvider.js` posts to `graph.facebook.com/<ver>/<phone-number-id>/messages`. No BSP, no DLT. WABA Business-Verified 21 May 2026; live blocker is payment-method-on-file (Meta now requires it for new WABAs).
+Secrets
+Azure Key Vault (production); env vars in App Service Configuration (staging)
+Managed identity on the App Service references `@Microsoft.KeyVault(...)` secrets — no secrets ever committed.
 Encryption
-AES-256 via AWS KMS
-Two separate KMS keys: main application key and screening-only key.
+AES-256-GCM via the `local` provider; keys held in Azure Key Vault and injected as app settings. Two distinct keys: main + screening.
+Application code still uses two key kinds (`main` + `screening`) so a compromised app server with the main key can't decrypt TTI data. An Azure Key Vault crypto provider in `services/encryption` is future work. (Previously specified as AWS KMS.)
 Geographic Data
 LGD (Local Government Directory)
 Seeded from Ministry of Panchayati Raj public dataset. 640,000 villages, all districts, all talukas.
@@ -89,50 +120,75 @@ PHASE 0: Project Setup and Infrastructure
 Estimated effort: 2–3 days  ·  Start a fresh coding agent session for this phase
 Set up the complete development environment, repository structure, database connection, environment configuration, and all infrastructure dependencies. No application features are built in this phase — only the foundation everything else runs on.
 
-Phase 0 Deliverables — Acceptance Criteria
+Phase 0 Deliverables — Acceptance Criteria (revised May 2026)
 GitHub repository created with the folder structure in Section 1.4.
 Neon PostgreSQL database created and connected. Connection string in .env.
-AWS account configured with Mumbai region. RDS instance created (db.t3.micro for dev). S3 bucket created with server-side encryption enabled.
-AWS KMS: two keys created. Key 1: main application encryption. Key 2: screening data only. Key ARNs in .env as KMS_MAIN_KEY_ARN and KMS_SCREENING_KEY_ARN.
-Google Workspace for Nonprofits approved for choudhari.ngo. Admin console accessible.
-MSG91 account created. WhatsApp Business API sandbox active. DLT sender ID registered or in progress.
+Azure subscription configured (Central India region). Resource group `raktify-prod`. App Service Plan + Web App `raktify-api-staging` provisioned. Static Web App for the frontend (`raktify.choudhari.ngo`). (Azure Database for PostgreSQL Flexible Server is the production target; Neon continues to back staging until cutover.)
+Encryption keys: two distinct 32-byte hex keys (main + screening) held in Azure Key Vault and injected as `LOCAL_ENCRYPTION_KEY_HEX` + `LOCAL_SCREENING_ENCRYPTION_KEY_HEX` app settings. (Azure-native crypto via Key Vault HSM is future work; the application uses the `local` AES-256-GCM provider with key material referenced from Key Vault.)
+Google Workspace for Nonprofits in progress for choudhari.ngo (blocked on FCRA registration); public-facing email is `contact@choudhari.ngo` in the meantime.
+Meta App + WhatsApp Business Cloud API set up: App ID, WABA, phone-number-id, System User long-lived access token, app secret. Business Verification submitted and approved (21 May 2026). At least one template per category approved (`donor_otp` Authentication; `donor_alert_critical`, `camp_reminder`, `camp_organizer_link`, `mou_esign_link` Utility). Webhook callback URL configured pointing at `/webhooks/whatsapp/incoming` with the verify token + X-Hub-Signature-256 verified against `WHATSAPP_APP_SECRET`. (MSG91 + India DLT is deferred — only needed for the SMS fallback channel, not launch.)
 LeegAlly API sandbox credentials obtained. Test signature flow working.
-Node.js Express server running on port 3000. Single /health endpoint returns {status: 'ok', timestamp: ISO8601, environment: process.env.NODE_ENV}.
-dotenv configured. .env.example committed. .env in .gitignore. All secrets in environment variables — none hardcoded.
+Node.js 22 Express server running on port 3000 (App Service injects `PORT` in prod). Single /health endpoint returns {status: 'ok', timestamp: ISO8601, environment: process.env.NODE_ENV}.
+dotenv configured. .env.example committed. .env in .gitignore. All secrets in environment variables — none hardcoded. In production, app settings reference Azure Key Vault via `@Microsoft.KeyVault(SecretUri=...)`.
 ESLint and Prettier configured. Husky pre-commit hooks running lint and format checks.
-GitHub Actions CI pipeline: runs on every push, executes lint check and migration dry-run.
+GitHub Actions: `.github/workflows/main_raktify-api-staging.yml` deploys the backend to App Service on push to `main`; `.github/workflows/azure-static-web-apps-*.yml` deploys the frontend. Both bake `VITE_API_URL` at build time.
 
-Phase 0 Environment Variables
--- SQL
-# Database
-DATABASE_URL=postgresql://user:password@host:5432/raktify
-DATABASE_URL_PROD=postgresql://user:password@rds-endpoint:5432/raktify
+Phase 0 Environment Variables (revised May 2026 — see .env.example for the canonical list)
+-- shell
+# ──── Application ────
+NODE_ENV=development
+PORT=3000
+FRONTEND_URL=http://localhost:5173
+JWT_SECRET=                              # 64+ char random string
+JWT_EXPIRES_IN=8h
 
-# AWS
-AWS_REGION=ap-south-1
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-S3_BUCKET_NAME=raktify-documents
-KMS_MAIN_KEY_ARN=arn:aws:kms:ap-south-1:...
-KMS_SCREENING_KEY_ARN=arn:aws:kms:ap-south-1:...
+# ──── Database ────
+DATABASE_URL=postgresql://user:password@host:5432/raktify?sslmode=require   # Neon (dev + staging)
+# Production cutover target — Azure Postgres Flexible Server; leave blank pre-cutover.
+DATABASE_URL_PROD=
 
-# MSG91
+# ──── Provider selection ────
+ENCRYPTION_PROVIDER=local                # local | (future: azure-kv)
+NOTIFICATIONS_PROVIDER=whatsapp_cloud    # console | msg91 | whatsapp_cloud  ← whatsapp_cloud is the live primary
+STORAGE_PROVIDER=local                   # local | (future: azure-blob)
+MAIL_PROVIDER=console                    # console | workspace
+
+# ──── Local encryption keys (held in Key Vault in prod, injected as app settings) ────
+LOCAL_ENCRYPTION_KEY_HEX=                # 32-byte hex; AES-256-GCM main key
+LOCAL_SCREENING_ENCRYPTION_KEY_HEX=      # 32-byte hex; AES-256-GCM screening key (TTI data only)
+LOCAL_STORAGE_DIR=./.local-storage
+LOCAL_OUTBOX_DIR=./.outbox
+
+# ──── WhatsApp Business Cloud API (Meta-direct, no BSP, no India DLT) ────
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_ACCESS_TOKEN=                   # System User long-lived token
+WHATSAPP_WABA_ID=
+WHATSAPP_APP_SECRET=                     # verifies X-Hub-Signature-256 on inbound webhooks
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+WHATSAPP_API_VERSION=v21.0
+WHATSAPP_TEMPLATE_OTP=donor_otp
+WHATSAPP_TEMPLATE_EMERGENCY=donor_alert_critical
+WHATSAPP_TEMPLATE_REMINDER=camp_reminder
+WHATSAPP_TEMPLATE_THANKYOU=camp_organizer_link
+WHATSAPP_TEMPLATE_CRED=mou_esign_link
+
+# ──── MSG91 (SMS fallback path — stubbed; activates when DLT registration lands) ────
 MSG91_AUTH_KEY=
-MSG91_SENDER_ID=BLDCNT
-MSG91_WHATSAPP_NUMBER=
+MSG91_SENDER_ID=RAKTFY
+MSG91_WHATSAPP_NUMBER=                   # not used now that WhatsApp Cloud is primary; kept for future SMS-template parity
 MSG91_TEMPLATE_OTP=
-MSG91_TEMPLATE_EMERGENCY_MR=   # Marathi emergency alert
-MSG91_TEMPLATE_EMERGENCY_HI=   # Hindi emergency alert
+MSG91_TEMPLATE_EMERGENCY_MR=
+MSG91_TEMPLATE_EMERGENCY_HI=
 MSG91_TEMPLATE_THANKYOU_MR=
 MSG91_TEMPLATE_REMINDER_MR=
 
-# LeegAlly
+# ──── LeegAlly (Aadhaar eSign) ────
 LEEGALLY_API_KEY=
 LEEGALLY_TEMPLATE_ID=
+LEEGALLY_BASE_URL=https://api.leegally.com
 
-# Application
-JWT_SECRET=
-JWT_EXPIRES_IN=8h
+# ──── Staging-only ────
+OTP_ECHO=false                           # NEVER true in production — echoes OTP in API response for staging demos
 NODE_ENV=development
 PORT=3000
 FRONTEND_URL=http://localhost:5173
@@ -181,10 +237,10 @@ donation_history
 One row per donation. Three source types (verified/self-reported/retroactive).
 011
 donor_screening
-TTI results. Separate KMS key. Separate audit log. Most restricted table.
+TTI results. Separate encryption key (screening key, distinct from main key). Separate audit log. Most restricted table.
 012
 screening_audit_log
-Append-only. Separate from main audit_log. KMS_SCREENING_KEY.
+Append-only. Separate from main audit_log. Encrypted with the screening key (distinct from the main encryption key, so a compromised app server with the main key can't decrypt TTI data).
 013
 blood_inventory
 One row per physical blood bag. ISBT barcode. Nine status codes.
@@ -479,13 +535,13 @@ Build authentication for all six roles, the digital MoU onboarding flow, Google 
 
 Authentication Flows by Role
 Donors and Coordinators — Mobile OTP
-POST /auth/otp/send — accepts mobile (+91XXXXXXXXXX format). Validates format. Generates 6-digit OTP. SHA-256 hash stored in platform_users.otp_hash. Expiry in platform_users.otp_expires_at = NOW() + 10 minutes. Sends OTP via MSG91 SMS. Rate limit: max 3 OTP requests per mobile per hour.
+POST /auth/otp/send — accepts mobile (+91XXXXXXXXXX format). Validates format. Generates 6-digit OTP. SHA-256 hash stored in platform_users.otp_hash. Expiry in platform_users.otp_expires_at = NOW() + 10 minutes. Sends OTP through the notifications chokepoint, which routes to the active provider — **Meta WhatsApp Business Cloud API direct** when `NOTIFICATIONS_PROVIDER=whatsapp_cloud` (the live setting), MSG91 SMS when that path is activated, or the console outbox in dev. The OTP template is registered with Meta as an Authentication-category template (the code goes in both the body param and the URL/copy-code button param). When `OTP_ECHO=true` (staging only), the OTP is also echoed in the API response so the live demo works without a delivered message. Rate limit: max 3 OTP requests per mobile per hour.
 POST /auth/otp/verify — accepts mobile + otp. Compare SHA-256(submitted_otp) against stored hash. Check otp_expires_at &gt; NOW(). Increment otp_attempts on failure. Lock account after 5 failures (is_locked=TRUE, locked_until=NOW()+30min). On success: null otp_hash, return JWT (24-hour expiry for donors, 12-hour for coordinators).
 JWT payload: { sub: platform_users.id, role: platform_users.role, institution_id: null, session_id: uuid }
 Hospital and Blood Bank — Email + Password + TOTP
 POST /auth/institutional/login — accepts email + password + totp_code. Lookup platform_users by email (lowercase). Verify bcrypt password hash. If totp_enabled=TRUE, verify TOTP code using authenticator library. Check is_locked. Check institution.onboarding_status = 'AC'. Return JWT (8-hour expiry).
 POST /auth/institutional/setup-totp — generates TOTP secret, returns QR code data URL. Secret stored encrypted in platform_users.totp_secret. Not enabled until first successful verification via POST /auth/institutional/confirm-totp.
-POST /auth/institutional/reset-password — only callable by ngo_admin role. Generates temp password. Sends via MSG91 WhatsApp to institution's primary_contact_mobile. Sets platform_users.force_password_change = TRUE.
+POST /auth/institutional/reset-password — only callable by ngo_admin role. Generates temp password. Sends via the notifications chokepoint (Meta WhatsApp Business Cloud API on the `whatsapp_cloud` provider; MSG91 when SMS fallback is active) to the institution's primary_contact_mobile, using the approved `mou_esign_link`-style credentials template. Sets platform_users.force_password_change = TRUE.
 JWT Middleware
 All protected routes use verifyJWT middleware. Extracts Bearer token. Verifies signature. Checks platform_users.is_locked = FALSE. Attaches { userId, role, institutionId } to req.user.
 requireRole(...roles) middleware: checks req.user.role is in the allowed roles array. Returns 403 if not.
@@ -494,7 +550,7 @@ requireInstitution middleware: for blood_bank and hospital roles, verifies req.u
 Digital MoU Onboarding Flow
 POST /onboarding/apply — public endpoint (no auth). Accepts institution details (Schedule 1 fields). Creates institutions row with onboarding_status='PE'. Creates application record. Notifies ngo_admin via WhatsApp.
 POST /onboarding/verify/:id — ngo_admin only. Records license verification. Sets license_verified_at and license_verified_by. Moves status to 'VE'.
-POST /onboarding/generate-mou/:id — ngo_admin only. Calls PDF generation service. Populates MoU template with institution details from Schedule 1. Uploads to S3. Triggers LeegAlly API to send Aadhaar eSign request to institution's authorized signatory mobile.
+POST /onboarding/generate-mou/:id — ngo_admin only. Calls PDF generation service. Populates MoU template with institution details from Schedule 1. Uploads via the storage abstraction (`STORAGE_PROVIDER=local` writes to App Service disk in staging; Azure Blob Storage provider is future work). Triggers LeegAlly API to send Aadhaar eSign request to institution's authorized signatory mobile.
 POST /onboarding/mou-signed (webhook from LeegAlly) — receives signing confirmation. Sets mou_signed_at, mou_leegally_doc_id, mou_signatory_name. Calls Google Workspace API to create institutional email (shortname@choudhari.ngo). Creates platform_users record. Sends credentials to primary_contact_mobile via WhatsApp. Sets onboarding_status='AC'.
 
 Phase 2 API Endpoints
@@ -586,7 +642,7 @@ Path 3 — WhatsApp Bot Registration
 When donor sends any message to the platform WhatsApp number, bot responds in their language (detected from message content — Marathi/Hindi/English).
 Bot conversation flow: name → date of birth → gender → village/city → blood group (self-reported, labelled unverified) → consent confirmation.
 After conversation: creates donor record with registration_source='WAB'. Sends OTP to the same WhatsApp number to verify mobile.
-Bot uses MSG91 WhatsApp API with DLT-registered conversation templates.
+Bot uses the Meta WhatsApp Business Cloud API webhook (`POST /webhooks/whatsapp/incoming`, X-Hub-Signature-256 verified against `WHATSAPP_APP_SECRET`). Outbound replies go through the same notifications chokepoint that delivers OTPs and donor alerts. No DLT registration is needed for the WhatsApp channel — Meta clears its own template review. (MSG91 + DLT remains the route for the SMS path when it activates.)
 
 Duplicate Detection Logic
 On every new donor registration, before INSERT, run these checks in sequence:
@@ -674,7 +730,7 @@ Tier 4 (CI — Citizen Request): POST /requests/citizen — donor role. Must pro
 The Matching Engine — POST /requests/:id/match
 Step 1: Query blood_inventory WHERE blood_bank_id IN (onboarded banks in requesting hospital's district) AND blood_group_id IN (compatible groups for patient's group per compatibility_matrix) AND component_id = requested_component AND status = 'AV' AND expiry_date &gt; NOW() AND is_recalled = FALSE. ORDER BY is_preferred DESC (same group first), then expiry_date ASC (soonest expiry first — FIFO).
 Step 2: If Step 1 returns sufficient units — reserve them (status=RE, reserved_for_request_id=request.id). Set request.matched_blood_bank_id. Set request.status='MT'. Set first_match_found_at=NOW(). If fallback group used: set compatibility_fallback_used=TRUE, fallback_blood_group_id. Send crossmatch warning.
-Step 3: If inventory insufficient AND request.donor_activation_required=TRUE — query donors WHERE blood_group_verified IN (compatible groups) AND deferral_status='A' AND is_available=TRUE AND mobile_verified=TRUE AND consent_data_use=TRUE AND next_eligible_date &lt;= CURRENT_DATE AND village_id.district_id IN (request hospital district initially). ORDER BY reliability_score DESC, ST_Distance(donor coords, hospital coords) ASC. Create donor_alerts rows. Send WhatsApp alerts via MSG91.
+Step 3: If inventory insufficient AND request.donor_activation_required=TRUE — query donors WHERE blood_group_verified IN (compatible groups) AND deferral_status='A' AND is_available=TRUE AND mobile_verified=TRUE AND consent_data_use=TRUE AND next_eligible_date &lt;= CURRENT_DATE AND village_id.district_id IN (request hospital district initially). ORDER BY reliability_score DESC, ST_Distance(donor coords, hospital coords) ASC. Create donor_alerts rows. Send WhatsApp alerts via the Meta WhatsApp Business Cloud API (the `donor_alert_critical` Utility template, MR/EN, approved by Meta).
 Step 4: Insert escalation_log row for this ring. Set ring=1, radius_km=50, triggered_by='AU'.
 
 Auto-Escalation Engine
@@ -682,7 +738,7 @@ A scheduled job runs every escalation_timeout_minutes (from the GENERATED column
 Ring 1→2: Expand search to all districts in Maharashtra. Insert escalation_log ring=2, radius_km=150.
 Ring 2→3: Expand to adjacent states. For rare blood groups — expand nationally immediately regardless of ring.
 Ring 3→4: Alert DHO directly via WhatsApp and call.
-CRITICAL requests: if unresolved at 30 minutes — ngo_admin receives a phone call (not just WhatsApp). This is implemented using MSG91 voice call API.
+CRITICAL requests: if unresolved at 30 minutes — ngo_admin receives a phone call (not just WhatsApp). This uses the MSG91 voice-call API on the fallback SMS/voice channel; the primary WhatsApp Cloud channel is best-effort and the voice escalation guarantees a human eyeball within the SLA.
 
 Coordinator Dashboard API
 GET /coordinator/requests — returns all open requests for coordinator's district. Includes: request_number, urgency_tier (colour coded), units_required, units_fulfilled, time since raised_at, current status, is_current assignment.
@@ -705,10 +761,10 @@ Estimated effort: 4–5 days  ·  Start a fresh coding agent session for this ph
 Build the complete notification engine (WhatsApp + SMS + call escalation), the WhatsApp bot for donor registration and inventory updates, opt-out enforcement, and the lookback protocol for reactive TTI results.
 
 Notification Engine Architecture
-All notifications go through a single sendNotification(recipientId, templateType, variables, channel) service function. Never call MSG91 directly from route handlers.
-The function: (1) checks opted-in status for the channel, (2) checks DND hours unless Critical tier override, (3) selects correct language template from MSG91, (4) calls MSG91 API, (5) writes to notification_log regardless of success or failure, (6) sets up delivery webhook listener for status update.
-Fallback chain: if WhatsApp delivery fails after 3 minutes (delivery_status stays 'SE') → automatic SMS fallback. For Critical tier with emergency_override=TRUE: if SMS also fails → MSG91 voice call.
-Opt-out enforcement: MSG91 webhooks POST to /webhooks/msg91/delivery. If delivery_status = 'OP' (opted out): immediately set donors.sms_opted_in=FALSE or whatsapp_opted_in=FALSE in same transaction. notification_log.is_opt_out_trigger=TRUE.
+All notifications go through a single sendNotification(recipientId, templateType, variables, channel) service function. Never call a provider SDK directly from route handlers. The chokepoint lives at `backend/src/services/notifications/index.js` and picks the active provider by `NOTIFICATIONS_PROVIDER` env (`console` / `msg91` / `whatsapp_cloud`).
+The function: (1) resolves the recipient (donor / institution / external mobile), (2) checks opted-in status for the channel, (3) checks DND hours unless Critical-tier override, (4) selects the language-specific approved template, (5) calls the active provider (Meta Graph API for `whatsapp_cloud`; MSG91 API for `msg91`; local file outbox for `console`), (6) writes one row to notification_log regardless of success or failure (provider code = 'WC' for WhatsApp Cloud, 'M9' for MSG91, 'LO' for local — see migration 250), (7) sets up delivery webhook listener for status update.
+Fallback chain: if WhatsApp delivery fails after 3 minutes (delivery_status stays 'SE') → automatic SMS fallback via MSG91. For Critical tier with emergency_override=TRUE: if SMS also fails → MSG91 voice call.
+Opt-out enforcement: Meta delivery callbacks land on `POST /webhooks/whatsapp/incoming` (with X-Hub-Signature-256 verified); MSG91 callbacks land on `POST /webhooks/msg91/delivery`. If delivery_status = 'OP' (opted out): immediately set donors.sms_opted_in=FALSE or whatsapp_opted_in=FALSE in the same transaction. notification_log.is_opt_out_trigger=TRUE.
 
 DLT Template Requirements
 RULE  India's TRAI requires all bulk SMS/WhatsApp messages to use pre-registered DLT templates. Register the following templates with MSG91 before sending any notification. Template variables are in curly braces.
@@ -768,7 +824,7 @@ PWA configuration: service worker caches the app shell, donor profile, and last-
 Coordinator Dashboard
 Real-time request queue — WebSocket connection (Socket.io) updates the queue when new requests arrive without page refresh.
 Each request card shows: BC request number, hospital name, blood group and component needed, urgency tier (colour: red/amber/gray), units required vs fulfilled, time elapsed since submission, current assignment status.
-Clicking a request opens the request detail panel: full clinical notes, uploaded documents (pre-signed S3 URLs, 10-minute expiry), compatibility match found, matched blood bank details, donor alert status, request thread.
+Clicking a request opens the request detail panel: full clinical notes, uploaded documents (signed URLs from the storage abstraction — local-disk URLs in staging today; pre-signed Azure Blob URLs once the Blob provider lands, 10-minute expiry), compatibility match found, matched blood bank details, donor alert status, request thread.
 Thread input: text message, role-visibility selector, document attach. Messages appear in real-time via WebSocket.
 Action buttons: Accept, Claim, Verify (Tier 3/4), Mark No-Show, Close Request.
 Coordinator profile page: impact metrics displayed — total donors, total donations by community, requests fulfilled, response time median, reliability score.
@@ -795,7 +851,7 @@ All times displayed in IST (UTC+5:30). Store and transmit as UTC. Display only c
 SECTION 10 — PHASE 8: ADMIN DASHBOARD, REPORTING, AND DEPLOYMENT
 PHASE 8: NGO Admin Dashboard, DHO Reports, Security Hardening, and Production Deployment
 Estimated effort: 4–5 days  ·  Start a fresh coding agent session for this phase
-Build the NGO admin dashboard, hemovigilance and DHO reporting, security hardening (rate limiting, input sanitisation, CORS, helmet), integration testing, and production deployment to AWS Mumbai with monitoring.
+Build the NGO admin dashboard, hemovigilance and DHO reporting, security hardening (rate limiting, input sanitisation, CORS, helmet), integration testing, and production deployment to **Azure (Central India / Pune)** with monitoring. (Original spec said AWS Mumbai; superseded May 2026 — see top-of-document Infrastructure Update.)
 
 NGO Admin Dashboard
 Institution management: onboarding queue, active institutions, pending MoU renewals (60-day warning), CDSCO licence expiry tracker.
@@ -817,23 +873,23 @@ CORS: whitelist only FRONTEND_URL and coordinator app URL. No wildcard origin.
 Rate limiting (express-rate-limit): /auth/otp/send — 3 requests per mobile per hour. /auth/institutional/login — 10 requests per IP per 15 minutes. All API endpoints — 100 requests per IP per minute.
 Input sanitization: all user inputs run through DOMPurify (frontend) and a custom sanitizeInput middleware (backend) before database writes.
 SQL injection: Parameterized queries only via pg library. Zero string concatenation in SQL. ESLint rule added to catch template literal SQL.
-File upload security: S3 presigned URL upload (browser uploads directly to S3, never through backend). MIME type verification. Max file size 10MB. Allowed types: PDF, JPG, PNG only.
-Secrets: zero hardcoded credentials. All in environment variables. .env never committed. GitHub Actions uses GitHub Secrets. AWS uses IAM roles.
+File upload security: signed-URL upload through the storage abstraction (browser uploads directly to the backing store, never through the backend). Today the `local` provider writes to App Service disk; the Azure Blob provider (future work) will issue SAS URLs. MIME type verification. Max file size 10MB. Allowed types: PDF, JPG, PNG only.
+Secrets: zero hardcoded credentials. All in environment variables. .env never committed. GitHub Actions uses GitHub Secrets. Azure App Service uses a system-assigned managed identity to reference Azure Key Vault (`@Microsoft.KeyVault(SecretUri=...)`).
 
 Production Deployment
-Database — AWS RDS PostgreSQL
+Database — Azure Database for PostgreSQL Flexible Server (production target — staging still on Neon)
 Instance: db.t3.micro for launch. db.t3.small when &gt; 500 donors.
 Multi-AZ: enable from launch day. This is a life-critical system — single-AZ has no justification.
 Automated backups: daily. 7-day retention. Point-in-time recovery enabled.
-Encryption at rest: enabled. KMS key: same KMS_MAIN_KEY_ARN.
-Security group: only accepts connections from backend EC2 security group. No public access.
-Backend — AWS EC2 or Elastic Beanstalk
-EC2: t3.small. Ubuntu 24.04. Node.js 22 LTS. PM2 process manager with cluster mode.
-HTTPS only: SSL certificate via AWS Certificate Manager. Load balancer terminates SSL.
+Encryption at rest: enabled by default on Azure Postgres Flexible Server (service-managed key; customer-managed key via Key Vault optional).
+Networking: private access via VNet integration; only the App Service subnet reaches the DB. No public endpoint.
+Backend — Azure App Service (Linux, Node 22 LTS)
+Plan: Basic B1 at launch (1 vCore, 1.75 GB); P0v3/P1v3 for autoscale + staging slots later. PM2 process manager with cluster mode (deferred until App Service moves past 1 vCore — vertical scale buys nothing until clustering lands). Always On enabled. Health check path `/health`.
+HTTPS only: managed TLS certificate via Azure App Service custom domain (free Azure-managed cert) or Azure Front Door if added later. (Original spec said AWS Certificate Manager — superseded.)
 Health check: /health endpoint must return 200 within 5 seconds or instance is recycled.
-Application logs: CloudWatch Logs. Retain 90 days. Alert on ERROR log count &gt; 10 per minute.
+Application logs: Azure Monitor / Log Analytics workspace. Retain 90 days. Alert on ERROR log count &gt; 10 per minute. (Original spec said CloudWatch Logs — superseded.)
 Monitoring and Alerting
-AWS CloudWatch: CPU &gt; 80%, memory &gt; 85%, DB connections &gt; 80% of max → alert to ops@choudhari.ngo.
+Azure Monitor + Application Insights: CPU &gt; 80%, memory &gt; 85%, DB connections &gt; 80% of max, HTTP 5xx spike → action group emailing ops@choudhari.ngo. (Original spec said AWS CloudWatch — superseded.)
 Uptime monitoring: UptimeRobot or Better Uptime. Check /health every 60 seconds. SMS alert if down. Target: 99.5% monthly uptime.
 Error tracking: Sentry. Capture all unhandled exceptions. Alert on new error types immediately.
 
@@ -864,7 +920,7 @@ LeegAlly MoU signing tested end-to-end with a test institution.
 □
 Google Workspace admin account active. Test credential provisioning via API.
 □
-S3 presigned URL upload tested. MIME verification working. Max size enforced.
+Signed-URL upload through the storage abstraction tested (local disk on staging today; Azure Blob SAS URLs once the Blob provider lands). MIME verification working. Max size enforced. (Original spec said S3 presigned URL — superseded.)
 □
 All scheduled jobs registered and tested in staging environment.
 □
@@ -880,7 +936,7 @@ ngo_admin account created. super_admin account created. Both with TOTP enabled.
 □
 Offline emergency fallback sheet printed and delivered to all partner hospitals and blood banks.
 □
-Monitoring alerts tested: kill backend process, confirm CloudWatch alert fires within 5 minutes.
+Monitoring alerts tested: kill backend process, confirm Azure Monitor / Application Insights alert fires within 5 minutes. (Original spec said CloudWatch — superseded.)
 
 Phase Dependency Summary
 Phase
