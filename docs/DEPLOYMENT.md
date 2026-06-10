@@ -127,11 +127,11 @@ WHATSAPP_TEMPLATE_CRED=mou_esign_link
 
 Staging is **already live** and differs from the prod recipe above:
 
-| Concern | Staging today | Prod target (this doc) |
+| Concern | Staging today (May 2026) | Prod target (this doc) |
 |---|---|---|
-| Backend | `raktify-api-staging` App Service (Central India) | `raktify-api-prod` |
-| Frontend | Azure Static Web Apps `raktify.choudhari.ngo` | `raktify-web-prod` |
-| Database | **Neon** (dev/staging DB) | Azure PostgreSQL Flexible Server |
+| Backend | `raktify-api-staging` App Service B1 (Central India) | `raktify-api-prod` (same SKU is fine through Q3 2026 per load forecast) |
+| Frontend | Azure Static Web Apps `raktify.choudhari.ngo` (free tier) | `raktify-web-prod` |
+| Database | **Azure Database for PostgreSQL Flexible Server `raktify-db-staging` (Standard_B1ms, 1 vCore, 2 GB, 32 GB storage, Central India)** — currently on the 12-month Azure free-tier benefit (Free up to 750 hr/mo); ~₹1,800/mo after the benefit expires. Neon is reserved for **local-laptop demo environments** (see §2.2). | Same SKU at launch; bump to `B2s` past ~500 active donors. |
 | Deploy trigger | **push to `main`** fires both GitHub Actions automatically | same |
 
 - Workflows: `.github/workflows/main_raktify-api-staging.yml` (backend) and
@@ -144,10 +144,179 @@ Staging is **already live** and differs from the prod recipe above:
 - **Migrations + seed are NOT in the workflow.** Run them manually against the
   staging `DATABASE_URL`: `npm run migrate` then (optionally) `node scripts/seed_demo.js --reset`.
 - **Azure free-trial credit (~₹18,900) expires 17 Jun 2026; the subscription
-  auto-deletes 17 Jul 2026** unless upgraded to Pay-As-You-Go. Cheapest steady
-  state: PAYG + App Service F1 + Static Web Apps Free + DB on Neon free tier ≈
-  ₹0/mo (Azure managed Postgres has no free tier — keep the DB on Neon or budget
-  ~₹1–1.5k/mo for Burstable B1ms). Set a Cost Management budget alert at ₹100/mo.
+  auto-deletes 17 Jul 2026** unless upgraded to Pay-As-You-Go. Steady-state
+  monthly bill at projected load (4-5 hospitals, 10 blood banks, 2000 donors,
+  5-8 camps/quarter): **~₹3,000/mo** (App Service B1 ~₹1,100 + Azure Postgres
+  B1ms ~₹1,800 after the 12-month free benefit + WhatsApp Cloud ~₹150 + Static
+  Web Apps + Key Vault = ₹0). Set a Cost Management budget alert at ₹100/mo
+  pre-cutover, then raise to ~₹3,500/mo once prod is live.
+
+### 2.2 Demo environment (Neon branch + local backend, ₹0/mo)
+
+For all post-cutover prospect demos: **don't deploy a second Azure environment.**
+Run the backend locally on the demo laptop against a Neon branch. Cost: zero.
+
+**One-time setup (do once on the demo laptop):**
+
+1. Create a free Neon project at `console.neon.tech` (`raktify-demo`).
+2. Apply the schema to the new project:
+   ```sh
+   DATABASE_URL="<neon-demo-url>?sslmode=require" npm run migrate
+   ```
+3. Seed the demo dataset:
+   ```sh
+   DATABASE_URL="<neon-demo-url>?sslmode=require" node scripts/seed_demo.js --reset
+   ```
+4. Save a `.env.demo` next to `.env` with the demo-only settings:
+   ```
+   DATABASE_URL=<neon-demo-url>?sslmode=require
+   OTP_ECHO=true                          # OTPs returned in /auth/otp/send response
+   NOTIFICATIONS_PROVIDER=console         # no real WhatsApp delivery
+   FRONTEND_URL=http://localhost:5173
+   ```
+
+**Per-demo (5 minutes before the meeting):**
+
+```sh
+# Refresh demo data (the seed is idempotent; --reset wipes + re-seeds)
+DATABASE_URL="<neon-demo-url>?sslmode=require" node scripts/seed_demo.js --reset
+
+# Start backend + frontend against the demo DB
+cp .env.demo .env                # OR `dotenv -e .env.demo …` if you prefer not to swap
+npm run dev:backend              # → http://localhost:3000/health
+npm run dev:frontend             # → http://localhost:5173
+```
+
+**Per-prospect option:** Neon supports free branches. Click **Branches → Create
+branch** in the Neon console to clone the demo state into a per-prospect branch
+(e.g. `demo-irwin-hospital`) — useful if you want to leave a demo URL with the
+prospect for a few days. Delete the branch when done; branches are free.
+
+**Why this works:** hospital and blood-bank demos happen on a laptop in their
+office anyway. Running the backend locally against Neon is indistinguishable
+from running it against Azure — same code, same DB engine, same UX. The only
+visible difference is the URL bar shows `localhost`, which prospects don't see
+when you're driving the demo on your screen.
+
+### 2.3 Staging → production cutover runbook
+
+The current `raktify-api-staging` App Service + `raktify-db-staging` Postgres
+will become the production environment. The Azure infra stays — only the data
++ env flags + outbound notification behaviour change. Total cutover time:
+~30 minutes if all steps run cleanly.
+
+**Pre-cutover (do 24 h before):**
+
+1. **Take a manual point-in-time backup of `raktify-db-staging`** via the
+   Azure Portal (Postgres Flexible Server → Backup and restore → Create
+   manual backup). Keep it for 7 days. This is the rollback safety net.
+2. **Confirm the WhatsApp Cloud payment method is on file** on the WABA
+   (Meta Business Suite → WhatsApp Manager → Account tools → Payment
+   methods). Without this, OTP / alert templates return `accepted` but Meta
+   silently drops delivery. (See §2 env-vars note.)
+3. **Confirm Business Verification status = Verified** (it was approved
+   21 May 2026 — should still be active).
+4. **Add the first onboarding hospital's WhatsApp contact number to the
+   WABA allow-list** (WhatsApp Manager → Phone numbers → click the
+   registered number → Manage phone number list). Until WABA maturity
+   lifts the test-mode cap, only allow-listed numbers will receive messages.
+
+**Cutover (30 min):**
+
+```sh
+# 0. Pre-flight: dry-run the wipe to see what will be deleted.
+DATABASE_URL="$STAGING_AZURE_PG_URL" node scripts/wipe_demo.js
+#   → prints demo-marker row counts + reference-data counts. Sanity-check
+#     the numbers match what seed_demo.js created (~30 donors, 4
+#     institutions, ~30 requests, 5 camps, etc.). Reference-data counts
+#     must look populated (blood_groups: 8, blood_components: ~6, etc.).
+
+# 1. Run the actual wipe. Inside a single transaction; rolls back on error.
+DATABASE_URL="$STAGING_AZURE_PG_URL" node scripts/wipe_demo.js --confirm
+#   → expected output: all demo counts AFTER = 0; reference-data counts
+#     unchanged BEFORE → AFTER; final "✓ Wipe complete." line.
+
+# 2. Flip env on the App Service. From the Azure Portal:
+#    App Services → raktify-api-staging → Settings → Configuration
+#    Application settings:
+#      OTP_ECHO=false                            # was true
+#      NOTIFICATIONS_PROVIDER=whatsapp_cloud     # confirm (was already this)
+#    Click Save → App Service auto-restarts (~30 s).
+
+# 3. Verify health:
+curl https://raktify-api-staging-hsdxfzhrg5a7ekes.centralindia-01.azurewebsites.net/health
+#   → {"status":"ok",…}
+
+# 4. Hit the public landing + sign in to /admin as the super_admin. Confirm:
+#    • Donors tab: empty
+#    • Coordinators tab: empty
+#    • Camps tab: empty
+#    • Inventory: empty
+#    • Requests: empty
+#    • Reference data still works (blood-group dropdown shows 8 groups,
+#      district picker shows Maharashtra + Amravati, etc.)
+```
+
+**Post-cutover (same day):**
+
+5. **Issue the first NGO super_admin** if not already provisioned. Use
+   `npm run create:admin` or insert directly:
+   ```sql
+   INSERT INTO platform_users (role, email, password_hash, password_set_at)
+   VALUES ('super_admin', 'admin@choudhari.ngo', crypt('<bootstrap-pwd>', gen_salt('bf', 12)), NOW());
+   ```
+   First login forces TOTP enrolment.
+
+6. **Onboard the first real hospital/blood bank** via either path:
+   - **Admin-driven:** super_admin → `/admin` → Onboarding tab → Add new
+     institution → fill Schedule 1 → triggers LeegAlly Aadhaar eSign request
+     to the institution's authorised signatory mobile.
+   - **Self-apply:** institution staff → `/onboarding/apply` → submits
+     application → super_admin reviews in `/admin` → verifies → MoU
+     eSign → credentials auto-provisioned and delivered via WhatsApp Cloud
+     template (`mou_esign_link`).
+
+7. **Update the docs** (small follow-up):
+   - CLAUDE.md staging-row label → "production"
+   - `OTP_ECHO` reference → note staging now defaults `false`
+   - Add a "Production live since YYYY-MM-DD" line to README.md
+
+**Rollback (only if something goes badly wrong in the first 24 h):**
+
+The Azure Postgres manual backup from step "Pre-cutover 1" can be restored to
+a new server (`raktify-db-staging-rollback`), and the App Service's
+`DATABASE_URL` flipped to point at it. Demo data comes back instantly. Do this
+ONLY if no real institution has been onboarded yet — once real data exists,
+the restore would wipe it.
+
+**What this cutover does NOT change:**
+
+- The App Service URL stays `raktify-api-staging-*.azurewebsites.net` (renaming
+  the Azure resource would require touching the GitHub Actions workflow file
+  and the SWA's `VITE_API_URL`. Worth doing for cleanliness; not urgent).
+- The Postgres server keeps its `raktify-db-staging` name. Same reasoning.
+- The frontend domain `raktify.choudhari.ngo` is already production-grade —
+  no changes.
+- Code is identical — no deploy needed for cutover, just env-var changes
+  + a DB wipe.
+
+### 2.4 First-week-of-production guardrails
+
+For the first 7 days after cutover, before donor volume builds:
+
+- **Daily**: check Azure Monitor for unexpected error rates; check the audit
+  log integrity (`/admin/audit/integrity`) once you have the `audit_reader`
+  grant applied (see deferred items in CLAUDE.md).
+- **Per onboarded institution**: keep its primary WhatsApp number on the WABA
+  allow-list until the WABA test-mode cap lifts (typically auto-graduates
+  ~30 days after Business Verification with consistent sending; expected to
+  clear by **late June 2026**).
+- **Set the Azure Cost Management budget** to ₹3,500/month with email alert
+  at 80% — catches any surprise costs (unintended Postgres scale-up,
+  bandwidth spike) before the bill arrives.
+- **Snapshot the production DB nightly for the first month** via the Portal
+  (Postgres Flexible Server's automatic backups already do PITR up to 7 days;
+  this is for extra peace of mind during ramp-up).
 
 ## 3. Frontend — Azure Static Web Apps
 

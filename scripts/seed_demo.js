@@ -985,7 +985,16 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+// Export the reset helper so `scripts/wipe_demo.js` can reuse the same
+// markers + cleanup logic — the wipe is safety-critical and we don't want
+// two copies of "what counts as a demo row" drifting apart.
+module.exports = { resetDemo };
+
+// Only run main() when invoked directly (node scripts/seed_demo.js).
+// When required as a module (by wipe_demo.js) we skip the auto-run.
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('Seed failed:', err);
+    process.exit(1);
+  });
+}
