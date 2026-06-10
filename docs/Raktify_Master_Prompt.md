@@ -6,32 +6,278 @@ Infrastructure update applied: May 2026 (Azure + Meta WhatsApp Cloud)
 
 PURPOSE  This document is the complete technical specification for building Raktify v1. It is structured in 8 independent phases. Each phase is a self-contained prompt for a coding agent. Begin a fresh agent session for each phase. The agent must complete each phase fully before the next begins.
 
-INFRASTRUCTURE UPDATE — MAY 2026  Two foundational decisions in §1.3 of this
-spec were revised after Phases 0–8 shipped, and the live system reflects the
-new choices. Treat the AWS / MSG91 mentions below as **historical context for
-why a pattern was originally chosen**, not as instructions for current work:
+DEPARTURES FROM THIS SPEC (live system snapshot — May 2026)
+─────────────────────────────────────────────────────────────
 
-  • **Hosting & infra: AWS → Microsoft Azure.** Backend on Azure App Service
-    (Linux, Central India / Pune), frontend on Azure Static Web Apps, secrets in
-    Azure Key Vault, DB still Neon for dev+staging (Azure Database for PostgreSQL
-    Flexible Server is the production target, not yet provisioned). The application
-    code keeps the original `local` provider for encryption + storage (no AWS
-    KMS / no S3 — Azure-native providers are future work). See `docs/DEPLOYMENT.md`
-    for the live recipe.
-  • **Primary notification channel: MSG91 → Meta WhatsApp Business Cloud API
-    (direct, no BSP).** `backend/src/services/notifications/whatsappCloudProvider.js`
-    sends template messages straight to the Meta Graph API — no India DLT
-    registration needed for WhatsApp (Meta clears its own template review).
-    MSG91 is now the *SMS-fallback* provider, not the primary path. WABA
-    Business Verification is done (21 May 2026); the live blocker is a
-    payment-method-on-file requirement that Meta added for new WABAs.
+This spec was written before Phase 0 began. Phases 0–8 are now code-complete
+and live on Azure staging at `raktify.choudhari.ngo`, plus a substantial
+post-Phase-8 pass added features that were not in the original scope. The
+catalogue below documents every meaningful deviation between "what this
+spec said" and "what the live system actually does." For deep technical
+detail of the live system, see `CLAUDE.md` (per-phase status), `docs/Raktify_Feature_Reference.md`
+(exhaustive feature catalogue), `docs/Raktify_Demo_Guide.md` (runbook),
+and `docs/DEPLOYMENT.md` (Azure recipe + staging reality).
 
-The 46 migrations, 104 route handlers, 6 role portals + DHO governance dashboard,
-camps end-to-end, registries, public surfaces, and demo seed are all live on
-Azure staging (`raktify.choudhari.ngo`). The phase-by-phase clinical/security
-design below (RLS philosophy, audit-log hash chain, hybrid two-key encryption,
-matching engine semantics, lookback protocol, etc.) is unchanged — only the
-*hosting and notification-provider* lines were affected by the May 2026 pivot.
+The clinical and security philosophy (RLS on every table, audit-log hash
+chain, hybrid two-key encryption, four-tier request model, matching engine
+semantics, lookback protocol) is **unchanged**. The deviations below are
+about hosting, notification provider, frontend stack particulars, role
+schema additions, scheduler partial coverage, and a substantial set of
+features that were added after Phase 8 to cover real gaps surfaced during
+field testing.
+
+INFRASTRUCTURE
+  • Hosting: AWS (RDS / EC2 / S3 / KMS / CloudFront / CloudWatch / Amplify)
+    → **Microsoft Azure** (Central India / Pune). Backend on Azure App
+    Service (Linux, Node 22), frontend on Azure Static Web Apps, secrets in
+    Azure Key Vault, monitoring via Azure Monitor + Application Insights.
+    Staging DB is Neon (free tier); Azure Database for PostgreSQL Flexible
+    Server is the production cutover target, not yet provisioned.
+  • Encryption + storage: the spec's AWS KMS + S3 providers were never wired.
+    The application uses the `local` AES-256-GCM provider with key material
+    held in Azure Key Vault and injected as App Service settings. Two key
+    kinds (`main` + `screening`) retained as designed. Azure-native Key
+    Vault crypto + Azure Blob storage providers are future work.
+  • Deploy: `git push origin <local-branch>:main` triggers both GitHub
+    Actions (`main_raktify-api-staging.yml` for backend, the SWA workflow
+    for frontend). DB migrations + the demo seed run manually against the
+    staging `DATABASE_URL` — they are not in the workflow.
+
+NOTIFICATIONS
+  • Primary channel: MSG91 SMS / WhatsApp-via-MSG91 → **Meta WhatsApp
+    Business Cloud API direct, no BSP**. `whatsappCloudProvider.js` posts
+    to the Meta Graph API. No India DLT for WhatsApp (Meta clears its own
+    template review). Provider abstraction retains `console`, `msg91`,
+    and `whatsapp_cloud` (live primary).
+  • MSG91 demoted to SMS / voice fallback channel — stubbed until DLT
+    registration lands.
+  • Templates approved on Meta as of 2026-05-26: `donor_otp`
+    (Authentication, MR/HI/EN), `donor_alert_critical` (Utility, MR/EN),
+    `camp_reminder`, `camp_organizer_link`, `mou_esign_link` (Utility, EN).
+    `institutional_credential` was rejected as Utility — Meta wants it as
+    Authentication; deferred.
+  • New env surface: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`,
+    `WHATSAPP_WABA_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
+    `WHATSAPP_API_VERSION` (default `v21.0`), per-template IDs.
+  • New webhook `POST /webhooks/whatsapp/incoming` verifies Meta's
+    `X-Hub-Signature-256` HMAC against `WHATSAPP_APP_SECRET`. The
+    `POST /webhooks/msg91/delivery` route remains for the SMS path.
+  • New `OTP_ECHO` flag (default `false`): when `true`, OTP is echoed in
+    the API response so a live staging site can be demoed without a
+    delivered message. **Never enable in production.**
+  • Live blockers (Meta-side, not code): (a) **payment method on the WABA**
+    — Meta returns `accepted` + a `wamid` but silently drops delivery until
+    billing is on file; (b) until WABA maturity, sends only reach
+    **allow-listed test recipients** (≤5). Business Verification is done
+    (21 May 2026). The Official Business Account (green-tick) Submit
+    button stays greyed until WABA matures + brand notability accrues
+    (4–12 months, gated on press coverage).
+  • Schema: `notification_log.provider` CHECK widened by migration 250 to
+    accept `'WC'` (alongside `'M9'` MSG91, `'LO'` local-console).
+
+DATABASE / MIGRATIONS
+  • **Migration numbering diverged from spec.** Spec assigned 001–025 to
+    schema migrations; the repo uses different file numbers because of
+    early infrastructure migrations 010 (`grant_helper_roles`) and 011
+    (`grant_schema_to_helpers`) plus 025 reserved for `audit_log` (placed
+    early so feature triggers can attach via 099). Mapping is in
+    `CLAUDE.md` under "Migration numbering — divergence from spec".
+  • **Totals as of 2026-05-26:** 46 migration files, latest `266`.
+    Significantly more than the spec's implied ~25 because of:
+      — RLS bundles (100, 200) and patches (210, 211, 212);
+      — `system` actor-role RLS exceptions for matching + routing reads
+        (220, 221, 240);
+      — `bot_sessions` (230) for the WhatsApp bot conversation state;
+      — notification provider extension (250);
+      — camps feature (260–264);
+      — DHO governance role (265, 266).
+  • Encryption policy resolved 2026-05-01: hybrid — CHAR identifiers
+    (mobile, abha_id, aadhaar_last4) stay plaintext in column protected
+    by disk-level encryption + RLS + GRANTs; TEXT free-text PII is
+    column-encrypted with AES-256-GCM (`v1:<provider>:<keyKind>:<base64>`).
+    Two keys: main + screening. (Resolution rationale in `CLAUDE.md`.)
+
+ROLES
+  • Spec defined 6 roles (donor, coordinator, hospital, blood_bank,
+    ngo_admin, super_admin). Live system has **7 roles**:
+      — added: `dho` (District Health Officer; governance, read-only,
+        district-scoped aggregates only, never sees donor / patient PII
+        or field-level TTI). Mig 265 + 266.
+  • New internal `system` actor_role used by the matching engine and
+    routing reads — not a user role; elevated context inside
+    `withTransaction` so audit_log records the system as the side-effect
+    actor (mig 220, 221, 240). Not exposed to any login flow.
+  • `platform_users.district_id` added (mig 265) — binds a DHO (or any
+    future district-scoped role) to one district.
+
+FEATURES ADDED POST-PHASE-8 (entirely new vs spec)
+  • **Camps lifecycle, end-to-end.** Public host-application form
+    (`/camps/host`) → NGO review/verify in `/admin` Camps tab →
+    **organizer magic-link dashboard** (`/camp/<token>`, no signup, scoped
+    to one camp) with roster, attendance, broadcast, share-toolkit →
+    public camp landing (`/c/<slug>`) carrying `?via=<channel>` for
+    attribution → day-of attendance marking. Schema: migrations 260–264
+    (`camp_registrations`, `public_camp_applications`, `camp_access_tokens`,
+    `camp_referral_channel`, IP-as-text fix). Router `camps.js`
+    (14 endpoints).
+  • **DHO governance dashboard** (`/dho`) — adoption KPIs, compliance
+    matrix, live blood-availability heatmap, critical-request timeline,
+    hemovigilance summary, camp band. PII boundary: queries under
+    `actor_role='system'`, aggregates before returning. Router `dho.js`
+    (5 endpoints). Supporting docs: `Raktify_DHO_Circular_Template.html`,
+    `Raktify_DHO_LoC_Template.html`.
+  • **Institution self-apply onboarding** — hospitals / blood banks can
+    apply themselves at `/onboarding/apply`; NGO admin reviews in `/admin`
+    Onboarding tab. Funnel tracked in `institution_referrals.funnel_status`.
+    Router `onboarding.js` (5 endpoints).
+  • **Patient + rare-blood registries API + UI.** Schema (`thalassemia_patients`
+    mig 024, `rare_blood_registry` mig 026) was always there; the
+    `registries.js` router (5 endpoints) and `/admin` Thalassemia + Rare
+    blood tabs are post-Phase-8.
+  • **Public geo lookup** endpoints (`geography.js`, 3 endpoints, no auth)
+    — state → district → taluka → village cascade for the donor village
+    picker.
+  • **Donor tier badges** (Bronze / Silver / Gold etc., derived from donation
+    history) surfaced on the donor dashboard; not in the spec.
+  • **Role-specific overview dashboards** added on top of the existing role
+    portals (BB, Hospital, Coordinator each got an at-a-glance dashboard tab).
+  • **Demo seed** — `scripts/seed_demo.js` (`--reset` to wipe + reseed)
+    populates staging with 6 months of realistic activity so every dashboard
+    renders with data. Run manually against staging `DATABASE_URL`.
+  • **Brand assets** — `og-image.png` (1200×630 link preview), `app-icon.png`
+    (1024×1024 rounded-square for PWA/stores), `social-avatar.png` (640×640
+    full-bleed for WhatsApp/FB/IG/LinkedIn circular-crop avatars). SVG
+    sources beside each PNG; built by `scripts/build_og_image.js` using
+    `sharp`.
+  • **Narrative artifacts** — `docs/Raktify_System_Overview.html` (16-page
+    illustrated), `docs/Raktify_CSR_Budget.html` (2-year budget + roadmap),
+    3 legal pages, shared `Footer.jsx`, full OG / Twitter-Card meta.
+  • **Public-facing email** is `contact@choudhari.ngo` (Google Workspace
+    for Nonprofits still pending FCRA registration).
+  • **Landing page 3-cluster top nav** (May 2026 redesign) — brand · primary
+    CTAs (Become a donor / Host a camp) · utility (language dropdown with
+    native scripts / "For hospitals & blood banks" dropdown / Log in), with
+    mobile hamburger drawer.
+
+FRONTEND (Phase 7 specifics not pinned in spec)
+  • Tech stack pinned post-spec: **Vite 5 + React 18 + Tailwind 3 +
+    React Query 5 + react-router-dom 6 + vite-plugin-pwa**. Plain JS,
+    not TypeScript (matches backend convention).
+  • i18n: Marathi (default) / Hindi / English with browser-detect +
+    persisted preference. Native-script labels in the language switcher.
+    Deep clinical copy intentionally still English pending medical-advisor
+    review.
+  • **6 role portals** (spec listed 3 — donor, coordinator, hospital):
+    donor, coordinator, hospital, blood_bank, ngo_admin, dho — plus the
+    public surfaces.
+  • **Coordinator queue polls (15–20s), no WebSocket.** Socket.io is
+    deferred — added to the deferred-items list, not implemented.
+  • **Offline outbox:** the donor availability toggle is offline-capable
+    via an IndexedDB outbox that replays on `online` event + on hook
+    mount. Workbox `BackgroundSyncPlugin` is deferred.
+
+ADMIN (Phase 8 spec scope vs reality)
+  • Spec listed 6 admin areas; live `/admin` has **10 tabs**: Onboarding,
+    Coordinators, Camps, Thalassemia, Rare blood, Duplicates, Referrals,
+    Lookback, Audit, Jobs — plus a separate `/admin/reports` page for the
+    3 reports.
+  • Reports return **CSV only** (the spec also asked for PDF; PDF
+    generation via Puppeteer / wkhtmltopdf is deferred). CSV is acceptable
+    for hemovigilance interim filings.
+  • **Donor merge endpoint is a 501 stub** — design notes in
+    `services/donors/merge.js`, blocked on medical-advisor confirmation of
+    deferral-merge semantics.
+  • **Adverse-transfusion-reactions table is not yet in schema** —
+    hemovigilance report returns `{ reported: 0, note: 'adverse_reaction_table_pending' }`.
+  • **`audit_reader` SELECT grant on raw `audit_log` is staged but not
+    applied** — the integrity-check endpoint returns a clear diagnostic
+    500 until the one-line migration lands.
+
+SCHEDULER
+  • Spec listed 8 jobs (auto_expire, stale_reservation_release,
+    planned_request_upgrade, eligibility_reminder, escalate_overdue,
+    expiry_alert, o_negative_conservation, dho_alert, annual_donor_checkup).
+    Live system implements **6**:
+      ✓ `auto_expire`, `stale_reservation_release`, `planned_request_upgrade`,
+        `eligibility_reminder`, `escalate_overdue`, `bot_session_cleanup`
+        (bot_session_cleanup added because of the new bot_sessions table).
+      ✗ `expiry_alert`, `o_negative_conservation`, `dho_alert`,
+        `annual_donor_checkup` deferred (mostly notification-emitting;
+        gated on full WhatsApp Cloud live activation).
+  • `SCHEDULER_ENABLED=true` env flag toggles the cron registrations.
+  • `POST /admin/jobs/run` exposes manual triggers for super_admin.
+
+IMPLEMENTATION PATTERNS (clarifications not in spec)
+  • Matching engine runs **synchronously** inside `POST /requests` /
+    `POST /requests/guest` / etc., under `withTransaction`. Async queue
+    (BullMQ + Redis) is the right shape past ~1k requests/day; deferred.
+  • DB pool `max: 10` (`backend/src/config/db.js`). Bumping to ~30 before
+    a second district is a one-line env change.
+  • No PM2 cluster yet — vertical scale past 1 vCore buys nothing until
+    clustering lands.
+  • Global rate limit 100 req/IP/min keys on `req.ip`. A camp where 50+
+    donors register from one WiFi will trip it; fix is to key
+    `/donors/register` + `/auth/otp/send` on `mobile`, not IP.
+  • Provider abstraction in `backend/src/services/{encryption,notifications,storage}`
+    is the contract for swapping a backing service. The spec implied
+    direct AWS SDK calls in route handlers; the abstraction prevents that.
+  • **Hospital-facing API masks donor mobile** (`+91XXXXX1234` — last 4
+    only). Plaintext stays in the DB; the masking happens at the API
+    response layer.
+  • **System actor role for elevated context** — matching, donor lookup,
+    routing reads. Permitted by RLS migrations 220/221/240. Never exposed
+    via a login flow.
+  • Eligibility pre-screening: `services/donors/eligibility.js` has the
+    DRAFT bank but `/donors/register` only soft-checks. Hard enforcement
+    waits on medical-advisor sign-off.
+  • Encryption ciphertext format: `v1:<provider>:<keyKind>:<base64url>`.
+    Logger redaction list in `backend/src/config/logger.js` covers
+    known-sensitive paths — extend when adding fields.
+
+KNOWN DEFERRALS FROM SPEC (live items, not closed)
+  • WebSocket / Socket.io live queue (coordinator queue polls today).
+  • Workbox `BackgroundSyncPlugin` (offline outbox replays on `online` +
+    on hook mount instead).
+  • PDF report generation (CSV only).
+  • Donor merge endpoint (501; blocked on medical-advisor sign-off of
+    deferral-merge semantics).
+  • Adverse-transfusion-reactions table.
+  • `audit_reader` SELECT grant on raw `audit_log`.
+  • PostGIS distance-based donor sort (uses `reliability_score` only).
+  • NMC registry check for Tier 2 GH requests (status stays `'PE'`).
+  • Pan-India geo activation (only Maharashtra is seeded; LGD importer is
+    ready).
+  • Synthetic legacy donor for opening-stock (currently piggybacks on the
+    BB's first verified `donation_id`).
+  • Donor mobile re-verification flow on long-idle accounts.
+  • Aadhaar XML KYC (needs UIDAI AUA/KUA licence).
+  • Insurance integration (Ayushman Bharat / PMJAY — needs state-health
+    MoU).
+  • IoT cold-chain integration (schema + notification chokepoint ready;
+    needs hardware partner).
+  • Devanagari design pass (proper type scale + Noto Sans Devanagari +
+    motion / microinteractions). Clinical copy still English.
+  • Medical-advisor sign-off on the compatibility matrix, TTI deferrals,
+    eligibility rules (clinical reference data stays
+    `_DRAFT_PENDING_REVIEW`).
+  • Healthcare-lawyer sign-off on the MoU template (institution onboarding
+    go-live blocker).
+
+NAMING / BRANDING (settled mid-build)
+  • Product name: **Raktify** (the brand spec name).
+  • Postgres GUC namespace: `raktify.*` (e.g. `raktify.actor_role`).
+  • Tailwind / CSS design-system prefix: `rk-*` / `.rk-*`.
+  • Domain: `raktify.choudhari.ngo` (frontend), `raktify-api-staging-*.azurewebsites.net` (backend staging).
+  • Public-facing email: `contact@choudhari.ngo`.
+
+──────────────────────────────────────────────────────────────────────────
+The phase-by-phase clinical/security design below was written before
+these deviations crystallised. Where a phase section reads as if a spec
+choice still applies (e.g. "MSG91", "AWS RDS", "S3 presigned URL"), the
+parenthetical "Previously…" / "Originally specified…" notes connect back
+to this departures section. The clinical and security philosophy itself
+(RLS, audit hash chain, two-key hybrid encryption, four-tier request
+model, matching engine semantics, lookback protocol) is unchanged.
 
 MEDICAL REVIEW STATUS  All clinical protocols in this specification (NBTC eligibility criteria, TTI deferral periods, compatibility matrix, lookback protocol) are pending validation by a qualified haematologist. Do not modify any clinical reference data without written confirmation from the medical advisor.
 
@@ -198,6 +444,14 @@ SECTION 3 — PHASE 1: DATABASE FOUNDATION
 PHASE 1: Database Foundation — All Tables, Triggers, RLS, and Seed Data
 Estimated effort: 5–7 days  ·  Start a fresh coding agent session for this phase
 Build the complete PostgreSQL schema. Every table, every field, every constraint, every trigger, every RLS policy, and all seed data. No API endpoints. No frontend. Only the database. This phase must be 100% complete and verified before Phase 2 begins.
+
+> **Live-system note (May 2026):** the migration numbering diverged from the
+> sequence below (helper-role migrations 010/011 forced the shift; `audit_log`
+> moved to 025 so feature triggers attach via 099). Live system is at
+> **46 migration files, latest `266`**. See "DEPARTURES FROM THIS SPEC" at the
+> top of this document and the migration-numbering map in `CLAUDE.md`. The
+> table semantics (every field, every constraint, every trigger) match this
+> spec — only the file numbering shifted.
 
 CRITICAL ORDER  Migrations must run in this exact sequence. Each migration depends on tables created by the previous one. Running out of order will fail with foreign key errors.
 
@@ -758,6 +1012,13 @@ visible_to_roles: default all parties. Coordinator can send message visible only
 SECTION 8 — PHASE 6: NOTIFICATIONS, WHATSAPP BOT, AND LOOKBACK
 PHASE 6: Notification Engine, WhatsApp Bot, and Lookback Protocol
 Estimated effort: 4–5 days  ·  Start a fresh coding agent session for this phase
+
+> **Live-system note (May 2026):** the primary notification channel shipped as
+> the **Meta WhatsApp Business Cloud API direct** (`whatsappCloudProvider.js`,
+> `NOTIFICATIONS_PROVIDER=whatsapp_cloud`), not MSG91. MSG91 is the SMS
+> fallback. Bot conversation state lives in `bot_sessions` (mig 230). Scheduler
+> implements 6 of the 8 spec'd jobs (see "DEPARTURES FROM THIS SPEC"). Webhook
+> verifies Meta's `X-Hub-Signature-256` against `WHATSAPP_APP_SECRET`.
 Build the complete notification engine (WhatsApp + SMS + call escalation), the WhatsApp bot for donor registration and inventory updates, opt-out enforcement, and the lookback protocol for reactive TTI results.
 
 Notification Engine Architecture
@@ -813,6 +1074,16 @@ PHASE 7: Frontend — Donor Web App, Coordinator Dashboard, Hospital Portal
 Estimated effort: 6–7 days  ·  Start a fresh coding agent session for this phase
 Build the complete React frontend. Three distinct interfaces: (1) Donor-facing app in Marathi/Hindi/English, (2) Coordinator dashboard, (3) Hospital and blood bank portal. Mobile-first. Offline-capable PWA for donors and coordinators.
 
+> **Live-system note (May 2026):** stack pinned post-spec to **Vite 5 + React 18
+> + Tailwind 3 + React Query 5 + react-router-dom 6 + vite-plugin-pwa**, plain
+> JS (no TypeScript). Shipped **6 role portals** (donor, coordinator, hospital,
+> blood_bank, ngo_admin, dho) — three more than the spec scoped. Coordinator
+> queue **polls (15–20s)**; WebSocket / Socket.io live queue is deferred.
+> Donor availability uses an **IndexedDB outbox** that replays on `online` /
+> hook mount (Workbox BackgroundSync deferred). Landing page top nav was
+> **redesigned May 2026** into three clusters. Devanagari design pass is
+> deferred; clinical copy in coord/hospital/BB tabs is still English.
+
 Donor Interface — Language and Mobile First
 Default language: Marathi (mr). Auto-detect from browser navigator.language. User can change at any point — preference saved in localStorage and donor profile.
 All donor-facing routes: /register, /login, /dashboard, /passport, /camps, /availability.
@@ -822,10 +1093,10 @@ The /passport shows the complete donation history health passport — one card p
 PWA configuration: service worker caches the app shell, donor profile, and last-known availability status. Donors can toggle availability offline — syncs when connection returns.
 
 Coordinator Dashboard
-Real-time request queue — WebSocket connection (Socket.io) updates the queue when new requests arrive without page refresh.
+Real-time request queue — WebSocket connection (Socket.io) updates the queue when new requests arrive without page refresh. **(Live system polls every 15–20 s instead; Socket.io deferred — see departures section.)**
 Each request card shows: BC request number, hospital name, blood group and component needed, urgency tier (colour: red/amber/gray), units required vs fulfilled, time elapsed since submission, current assignment status.
 Clicking a request opens the request detail panel: full clinical notes, uploaded documents (signed URLs from the storage abstraction — local-disk URLs in staging today; pre-signed Azure Blob URLs once the Blob provider lands, 10-minute expiry), compatibility match found, matched blood bank details, donor alert status, request thread.
-Thread input: text message, role-visibility selector, document attach. Messages appear in real-time via WebSocket.
+Thread input: text message, role-visibility selector, document attach. Messages refresh on the same 20 s polling interval as the queue. (Real-time WebSocket delivery deferred — see departures section.)
 Action buttons: Accept, Claim, Verify (Tier 3/4), Mark No-Show, Close Request.
 Coordinator profile page: impact metrics displayed — total donors, total donations by community, requests fulfilled, response time median, reliability score.
 
@@ -851,6 +1122,23 @@ All times displayed in IST (UTC+5:30). Store and transmit as UTC. Display only c
 SECTION 10 — PHASE 8: ADMIN DASHBOARD, REPORTING, AND DEPLOYMENT
 PHASE 8: NGO Admin Dashboard, DHO Reports, Security Hardening, and Production Deployment
 Estimated effort: 4–5 days  ·  Start a fresh coding agent session for this phase
+
+> **Live-system note (May 2026):** `/admin` shipped with **10 tabs**
+> (Onboarding, Coordinators, Camps, Thalassemia, Rare blood, Duplicates,
+> Referrals, Lookback, Audit, Jobs) — more than the 6 the spec scoped — plus a
+> separate `/admin/reports` page for the 3 reports. Reports return **CSV
+> only**; PDF generation deferred. Donor merge endpoint is a **501 stub**.
+> Adverse-reaction table not in schema yet. `audit_reader` SELECT grant on raw
+> `audit_log` is staged but not applied. Production deployment landed on
+> **Azure (Central India)**, not AWS Mumbai — see "DEPARTURES FROM THIS SPEC"
+> + `docs/DEPLOYMENT.md`.
+
+> **Post-Phase-8 additions (entirely new vs spec):** see "FEATURES ADDED
+> POST-PHASE-8" in the departures section at the top — camps end-to-end, DHO
+> governance dashboard + role, institution self-apply, patient registries
+> API+UI, donor tier badges, role overview dashboards, public geo lookup,
+> demo seed, brand assets (og-image / app-icon / social-avatar), and the
+> narrative HTMLs (System Overview, CSR Budget, DHO templates).
 Build the NGO admin dashboard, hemovigilance and DHO reporting, security hardening (rate limiting, input sanitisation, CORS, helmet), integration testing, and production deployment to **Azure (Central India / Pune)** with monitoring. (Original spec said AWS Mumbai; superseded May 2026 — see top-of-document Infrastructure Update.)
 
 NGO Admin Dashboard
@@ -865,7 +1153,7 @@ DHO and Hemovigilance Reports
 GET /reports/district/:district_id/summary?month=YYYY-MM — returns: total requests raised, fulfilled, expired unfulfilled. Average response time. Average time-to-match. Blood groups most in shortage. Donor pool size and active donors. Camp count and units collected. Wastage (expired units) count and reasons.
 GET /reports/hemovigilance?month=YYYY-MM — returns: adverse transfusion reactions reported, lookback cases opened/closed, reactive TTI counts by type, replacement vs voluntary donation breakdown. Format must be exportable as PDF for DHO submission.
 GET /reports/blood-bank/:id/performance — returns: inventory accuracy score (units donated vs accounted for), fulfillment rate, average TTI entry time, discrepancy count.
-All reports available as JSON (for frontend charts) and CSV (for download). PDF generation via a simple HTML-to-PDF service (Puppeteer or wkhtmltopdf).
+All reports available as JSON (for frontend charts) and CSV (for download). PDF generation via a simple HTML-to-PDF service (Puppeteer or wkhtmltopdf). **(Live system returns JSON + CSV only; PDF deferred — CSV is acceptable for hemovigilance interim filings. See departures section.)**
 
 Security Hardening Checklist
 Helmet.js: sets all security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options).
