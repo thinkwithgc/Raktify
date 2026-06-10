@@ -115,17 +115,69 @@ const BG_CODE = { 1: 'A+', 2: 'A-', 3: 'B+', 4: 'B-', 5: 'AB+', 6: 'AB-', 7: 'O+
 const SHELF_LIFE = { 1: 35, 2: 42, 3: 365, 4: 5, 5: 5, 6: 365 };
 const COMPONENT_VOLUME = { 1: 450, 2: 280, 3: 220, 4: 50, 5: 220, 6: 30 };
 
+// ── Trigger-bypass helper ────────────────────────────────────────────────
+//
+// Several seed-time operations (deleting from append-only audit tables;
+// inserting back-dated donation_history that would otherwise trigger
+// next-eligible recomputes, auto-inventory creation, lookback-on-reactive
+// cascades) need triggers OFF for the duration of the operation.
+//
+// On Azure Postgres / self-hosted superuser connections, this is one line:
+//   SET session_replication_role = replica
+//
+// On Neon (and most managed Postgres without superuser), that SET is
+// blocked — but the table owner (`neondb_owner` on Neon) can disable user
+// triggers per-table via ALTER TABLE ... DISABLE TRIGGER USER, which has
+// the same effect for our seed's purposes.
+//
+// This helper tries SET first, falls back to per-table DISABLE on
+// permission error, and returns a "mode" token the caller restores with
+// restoreTriggers().
+const BYPASS_TABLES = [
+  'donors', 'platform_users', 'coordinators', 'institutions',
+  'donation_history', 'blood_inventory', 'donor_screening',
+  'screening_audit_log', 'lookback_registry', 'donor_alerts',
+  'escalation_log', 'request_assignments', 'request_threads',
+  'blood_requests', 'donation_camps', 'camp_registrations',
+  'audit_log', 'notification_log',
+];
+
+async function disableTriggers(c) {
+  try {
+    await c.query(`SET session_replication_role = replica`);
+    return 'session';
+  } catch (e) {
+    if (e.code !== '42501') throw e;
+    // Managed Postgres without superuser (Neon, etc.) — fall back to
+    // per-table disable. Owner privilege is sufficient.
+    for (const t of BYPASS_TABLES) {
+      // eslint-disable-next-line no-restricted-syntax
+      await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`);
+    }
+    return 'per-table';
+  }
+}
+
+async function restoreTriggers(c, mode) {
+  if (mode === 'session') {
+    await c.query(`SET session_replication_role = origin`);
+  } else if (mode === 'per-table') {
+    for (const t of BYPASS_TABLES) {
+      // eslint-disable-next-line no-restricted-syntax
+      await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
+    }
+  }
+}
+
 // ── Reset ────────────────────────────────────────────────────────────────
 //
-// We disable user-defined triggers via session_replication_role for the
-// duration of the cleanup. This bypasses the append-only guards on
-// escalation_log / audit_log / screening_audit_log so demo rows can be
-// removed without touching the trigger definitions. Connecting as the DB
-// superuser is a hard prerequisite (and is the only documented way to run
-// this seed).
+// Removes prior demo rows so the seed can rebuild from a known state.
+// Triggers are bypassed for the duration so append-only guards on
+// audit_log / escalation_log / screening_audit_log don't block the
+// deletes. See disableTriggers() above for the Azure-vs-Neon detection.
 async function resetDemo(c) {
   console.log('▸ reset: removing existing demo data');
-  await c.query(`SET session_replication_role = replica`);
+  const mode = await disableTriggers(c);
   try {
     // Lookback (auto-created by the screening trigger — no [Demo] marker)
     await c.query(
@@ -199,7 +251,7 @@ async function resetDemo(c) {
           'sangamtirth-bb','pending-hosp-1','pending-bb-1')`,
     );
   } finally {
-    await c.query(`SET session_replication_role = origin`);
+    await restoreTriggers(c, mode);
   }
 }
 
@@ -453,7 +505,7 @@ async function main() {
     // donation_history, blood_inventory, donor_screening, and (a couple of)
     // lookback rows by hand, with realistic dates + statuses.
     console.log('▸ donations + inventory + screening (6-month history)');
-    await c.query(`SET session_replication_role = replica`);
+    const histMode = await disableTriggers(c);
 
     let bcN = 1;
     const allDonations = [];
@@ -593,7 +645,7 @@ async function main() {
         }
       }
     } finally {
-      await c.query(`SET session_replication_role = origin`);
+      await restoreTriggers(c, histMode);
     }
 
     console.log(`    ${allDonations.length} donations inserted (${reactiveCount} reactive)`);

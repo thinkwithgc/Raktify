@@ -12,6 +12,15 @@ build/
 .env
 .env.local
 .env.*.local
+# Per-environment .env files (demo on Neon, future prod variants) carry real
+# DB passwords. The .example siblings are tracked; the live files are not.
+.env.demo
+.env.production
+.env.staging
+!.env.example
+!.env.demo.example
+!.env.production.example
+!.env.staging.example
 *.pem
 *.key
 

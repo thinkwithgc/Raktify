@@ -156,24 +156,46 @@ Staging is **already live** and differs from the prod recipe above:
 For all post-cutover prospect demos: **don't deploy a second Azure environment.**
 Run the backend locally on the demo laptop against a Neon branch. Cost: zero.
 
-**One-time setup (do once on the demo laptop):**
+**Existing setup (already done, 2026-05-26):**
 
-1. Create a free Neon project at `console.neon.tech` (`raktify-demo`).
-2. Apply the schema to the new project:
+- Neon project: **`raktify-demo`** (region: `ap-southeast-1` Singapore — closest
+  free region; ~50 ms latency to India is fine for demos)
+- Branch: **`production`** (Neon's default branch name; do not confuse with our
+  Azure production environment. Rename in the Neon console to `demo` if you
+  want avoid the naming collision.)
+- Database: `neondb`, role `neondb_owner`
+- Schema: all 46 migrations applied, reference data seeded (8 blood groups, 6
+  components, 225 compatibility-matrix rows)
+- Demo dataset already seeded: 30 donors · 61 donations · 24 requests · 5
+  camps · 6 thalassemia patients · 3 rare-blood entries · 2 lookback cases ·
+  6 institutions · 38 platform_users
+- `.env.demo.example` is committed at the repo root — copy to `.env.demo`
+  and fill in the real `DATABASE_URL` from the Neon console
+  (Project → Connection details → Copy snippet). **Never commit `.env.demo`** —
+  it is gitignored.
+
+**Neon-specific note:** Neon doesn't grant `neondb_owner` superuser, so the
+seed's `SET session_replication_role = replica` calls fail with `42501`.
+`scripts/seed_demo.js` detects this and falls back to per-table
+`ALTER TABLE … DISABLE TRIGGER USER` (owner privilege is sufficient on owned
+tables). Same effect, no manual workaround needed.
+
+**One-time setup checklist (if rebuilding from scratch on a new Neon project):**
+
+1. Create a free Neon project at `console.neon.tech`.
+2. Apply the schema:
    ```sh
-   DATABASE_URL="<neon-demo-url>?sslmode=require" npm run migrate
+   DATABASE_URL="<neon-url>" npm run migrate
    ```
-3. Seed the demo dataset:
+3. Seed reference data (blood_groups + components + compatibility_matrix):
    ```sh
-   DATABASE_URL="<neon-demo-url>?sslmode=require" node scripts/seed_demo.js --reset
+   DATABASE_URL="<neon-url>" node -e "const fs=require('fs');const{Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true}});(async()=>{const c=await p.connect();for(const f of ['database/seeds/002a_seed_blood_groups.sql','database/seeds/002b_seed_blood_components_DRAFT_PENDING_REVIEW.sql','database/seeds/002c_seed_compatibility_matrix_DRAFT_PENDING_REVIEW.sql']){await c.query(fs.readFileSync(f,'utf8'));}await c.release();await p.end();})()"
    ```
-4. Save a `.env.demo` next to `.env` with the demo-only settings:
+4. Seed the demo dataset:
+   ```sh
+   DATABASE_URL="<neon-url>" node scripts/seed_demo.js
    ```
-   DATABASE_URL=<neon-demo-url>?sslmode=require
-   OTP_ECHO=true                          # OTPs returned in /auth/otp/send response
-   NOTIFICATIONS_PROVIDER=console         # no real WhatsApp delivery
-   FRONTEND_URL=http://localhost:5173
-   ```
+5. Copy `.env.demo.example` → `.env.demo` and fill in the real `DATABASE_URL`.
 
 **Per-demo (5 minutes before the meeting):**
 
