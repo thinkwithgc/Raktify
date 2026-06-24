@@ -9,14 +9,13 @@ build/
 *.tsbuildinfo
 
 # Environment & secrets
+# All .env / .env.* files are ignored by default — they routinely contain DB
+# passwords, JWT secrets, API tokens. Explicit *.example templates are
+# re-included so the schema of "what env vars exist" stays documented.
+# Catches: .env, .env.local, .env.demo, .env.production, .env.azure-staging-backup,
+# any future .env.<environment>, etc.
 .env
-.env.local
-.env.*.local
-# Per-environment .env files (demo on Neon, future prod variants) carry real
-# DB passwords. The .example siblings are tracked; the live files are not.
-.env.demo
-.env.production
-.env.staging
+.env.*
 !.env.example
 !.env.demo.example
 !.env.production.example
@@ -46,6 +45,10 @@ coverage/
 local-kms-key.bin
 *.dump
 *.bak
+
+# Azure cutover script outputs (contain DB passwords, deploy tokens — never commit)
+*-output.env
+docs/azure-cutover/*.env
 
 # OneDrive sync turds
 ~$*
