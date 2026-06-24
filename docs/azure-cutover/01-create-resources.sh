@@ -46,7 +46,9 @@
 set -euo pipefail
 
 # ==== CONFIG ════════════════════════════════════════════════════════════════
-REGION="centralindia"
+REGION="centralindia"        # All resources except Static Web Apps land here
+SWA_REGION="eastasia"        # SWA isn't available in Central India; East Asia is the
+                             # closest SWA region (the current raktify-web-staging is here too)
 NEW_RG="raktify"
 OLD_RG="raktify-staging"   # For reference; NOT touched today
 
@@ -110,6 +112,22 @@ echo ""
 read -p "Proceed? [y/N] " -n 1 -r REPLY; echo
 [[ ! $REPLY =~ ^[Yy]$ ]] && { echo "Aborted."; exit 1; }
 
+# ==== RESOURCE PROVIDERS ═══════════════════════════════════════════════════
+# Newly-upgraded PAYG subscriptions often have providers UNREGISTERED.
+# First request to an unregistered provider fails with MissingSubscriptionRegistration.
+# Register everything we'll touch up-front — idempotent + fast if already done.
+log "Registering required resource providers (idempotent)..."
+for provider in Microsoft.Web Microsoft.DBforPostgreSQL Microsoft.KeyVault Microsoft.Storage Microsoft.Insights Microsoft.OperationalInsights; do
+  STATE=$(az provider show --namespace "$provider" --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
+  if [[ "$STATE" == "Registered" ]]; then
+    ok "$provider already registered"
+  else
+    echo "    Registering $provider (current: $STATE)..."
+    az provider register --namespace "$provider" --wait --only-show-errors
+    ok "$provider registered"
+  fi
+done
+
 # ==== NAME AVAILABILITY ════════════════════════════════════════════════════
 log "Checking global name availability for globally-unique resources..."
 
@@ -147,6 +165,8 @@ ok "Resource group ready"
 log "2/6  Provisioning Postgres '$DB_NAME' (background — ~10 min)..."
 echo "       SKU: Standard_B1ms · 1 vCore · 2 GB · 32 GB storage · v16"
 echo "       Backup retention: 14 days · HA: disabled · auto-grow: enabled"
+# Note: --high-availability is NOT a valid arg at create time in CLI 2.87.0+
+# (HA is configured post-create; default is Disabled which is what we want).
 az postgres flexible-server create \
   --resource-group "$NEW_RG" \
   --name "$DB_NAME" \
@@ -159,7 +179,6 @@ az postgres flexible-server create \
   --storage-size 32 \
   --storage-auto-grow Enabled \
   --backup-retention 14 \
-  --high-availability Disabled \
   --public-access "$MY_IP" \
   --tags "${TAGS_KV[@]}" \
   --yes \
@@ -240,8 +259,11 @@ az keyvault create \
 
 KV_ID="$(az keyvault show --name "$KV_NAME" --resource-group "$NEW_RG" --query id -o tsv)"
 
-# Grant App Service's managed identity read access to secrets
-az role assignment create \
+# Grant App Service's managed identity read access to secrets.
+# CRITICAL: MSYS_NO_PATHCONV=1 prevents Git Bash on Windows from mangling
+# the --scope path (it would otherwise prepend `C:/Program Files/Git/` →
+# the API returns MissingSubscription).
+MSYS_NO_PATHCONV=1 az role assignment create \
   --assignee "$APP_PRINCIPAL_ID" \
   --role "Key Vault Secrets User" \
   --scope "$KV_ID" \
@@ -249,8 +271,8 @@ az role assignment create \
 ok "App Service can READ from Key Vault"
 
 # Grant the runner (you) full secret management — needed for Day 2 secret upload
-MY_OBJ_ID="$(az ad signed-in-user show --query id -o tsv)"
-az role assignment create \
+MY_OBJ_ID="$(MSYS_NO_PATHCONV=1 az ad signed-in-user show --query id -o tsv)"
+MSYS_NO_PATHCONV=1 az role assignment create \
   --assignee "$MY_OBJ_ID" \
   --role "Key Vault Secrets Officer" \
   --scope "$KV_ID" \
@@ -258,11 +280,11 @@ az role assignment create \
 ok "You can MANAGE secrets in Key Vault"
 
 # ==== STEP 6/6: STATIC WEB APP ═════════════════════════════════════════════
-log "6/6  Creating Static Web App '$SWA_NAME' (Free tier)"
+log "6/6  Creating Static Web App '$SWA_NAME' (Free tier, $SWA_REGION)"
 az staticwebapp create \
   --resource-group "$NEW_RG" \
   --name "$SWA_NAME" \
-  --location "$REGION" \
+  --location "$SWA_REGION" \
   --sku Free \
   --tags "${TAGS_KV[@]}" \
   --only-show-errors -o table
@@ -280,17 +302,20 @@ PG_HOST="${DB_NAME}.postgres.database.azure.com"
 
 # Allow Azure services (so App Service outbound IPs can reach Postgres without
 # enumerating every outbound IP). Reasonable for B1; tighten to VNet later.
+# CLI 2.87.0 arg names: --server-name (server) + --name (rule name).
+# Older docs/examples use --name (server) + --rule-name (rule) — wrong now.
 log "Adding Postgres firewall rule: AllowAzureServices"
 az postgres flexible-server firewall-rule create \
   --resource-group "$NEW_RG" \
-  --name "$DB_NAME" \
-  --rule-name "AllowAzureServices" \
+  --server-name "$DB_NAME" \
+  --name "AllowAzureServices" \
   --start-ip-address 0.0.0.0 \
   --end-ip-address 0.0.0.0 \
   --only-show-errors > /dev/null
 ok "Azure services can reach Postgres"
 
-# Create the application database 'raktify' (server creates default 'postgres' + 'flexibleserverdb')
+# Create the application database 'raktify' (server creates default 'postgres' + 'azure_sys' + 'azure_maintenance').
+# CLI 2.87.0 arg name: --database-name (NOT --name; --name is the rule name in firewall-rule but different here).
 log "Creating application database '$APP_DB_NAME' on Postgres server"
 az postgres flexible-server db create \
   --resource-group "$NEW_RG" \
@@ -309,37 +334,42 @@ cat > "$OUTPUT_FILE" <<EOF
 # Raktify · Azure Day 1 output · generated $(date -u +%Y-%m-%dT%H:%M:%SZ)
 # THIS FILE CONTAINS SECRETS. NEVER COMMIT. The repo .gitignore excludes
 # *-output.env so this file is safe in the working tree.
+#
+# Every line uses 'export' so that 'source ./azure-day1-output.env' propagates
+# the vars into child processes (e.g. \`npm run migrate\` → node sees them).
+# Without 'export', the vars are shell-scoped only and node connections fall
+# back to localhost — wasting 30 min of "SSL doesn't work" diagnosis. Asked.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Subscription + region
-SUBSCRIPTION="$SUBSCRIPTION"
-SUB_ID="$SUB_ID"
-REGION="$REGION"
-NEW_RG="$NEW_RG"
+export SUBSCRIPTION="$SUBSCRIPTION"
+export SUB_ID="$SUB_ID"
+export REGION="$REGION"
+export NEW_RG="$NEW_RG"
 
 # Postgres (raktify-db)
-DB_HOST="$PG_HOST"
-DB_NAME="$APP_DB_NAME"
-DB_ADMIN_USER="$DB_ADMIN_USER"
-DB_PASSWORD="$DB_PASSWORD"
-DATABASE_URL="postgresql://${DB_ADMIN_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${APP_DB_NAME}?sslmode=require"
+export DB_HOST="$PG_HOST"
+export DB_NAME="$APP_DB_NAME"
+export DB_ADMIN_USER="$DB_ADMIN_USER"
+export DB_PASSWORD="$DB_PASSWORD"
+export DATABASE_URL="postgresql://${DB_ADMIN_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${APP_DB_NAME}?sslmode=require"
 
 # App Service (raktify-api)
-APP_NAME="$APP_NAME"
-APP_HOSTNAME="$APP_HOSTNAME"
-APP_PRINCIPAL_ID="$APP_PRINCIPAL_ID"
+export APP_NAME="$APP_NAME"
+export APP_HOSTNAME="$APP_HOSTNAME"
+export APP_PRINCIPAL_ID="$APP_PRINCIPAL_ID"
 
 # Key Vault (raktify-kv)
-KV_NAME="$KV_NAME"
-KV_URI="https://${KV_NAME}.vault.azure.net/"
+export KV_NAME="$KV_NAME"
+export KV_URI="https://${KV_NAME}.vault.azure.net/"
 
 # Static Web App (raktify-web)
-SWA_NAME="$SWA_NAME"
-SWA_HOSTNAME="$SWA_HOSTNAME"
-SWA_DEPLOY_TOKEN="$SWA_DEPLOY_TOKEN"
+export SWA_NAME="$SWA_NAME"
+export SWA_HOSTNAME="$SWA_HOSTNAME"
+export SWA_DEPLOY_TOKEN="$SWA_DEPLOY_TOKEN"
 
 # Source this file on Day 2 before running migration / seed commands:
-#   source $OUTPUT_FILE && DATABASE_URL="\$DATABASE_URL" npm run migrate
+#   source $OUTPUT_FILE && npm run migrate
 EOF
 
 chmod 600 "$OUTPUT_FILE"
