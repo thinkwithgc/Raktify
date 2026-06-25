@@ -291,7 +291,7 @@ curl https://raktify-api-staging-hsdxfzhrg5a7ekes.centralindia-01.azurewebsites.
 
 6. **Onboard the first real hospital/blood bank** via either path:
    - **Admin-driven:** super_admin → `/admin` → Onboarding tab → Add new
-     institution → fill Schedule 1 → triggers LeegAlly Aadhaar eSign request
+     institution → fill Schedule 1 → triggers Leegality Aadhaar eSign request
      to the institution's authorised signatory mobile.
    - **Self-apply:** institution staff → `/onboarding/apply` → submits
      application → super_admin reviews in `/admin` → verifies → MoU
@@ -366,7 +366,7 @@ az keyvault secret set --vault-name raktify-kv --name enc-key \
   --value "$(openssl rand -hex 32)"
 az keyvault secret set --vault-name raktify-kv --name screening-key \
   --value "$(openssl rand -hex 32)"
-# database-url, msg91-auth-key, leegally-api-key … set the same way
+# database-url, msg91-auth-key, leegality-auth-token, leegality-private-salt … set the same way
 ```
 Grant the App Service's **system-assigned managed identity** `get` on Key Vault secrets so the `@Microsoft.KeyVault(...)` references resolve. Never commit a real `.env`.
 
@@ -420,7 +420,7 @@ The Master Prompt has the full list. Launch blockers:
    donor_alert_critical + camp_reminder + camp_organizer_link + mou_esign_link),
    webhook verified, System-User long-lived token in Key Vault, WhatsApp bot tested
    MR/HI/EN. (MSG91 DLT is only needed for the SMS fallback, not launch.)
-6. OTP, TOTP, LeegAlly e-sign tested in staging.
+6. OTP, TOTP, Leegality eSign tested in staging.
 7. Scheduled jobs registered (`SCHEDULER_ENABLED=true`).
 8. Lookback protocol tested end-to-end (reactive TTI → deferral → recall → lookback rows).
 9. Offline emergency fallback sheet delivered to partner hospitals + blood banks.

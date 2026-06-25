@@ -93,10 +93,15 @@ const env = {
     },
   },
 
-  leegally: {
-    apiKey: optional('LEEGALLY_API_KEY', null),
-    templateId: optional('LEEGALLY_TEMPLATE_ID', null),
-    baseUrl: optional('LEEGALLY_BASE_URL', 'https://api.leegally.com'),
+  // Leegality (Aadhaar eSign — leegality.com). The legacy `leegally` typo is
+  // intentionally retained on the DB columns (mou_versions.leegally_doc_id,
+  // .leegally_template_id) to avoid a migration; everywhere else uses the
+  // correct spelling. Old LEEGALLY_* env vars are no longer read.
+  leegality: {
+    authToken: optional('LEEGALITY_AUTH_TOKEN', null),
+    privateSalt: optional('LEEGALITY_PRIVATE_SALT', null),
+    templateId: optional('LEEGALITY_TEMPLATE_ID', null),
+    baseUrl: optional('LEEGALITY_BASE_URL', 'https://api.leegality.com'),
   },
 
   lgd: {

@@ -305,7 +305,7 @@ router.post('/mou-signed', async (req, res) => {
           institutionId,
           versionNumber,
           webhook.docId,
-          env.leegally.templateId || 'local-template',
+          env.leegality.templateId || 'local-template',
           webhook.signedAt,
           webhook.signatoryName || 'Unknown',
           webhook.signatoryAadhaarLast4 || null,

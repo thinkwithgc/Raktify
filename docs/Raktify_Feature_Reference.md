@@ -52,7 +52,7 @@ Service, Central India). Current totals: **46 migrations** (latest `266`),
 | Notifications | Provider abstraction: console / msg91 / **whatsapp_cloud** (Meta) — `whatsapp_cloud` is the live primary channel. | Backend service |
 | Encryption | AES-256-GCM via the `local` provider; key material held in Azure Key Vault (prod) and injected as App Service settings. Two distinct keys (main + screening). An Azure Key Vault crypto provider in `services/encryption` is future work. | — |
 | File storage | Local disk on App Service today (`STORAGE_PROVIDER=local`); Azure Blob Storage provider is future work. The original spec mentioned AWS S3 — superseded by the May 2026 Azure pivot. | — |
-| Digital MoU | LeegAlly (Aadhaar eSign) — local provider works in dev | — |
+| Digital MoU | Leegality (Aadhaar eSign) — local provider works in dev | — |
 | Geography | Local Government Directory (LGD) bulk importer | — |
 | CI/CD | GitHub Actions with Azure OIDC federated identity | `.github/workflows/main_raktify-api-staging.yml` + Static Web Apps workflow |
 
@@ -269,7 +269,7 @@ The pending-review queue for institution self-applies. Filter pills: Pending lic
 
 - Per-row table: applicant legal name, type (HO/BB), masked contact mobile, applied date, license-verified date.
 - **Verify license** action (PE → VE).
-- **Send MoU for eSign** action (VE → AC). Returns LeegAlly doc ID + sign URL.
+- **Send MoU for eSign** action (VE → AC). Returns Leegality doc ID + sign URL.
 - Webhook `POST /onboarding/mou-signed` auto-provisions the institutional admin platform_user + flips status to AC.
 
 ### 8.2 Coordinators

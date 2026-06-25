@@ -40,7 +40,7 @@ async function sendForSign({ institutionId, signatoryMobile, signatoryName, temp
 /**
  * In dev mode, callers can simulate a signed event by POSTing to
  * /onboarding/mou-signed with body { doc_id, signed_at, signatory_aadhaar_last4 }.
- * No HMAC signature validation here — the real LeegAlly provider does that.
+ * No HMAC signature validation here — the real Leegality provider does that.
  */
 function verifyWebhook(_headers, body) {
   if (!body?.doc_id) throw new Error('doc_id missing from local webhook body');

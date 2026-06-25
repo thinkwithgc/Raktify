@@ -18,7 +18,7 @@ Reference scripts + runbook for migrating the live system from the original
 | **1** | Provision new `raktify` RG with all resources (parallel to old) | No | None |
 | **2** | Migrate schema + reference seeds + Key Vault secrets to new env | No | None |
 | **3** | Wire GitHub Actions to new App Service + SWA; bind `raktify.choudhari.ngo` custom domain to new SWA; DNS cutover | No (still old serves until DNS swap) | ~30 min DNS propagation |
-| **4** | WhatsApp Cloud payment method · LeegAlly API key wiring · end-to-end test with foundation as test hospital | No | None |
+| **4** | WhatsApp Cloud payment method · Leegality API key wiring · end-to-end test with foundation as test hospital | No | None |
 | **5** | Onboard the 3 real institutions (1 hospital + 2 blood banks) | No | First real users live |
 | **5+7** | Decommission old `raktify-staging` RG after 7-day soak | Yes — deletes old | None (already cut over) |
 
@@ -28,7 +28,7 @@ Reference scripts + runbook for migrating the live system from the original
 |------|------|------|
 | `01-create-resources.sh` | Day 1 | Provisions the new `raktify` RG + 6 resources (App Service, Postgres, Key Vault, Static Web App, App Service Plan, all properly tagged). Writes `azure-day1-output.env` (chmod 600, gitignored) with the generated DB password and connection strings. ~20 min runtime. |
 | `02-seed-reference.js` | Day 2 | Applies the 3 reference-data seeds (blood_groups, blood_components, compatibility_matrix) — same seeds run during the original Phase 1, just against the new DB. |
-| `02-upload-secrets.sh` | Day 2 | Uploads all `WHATSAPP_*`, `JWT_SECRET`, `LOCAL_ENCRYPTION_KEY_HEX`, `LOCAL_SCREENING_ENCRYPTION_KEY_HEX`, `LEEGALLY_*`, `DATABASE_URL` to the new Key Vault (`raktify-kv`). |
+| `02-upload-secrets.sh` | Day 2 | Uploads all `WHATSAPP_*`, `JWT_SECRET`, `LOCAL_ENCRYPTION_KEY_HEX`, `LOCAL_SCREENING_ENCRYPTION_KEY_HEX`, `LEEGALITY_*`, `DATABASE_URL` to the new Key Vault (`raktify-kv`). |
 | `02-configure-app.sh` | Day 2 | Sets the new App Service's environment variables as `@Microsoft.KeyVault(...)` references pointing at `raktify-kv`. |
 | `03-cutover-frontend.sh` | Day 3 | Generates the new GitHub Actions workflow files, configures the SWA deployment token in GitHub secrets, and prepares the DNS cutover instructions. |
 

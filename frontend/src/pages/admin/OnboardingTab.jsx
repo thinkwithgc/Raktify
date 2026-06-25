@@ -191,7 +191,7 @@ export function OnboardingTab() {
 
       <p className="text-xs text-slate-500">
         PE → VE: NGO admin verifies CDSCO licence / hospital registration outside the system,
-        then clicks Verify. VE → AC: clicking Send MoU triggers a LeegAlly eSign request to the
+        then clicks Verify. VE → AC: clicking Send MoU triggers a Leegality eSign request to the
         primary contact's WhatsApp. The eSign webhook auto-provisions the institutional admin
         login and flips status to AC.
       </p>

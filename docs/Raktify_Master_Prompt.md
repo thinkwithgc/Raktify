@@ -281,7 +281,7 @@ model, matching engine semantics, lookback protocol) is unchanged.
 
 MEDICAL REVIEW STATUS  All clinical protocols in this specification (NBTC eligibility criteria, TTI deferral periods, compatibility matrix, lookback protocol) are pending validation by a qualified haematologist. Do not modify any clinical reference data without written confirmation from the medical advisor.
 
-LEGAL REVIEW STATUS  The MoU template and liability clauses are pending review by a healthcare lawyer in Maharashtra. The digital signature mechanism (LeegAlly / Aadhaar eSign) is confirmed valid under IT Act 2000.
+LEGAL REVIEW STATUS  The MoU template and liability clauses are pending review by a healthcare lawyer in Maharashtra. The digital signature mechanism (Leegality / Aadhaar eSign) is confirmed valid under IT Act 2000.
 
 SECTION 1 — CONTEXT FOR EVERY PHASE
 CRITICAL  Copy Section 1 in full at the top of EVERY phase prompt. It is the foundational context the coding agent needs regardless of which phase it is building.
@@ -325,7 +325,7 @@ Auth — 2FA
 TOTP (Google Authenticator compatible)
 Mandatory for hospital, blood bank, NGO admin, and DHO accounts.
 Digital MoU
-LeegAlly API (Aadhaar eSign)
+Leegality API (Aadhaar eSign)
 Legally valid under IT Act 2000 Section 5. No ASP license needed.
 Email / Domain
 Google Workspace for Nonprofits — choudhari.ngo (pending FCRA registration); public-facing email today is `contact@choudhari.ngo`
@@ -373,7 +373,7 @@ Azure subscription configured (Central India region). Resource group `raktify-pr
 Encryption keys: two distinct 32-byte hex keys (main + screening) held in Azure Key Vault and injected as `LOCAL_ENCRYPTION_KEY_HEX` + `LOCAL_SCREENING_ENCRYPTION_KEY_HEX` app settings. (Azure-native crypto via Key Vault HSM is future work; the application uses the `local` AES-256-GCM provider with key material referenced from Key Vault.)
 Google Workspace for Nonprofits in progress for choudhari.ngo (blocked on FCRA registration); public-facing email is `contact@choudhari.ngo` in the meantime.
 Meta App + WhatsApp Business Cloud API set up: App ID, WABA, phone-number-id, System User long-lived access token, app secret. Business Verification submitted and approved (21 May 2026). At least one template per category approved (`donor_otp` Authentication; `donor_alert_critical`, `camp_reminder`, `camp_organizer_link`, `mou_esign_link` Utility). Webhook callback URL configured pointing at `/webhooks/whatsapp/incoming` with the verify token + X-Hub-Signature-256 verified against `WHATSAPP_APP_SECRET`. (MSG91 + India DLT is deferred — only needed for the SMS fallback channel, not launch.)
-LeegAlly API sandbox credentials obtained. Test signature flow working.
+Leegality API sandbox credentials obtained. Test signature flow working.
 Node.js 22 Express server running on port 3000 (App Service injects `PORT` in prod). Single /health endpoint returns {status: 'ok', timestamp: ISO8601, environment: process.env.NODE_ENV}.
 dotenv configured. .env.example committed. .env in .gitignore. All secrets in environment variables — none hardcoded. In production, app settings reference Azure Key Vault via `@Microsoft.KeyVault(SecretUri=...)`.
 ESLint and Prettier configured. Husky pre-commit hooks running lint and format checks.
@@ -428,10 +428,11 @@ MSG91_TEMPLATE_EMERGENCY_HI=
 MSG91_TEMPLATE_THANKYOU_MR=
 MSG91_TEMPLATE_REMINDER_MR=
 
-# ──── LeegAlly (Aadhaar eSign) ────
-LEEGALLY_API_KEY=
-LEEGALLY_TEMPLATE_ID=
-LEEGALLY_BASE_URL=https://api.leegally.com
+# ──── Leegality (Aadhaar eSign — leegality.com) ────
+LEEGALITY_AUTH_TOKEN=
+LEEGALITY_PRIVATE_SALT=
+LEEGALITY_TEMPLATE_ID=
+LEEGALITY_BASE_URL=https://api.leegality.com
 
 # ──── Staging-only ────
 OTP_ECHO=false                           # NEVER true in production — echoes OTP in API response for staging demos
@@ -804,8 +805,8 @@ requireInstitution middleware: for blood_bank and hospital roles, verifies req.u
 Digital MoU Onboarding Flow
 POST /onboarding/apply — public endpoint (no auth). Accepts institution details (Schedule 1 fields). Creates institutions row with onboarding_status='PE'. Creates application record. Notifies ngo_admin via WhatsApp.
 POST /onboarding/verify/:id — ngo_admin only. Records license verification. Sets license_verified_at and license_verified_by. Moves status to 'VE'.
-POST /onboarding/generate-mou/:id — ngo_admin only. Calls PDF generation service. Populates MoU template with institution details from Schedule 1. Uploads via the storage abstraction (`STORAGE_PROVIDER=local` writes to App Service disk in staging; Azure Blob Storage provider is future work). Triggers LeegAlly API to send Aadhaar eSign request to institution's authorized signatory mobile.
-POST /onboarding/mou-signed (webhook from LeegAlly) — receives signing confirmation. Sets mou_signed_at, mou_leegally_doc_id, mou_signatory_name. Calls Google Workspace API to create institutional email (shortname@choudhari.ngo). Creates platform_users record. Sends credentials to primary_contact_mobile via WhatsApp. Sets onboarding_status='AC'.
+POST /onboarding/generate-mou/:id — ngo_admin only. Calls PDF generation service. Populates MoU template with institution details from Schedule 1. Uploads via the storage abstraction (`STORAGE_PROVIDER=local` writes to App Service disk in staging; Azure Blob Storage provider is future work). Triggers Leegality API to send Aadhaar eSign request to institution's authorized signatory mobile.
+POST /onboarding/mou-signed (webhook from Leegality) — receives signing confirmation. Sets mou_signed_at, mou_leegally_doc_id, mou_signatory_name. Calls Google Workspace API to create institutional email (shortname@choudhari.ngo). Creates platform_users record. Sends credentials to primary_contact_mobile via WhatsApp. Sets onboarding_status='AC'.
 
 Phase 2 API Endpoints
 Method
@@ -858,7 +859,7 @@ ngo_admin
 Generate and send MoU for signing.
 POST
 /onboarding/mou-signed
-LeegAlly webhook
+Leegality webhook
 MoU signed. Provision credentials.
 GET
 /institutions
@@ -1204,7 +1205,7 @@ OTP flow tested: send, verify, expiry, lockout after 5 failures.
 □
 TOTP 2FA tested for hospital and blood bank accounts.
 □
-LeegAlly MoU signing tested end-to-end with a test institution.
+Leegality MoU signing tested end-to-end with a test institution.
 □
 Google Workspace admin account active. Test credential provisioning via API.
 □
@@ -1258,7 +1259,7 @@ Phase 8
 Phase 7
 All frontend interfaces complete. E2E test scenarios passing.
 
-FINAL NOTE  This master prompt is a living document. When the medical advisor returns feedback on the 20 clinical questions, update the compatibility matrix seed data, TTI deferral periods, and any eligibility criteria before Phase 1 migration runs. When the lawyer returns feedback on the MoU, update the LeegAlly template before Phase 2 onboarding flow is built. No clinical data should be hardcoded in application code — all clinical reference data lives in the database and can be updated without a code deployment.
+FINAL NOTE  This master prompt is a living document. When the medical advisor returns feedback on the 20 clinical questions, update the compatibility matrix seed data, TTI deferral periods, and any eligibility criteria before Phase 1 migration runs. When the lawyer returns feedback on the MoU, update the Leegality template before Phase 2 onboarding flow is built. No clinical data should be hardcoded in application code — all clinical reference data lives in the database and can be updated without a code deployment.
 
 — End of Raktify Master Prompt v1.0 —
 Choudhari EduHealth India Foundation  |  ops@choudhari.ngo  |  Amravati, Maharashtra
