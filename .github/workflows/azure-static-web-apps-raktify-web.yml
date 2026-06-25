@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Production deploy — raktify-web (Azure Static Web Apps)
+#
+# Builds the Vite SPA with VITE_API_URL baked at build time pointing at the
+# new raktify-api App Service. Deploys to raktify-web (free SWA in East Asia,
+# host: zealous-plant-0981aed00.7.azurestaticapps.net until raktify.choudhari.ngo
+# custom domain is bound).
+#
+# Runs in PARALLEL with azure-static-web-apps-jolly-bay-*.yml (staging SWA)
+# until DNS cutover + 7-day soak period are complete.
+#
+# Required GitHub secret (one-time, added via repo Settings → Secrets and
+# variables → Actions → New repository secret):
+#   AZURE_STATIC_WEB_APPS_API_TOKEN_RAKTIFY_WEB
+#   value: see SWA_DEPLOY_TOKEN in azure-day1-output.env on the cutover laptop
+# ─────────────────────────────────────────────────────────────────────────────
+name: Azure Static Web Apps CI/CD - raktify-web
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        env:
+          # Baked into the Vite build so the SPA calls the new production API.
+          # After DNS cutover, this should switch to https://api.raktify.choudhari.ngo
+          # (or stay on the azurewebsites.net URL — both work post-cutover).
+          VITE_API_URL: https://raktify-api.azurewebsites.net
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_RAKTIFY_WEB }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "./frontend"
+          api_location: ""
+          output_location: "dist"
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_RAKTIFY_WEB }}
+          action: "close"
