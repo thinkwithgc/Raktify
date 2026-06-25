@@ -31,11 +31,21 @@ jobs:
         with:
           node-version: '22.x'
 
+      # The old staging app's wwwroot had node_modules from an initial Oryx
+      # build run via Deployment Center wizard. Subsequent OneDeploy pushes
+      # preserved it via rsync. The new raktify-api was never seeded that
+      # way, so it needs node_modules in the upload. Install in CI rather
+      # than rely on Azure-side Oryx (OneDeploy bypasses Oryx).
+      - name: Install backend deps (production only)
+        run: |
+          npm ci --omit=dev --workspace=backend --include-workspace-root
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app-prod
           path: .
+          include-hidden-files: false
 
   deploy:
     runs-on: ubuntu-latest
