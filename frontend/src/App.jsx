@@ -46,6 +46,11 @@ export default function App() {
       <Route path="/staff/login" element={<StaffLogin />} />
       <Route path="/onboarding/apply" element={<InstitutionApply />} />
       <Route path="/setup/:token" element={<SetupPassword />} />
+      {/* /activate/:token — Meta-approved WhatsApp button URL points here.
+          Renders the same SetupPassword component. /setup/:token kept for
+          backwards compatibility with any in-flight tokens issued before
+          the URL switch. */}
+      <Route path="/activate/:token" element={<SetupPassword />} />
       <Route path="/camps/host" element={<HostCamp />} />
       <Route path="/camp/:token" element={<CampOrganizerDashboard />} />
       <Route path="/c/:slug" element={<PublicCampPage />} />

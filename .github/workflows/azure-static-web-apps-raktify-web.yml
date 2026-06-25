@@ -26,9 +26,33 @@ on:
       - main
 
 jobs:
+  # CI gate — same lint + format checks as the backend deploy and ci.yml,
+  # plus a smoke build of the frontend. If any fail, the deploy job below
+  # doesn't run. PR runs the gate too so reviewers see the pass/fail on
+  # the PR check sidebar.
+  verify:
+    name: Lint + format + frontend smoke build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install (root workspace, all deps)
+        run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Frontend smoke build (catches Vite/TypeScript/import errors)
+        run: npm run smoke:frontend
+
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
+    needs: verify
     name: Build and Deploy Job
     steps:
       - uses: actions/checkout@v3

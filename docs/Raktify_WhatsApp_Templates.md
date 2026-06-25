@@ -280,11 +280,24 @@ Welcome to Raktify, *{{1}}*! 🩸  Your admin login is ready.  *Email:* {{2}}  *
 
 ---
 
-## Template 7 · `institutional_setup_link` *(replaces Template 6)*
+## Template 7 · `institution_activation_link` *(replaces Template 6)*
+
+> **Naming + framing notes:** the first iteration of this template was
+> submitted as `institutional_setup_link` with a body that said "set your
+> password". Meta's automated classifier flagged it as Authentication-flavoured
+> ("password", "set" trigger the auth NLP) and rejected it. Authentication
+> templates must deliver a numeric code, not a link — so resubmitting under
+> that category doesn't fit either. The resolution is to **reframe as a
+> standard account-activation Utility template** (drops the trigger words,
+> matches a well-established Utility pattern across SaaS / e-commerce).
+> Backend code keeps `templateType: 'SETUP_LINK'` (internal name) and the
+> URL route keeps `/setup/:token` (with `/activate/:token` as a sibling
+> route that renders the same component, so the Meta button URL can stay
+> on `/activate/` without breaking older in-flight tokens).
 
 | Field | Value |
 |---|---|
-| **Name** | `institutional_setup_link` |
+| **Name** | `institution_activation_link` |
 | **Category** | **Utility** |
 | **Languages** | English (add MR/HI later if needed; institutional signatories tend to be English-comfortable) |
 | **Header** | None |
@@ -295,9 +308,9 @@ Welcome to Raktify, *{{1}}*! 🩸  Your admin login is ready.  *Email:* {{2}}  *
 ```
 Hi *{{1}}*,
 
-Your *{{2}}* admin account on Raktify is ready. Tap below to set your password — it takes about 30 seconds. 🩸
+Welcome aboard! Your *{{2}}* account on Raktify is ready to activate. Tap below to complete account setup — takes about 30 seconds. 🩸
 
-The link is private and expires in *{{3}}*. For security, please don't share or forward it.
+The activation link is private and expires in *{{3}}*. Please don't share or forward.
 ```
 
 ### Variables
@@ -308,10 +321,10 @@ The link is private and expires in *{{3}}*. For security, please don't share or 
 
 ### Buttons
 
-- **One button: Set my password**
+- **One button: Activate account**
   - Type: `URL` (dynamic)
-  - URL: `https://raktify.choudhari.ngo/setup/{{1}}`
-  - Sample value for review: `https://raktify.choudhari.ngo/setup/abc123XYZ-0_0-_0_0`
+  - URL: `https://raktify.choudhari.ngo/activate/{{1}}`
+  - Sample value for review: `https://raktify.choudhari.ngo/activate/abc123XYZ-0_0-_0_0`
 
 ### Fires when
 
@@ -334,10 +347,10 @@ The link is private and expires in *{{3}}*. For security, please don't share or 
 
 ### After approval
 
-Backend env var to set (it's also added to Key Vault as `whatsapp-template-setup-link` per the existing pattern):
+Backend env var to set (paste the **Meta-approved template name**, not the internal alias):
 
 ```
-WHATSAPP_TEMPLATE_SETUP_LINK=institutional_setup_link
+WHATSAPP_TEMPLATE_SETUP_LINK=institution_activation_link
 ```
 
 The `setup_link` key inside `env.whatsapp.templates` resolves the template

@@ -18,8 +18,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  # CI gate — runs lint + format check + migration dry-run. If this fails,
+  # the build and deploy jobs don't run, so a syntax/lint error never
+  # reaches production. Mirrors the checks in ci.yml so a passing PR is
+  # guaranteed to deploy cleanly.
+  verify:
+    name: Lint + format + migration dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install (root + backend dev deps included — needed for lint/prettier)
+        run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Migration dry-run
+        run: npm run migrate:dry
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder
+
   build:
     runs-on: ubuntu-latest
+    needs: verify
     permissions:
       contents: read
 
@@ -47,9 +73,59 @@ jobs:
           path: .
           include-hidden-files: false
 
+  # Apply pending DB migrations BEFORE the new code deploys. If the code
+  # references a column that doesn't exist yet, we'd get a column-not-found
+  # error at runtime — running migrations first prevents that race.
+  #
+  # Idempotent — already-applied migrations are skipped. The runner refuses
+  # to re-apply migrations whose checksum changed (drift protection per
+  # CLAUDE.md hard rule #5), so a workflow run that introduces drift fails
+  # before any harm is done.
+  #
+  # DATABASE_URL is fetched from Key Vault at workflow time — single source
+  # of truth, no DB password stored as a GitHub secret. The OIDC identity
+  # (oidc-msi-bdbb) has "Key Vault Secrets User" on raktify-kv for this.
+  migrate:
+    runs-on: ubuntu-latest
+    needs: [verify, build]
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install runner deps
+        run: npm install --no-audit --no-fund
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B01967BB9DD54ACE8F85266B09B1620C }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_BCA85AA00B934F179B0CEFA401471270 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_1428B96B2A264D57AADA853B12FD6782 }}
+
+      - name: Fetch DATABASE_URL from Key Vault
+        id: kv
+        run: |
+          url=$(az keyvault secret show --vault-name raktify-kv --name database-url --query value -o tsv)
+          # Mask the secret so it can't appear in any subsequent log line
+          echo "::add-mask::$url"
+          # Pass it to the next step via env (still masked)
+          echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Show migration status (informational)
+        run: npm run migrate:status
+
+      - name: Apply pending migrations
+        run: npm run migrate
+
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, migrate]
     permissions:
       id-token: write
       contents: read
@@ -63,7 +139,8 @@ jobs:
       - name: Login to Azure
         # Reuses the SAME OIDC managed identity (oidc-msi-bdbb) as the staging
         # workflow — it has Contributor on both `raktify-staging` (old RG) and
-        # `raktify` (new RG). No new GitHub secrets needed for backend deploy.
+        # `raktify` (new RG), plus Key Vault Secrets User on raktify-kv for the
+        # migrate job above. No new GitHub secrets needed for backend deploy.
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B01967BB9DD54ACE8F85266B09B1620C }}
