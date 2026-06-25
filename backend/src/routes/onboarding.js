@@ -8,7 +8,6 @@
  *   POST /onboarding/mou-signed         — eSign webhook; provision credentials → AC
  */
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { z } = require('zod');
 
@@ -21,6 +20,7 @@ const { normaliseIndianMobile } = require('../utils/phone');
 const eSign = require('../services/esign');
 const storage = require('../services/storage');
 const { sendNotification } = require('../services/notifications');
+const setupSvc = require('../services/users/setup');
 
 const router = express.Router();
 
@@ -253,7 +253,8 @@ router.post('/mou-signed', async (req, res) => {
   if (!institutionId) return res.status(400).json({ error: 'institution_id_missing' });
 
   const inst = await pool.query(
-    `SELECT id, shortname, primary_contact_mobile, kind, onboarding_status
+    `SELECT id, shortname, display_name, primary_contact_name,
+            primary_contact_mobile, kind, onboarding_status
        FROM institutions WHERE id = $1`,
     [institutionId],
   );
@@ -277,11 +278,14 @@ router.post('/mou-signed', async (req, res) => {
   // Provision: create the institutional admin platform_users row, mark
   // institution AC, archive the MoU version. All in one transaction so a
   // failure leaves no half-state.
-  const tempPassword = crypto
-    .randomBytes(9)
-    .toString('base64url')
-    .replace(/[^A-Za-z0-9]/g, '');
-  const tempPasswordHash = await bcrypt.hash(tempPassword, 12);
+  //
+  // Password setup: we generate an UNUSABLE placeholder password_hash so the
+  // platform_users auth_path_required CHECK constraint passes; the institution
+  // then receives a magic-link via WhatsApp (institutional_setup_link template)
+  // to set their real password. Single-use token, 7-day TTL. See
+  // services/users/setup.js. This replaces the previous "temp password over
+  // WhatsApp" pattern (rejected by Meta + insecure on principle).
+  const placeholderHash = await setupSvc.unusablePasswordHash();
   const adminEmail = `${i.shortname}@${env.providers.mail === 'workspace' ? 'choudhari.ngo' : 'dev.choudhari.local'}`;
   const role = i.kind === 'BB' ? 'blood_bank' : 'hospital';
 
@@ -323,6 +327,8 @@ router.post('/mou-signed', async (req, res) => {
       );
 
       // 3. platform_users: provision the admin login (idempotent on email).
+      //    Placeholder password_hash satisfies auth_path_required CHECK;
+      //    user can't log in until they consume the setup token below.
       const existing = await c.query(`SELECT id FROM platform_users WHERE email = $1`, [
         adminEmail,
       ]);
@@ -334,31 +340,40 @@ router.post('/mou-signed', async (req, res) => {
               force_password_change, institution_id)
            VALUES ($1, $2, $3, NOW(), TRUE, $4)
            RETURNING id`,
-          [role, adminEmail, tempPasswordHash, institutionId],
+          [role, adminEmail, placeholderHash, institutionId],
         );
         userId = created.rows[0].id;
       } else {
         userId = existing.rows[0].id;
-        // If user already exists (re-signing scenario), reset password instead.
+        // Re-signing scenario: wipe password, issue a fresh setup token.
         await c.query(
           `UPDATE platform_users
               SET password_hash = $1, password_set_at = NOW(),
                   force_password_change = TRUE
             WHERE id = $2`,
-          [tempPasswordHash, userId],
+          [placeholderHash, userId],
         );
       }
-      return { userId, adminEmail };
+
+      // 4. Generate fresh setup token (single-use, 7-day TTL by default).
+      //    Returns plaintext for the URL; only the SHA-256 hash is stored.
+      const { token: setupToken, expiresAt } = await setupSvc.generateSetupToken(c, userId);
+      return { userId, adminEmail, setupToken, expiresAt };
     },
   );
 
+  // Send the magic-link via WhatsApp. The template renders the link as
+  // https://raktify.choudhari.ngo/setup/<token> via its URL button param.
+  // SETUP_LINK template handler in whatsappCloudProvider takes signatory_name,
+  // institution_name, expires_in (body) + setup_token (button URL var).
   await sendNotification({
     recipientId: i.primary_contact_mobile,
-    templateType: 'CRED',
+    templateType: 'SETUP_LINK',
     variables: {
-      email: result.adminEmail,
-      temp_password: tempPassword,
-      login_url: env.frontendUrl,
+      signatory_name: webhook.signatoryName || i.primary_contact_name || 'Admin',
+      institution_name: i.display_name || i.shortname,
+      expires_in: `${setupSvc.DEFAULT_TTL_DAYS} days`,
+      setup_token: result.setupToken,
     },
     channel: 'WA',
     language: 'en',
@@ -366,7 +381,11 @@ router.post('/mou-signed', async (req, res) => {
 
   const devEcho =
     env.nodeEnv === 'development'
-      ? { dev_admin_email: result.adminEmail, dev_temp_password: tempPassword }
+      ? {
+          dev_admin_email: result.adminEmail,
+          dev_setup_url: `${env.frontendUrl}/setup/${result.setupToken}`,
+          dev_setup_expires_at: result.expiresAt,
+        }
       : {};
   res.json({
     status: 'activated',

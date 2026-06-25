@@ -263,49 +263,88 @@ The eSign link below is valid until *{{3}}*. After signing, your institutional a
 
 ---
 
-## Template 6 · `institutional_credentials`
+## Template 6 · `institutional_credentials` — **DEPRECATED**
+
+> **Status:** Rejected by Meta as Utility (temp passwords resemble OTP
+> codes); rejected on principle too — sending plaintext passwords over a
+> messaging channel is poor practice. Superseded by **Template 7
+> `institutional_setup_link`** below, which sends a single-use
+> password-setup URL instead. The legacy template definition is preserved
+> here only for change-history reference; do NOT resubmit. The code path
+> in `/onboarding/mou-signed` no longer references it.
+
+Legacy body (for reference):
+```
+Welcome to Raktify, *{{1}}*! 🩸  Your admin login is ready.  *Email:* {{2}}  *Temporary password:* {{3}}  You'll be asked to change your password on first login.
+```
+
+---
+
+## Template 7 · `institutional_setup_link` *(replaces Template 6)*
 
 | Field | Value |
 |---|---|
-| **Name** | `institutional_credentials` |
+| **Name** | `institutional_setup_link` |
 | **Category** | **Utility** |
-| **Languages** | English |
+| **Languages** | English (add MR/HI later if needed; institutional signatories tend to be English-comfortable) |
 | **Header** | None |
-| **Footer** | `Raktify · An initiative of Choudhari Foundation` |
+| **Footer** | `Raktify · An initiative of Choudhari EduHealth India Foundation` |
 
 ### Body
 
 ```
-Welcome to Raktify, *{{1}}*! 🩸
+Hi *{{1}}*,
 
-Your admin login is ready.
+Your *{{2}}* admin account on Raktify is ready. Tap below to set your password — it takes about 30 seconds. 🩸
 
-*Email:* {{2}}
-*Temporary password:* {{3}}
-
-You'll be asked to change your password on first login.
+The link is private and expires in *{{3}}*. For security, please don't share or forward it.
 ```
 
 ### Variables
 
-- `{{1}}` — Institution display name (e.g. `IGGMC Nagpur`)
-- `{{2}}` — Provisioned email (e.g. `iggmc-nagpur@choudhari.ngo`)
-- `{{3}}` — Temporary password (e.g. `Xy7-Kn3-Pq9-Ms4`)
+- `{{1}}` — Signatory name (e.g. `Dr. S. Deshmukh`)
+- `{{2}}` — Institution display name (e.g. `Irwin Hospital Amravati`)
+- `{{3}}` — Expiry duration (e.g. `7 days`)
 
 ### Buttons
 
-- **One button: Open Raktify**
-  - Type: `URL` (static)
-  - URL: `https://raktify.choudhari.ngo/staff/login`
+- **One button: Set my password**
+  - Type: `URL` (dynamic)
+  - URL: `https://raktify.choudhari.ngo/setup/{{1}}`
+  - Sample value for review: `https://raktify.choudhari.ngo/setup/abc123XYZ-0_0-_0_0`
 
 ### Fires when
 
-- eSign webhook fires (`POST /onboarding/mou-signed`) and auto-provisions the institutional admin platform_user row.
+- eSign webhook fires (`POST /onboarding/mou-signed`) and provisions the
+  institutional admin platform_user row. The handler generates a single-use,
+  7-day-TTL setup token (see `services/users/setup.js`) and embeds it as the
+  URL button variable. Recipient taps the link → lands on `/setup/<token>` →
+  sets their own password → token is consumed → can log in normally.
 
-> **Security note for v2:** Sending a temporary password over WhatsApp is
-> functional but not ideal. A future iteration should replace this with a
-> magic-link template (`institutional_setup_link`) that lands the user on a
-> one-time-use password-setup page. Spec'd in roadmap Q1 2027.
+### Security properties
+
+- Token is 32-byte URL-safe random (~256 bits entropy)
+- Only the SHA-256 hash is stored in `platform_users.setup_token_hash`
+- TTL: 7 days from generation (NGO admin can re-issue if expired)
+- Single-use: the second click after a successful setup shows
+  "link already used, please log in instead"
+- Until consumed, the `platform_users.password_hash` is an unguessable
+  random placeholder — the institution literally cannot log in by any other
+  path until they use the setup link.
+
+### After approval
+
+Backend env var to set (it's also added to Key Vault as `whatsapp-template-setup-link` per the existing pattern):
+
+```
+WHATSAPP_TEMPLATE_SETUP_LINK=institutional_setup_link
+```
+
+The `setup_link` key inside `env.whatsapp.templates` resolves the template
+name at send time. Handler in
+`backend/src/services/notifications/whatsappCloudProvider.js` lives in the
+`TEMPLATE_HANDLERS.SETUP_LINK` entry — 3 body vars (signatory_name,
+institution_name, expires_in) + 1 URL button var (setup_token).
 
 ---
 

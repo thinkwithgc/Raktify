@@ -47,9 +47,17 @@ function toWhatsAppNumber(raw) {
  * {{2}}, … positional params are filled from `variables` in insertion order —
  * so the order the caller passes variables MUST match the approved template.
  */
-function buildComponents(templateType, variables) {
-  if (templateType === 'OTP') {
-    const code = String(variables.otp ?? '');
+// Per-template component builders. Templates with dynamic URL buttons MUST
+// have an explicit handler here — otherwise the URL variable goes missing
+// and Meta rejects with "param mismatch" or substitutes an empty path.
+//
+// The default handler (used by templates with no URL button) just stuffs
+// Object.values(variables) into the body in insertion order. Caller MUST
+// pass variables in the same order as the template's {{1}}, {{2}}, ...
+const TEMPLATE_HANDLERS = {
+  // donor_otp (Authentication) — same code in body + copy-code/URL button.
+  OTP: (vars) => {
+    const code = String(vars.otp ?? '');
     return [
       { type: 'body', parameters: [{ type: 'text', text: code }] },
       {
@@ -59,7 +67,36 @@ function buildComponents(templateType, variables) {
         parameters: [{ type: 'text', text: code }],
       },
     ];
-  }
+  },
+
+  // institutional_setup_link — 3 body vars + 1 URL button var (the setup token).
+  // Body: {{1}}=signatory_name, {{2}}=institution_name, {{3}}=expires_in
+  // Button URL pattern: https://raktify.choudhari.ngo/setup/{{1}}  (token)
+  SETUP_LINK: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.signatory_name || '') },
+        { type: 'text', text: String(vars.institution_name || '') },
+        { type: 'text', text: String(vars.expires_in || '7 days') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.setup_token || '') }],
+    },
+  ],
+};
+
+function buildComponents(templateType, variables) {
+  const handler = TEMPLATE_HANDLERS[templateType];
+  if (handler) return handler(variables);
+
+  // Default: positional body, no button. Works for body-only templates;
+  // templates with URL buttons MUST register an explicit handler above
+  // (latent-bug guard — previously these were silently malformed).
   const params = Object.values(variables || {}).map((v) => ({
     type: 'text',
     text: String(v),

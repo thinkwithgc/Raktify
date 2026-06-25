@@ -12,6 +12,7 @@ import { BloodBankPortal } from './pages/bloodbank/BloodBankPortal.jsx';
 import { AdminDashboard } from './pages/admin/AdminDashboard.jsx';
 import { ReportsViewer } from './pages/admin/ReportsViewer.jsx';
 import { InstitutionApply } from './pages/onboarding/InstitutionApply.jsx';
+import { SetupPassword } from './pages/onboarding/SetupPassword.jsx';
 import { HostCamp } from './pages/camps/HostCamp.jsx';
 import { CampOrganizerDashboard } from './pages/camps/CampOrganizerDashboard.jsx';
 import { PublicCampPage } from './pages/camps/PublicCampPage.jsx';
@@ -44,6 +45,7 @@ export default function App() {
       <Route path="/register" element={<DonorRegister />} />
       <Route path="/staff/login" element={<StaffLogin />} />
       <Route path="/onboarding/apply" element={<InstitutionApply />} />
+      <Route path="/setup/:token" element={<SetupPassword />} />
       <Route path="/camps/host" element={<HostCamp />} />
       <Route path="/camp/:token" element={<CampOrganizerDashboard />} />
       <Route path="/c/:slug" element={<PublicCampPage />} />

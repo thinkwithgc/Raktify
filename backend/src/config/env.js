@@ -79,12 +79,17 @@ const env = {
     appSecret: optional('WHATSAPP_APP_SECRET', null),
     apiVersion: optional('WHATSAPP_API_VERSION', 'v21.0'),
     // Meta-approved template names, keyed by templateType (lower-cased).
+    // Add a new entry here when registering a new template in the provider.
     templates: {
       otp: optional('WHATSAPP_TEMPLATE_OTP', null),
       emg: optional('WHATSAPP_TEMPLATE_EMERGENCY', null),
       thk: optional('WHATSAPP_TEMPLATE_THANKYOU', null),
       rem: optional('WHATSAPP_TEMPLATE_REMINDER', null),
       cred: optional('WHATSAPP_TEMPLATE_CRED', null),
+      // institutional_setup_link — replaces the rejected `institutional_credentials`
+      // template. Used by /onboarding/mou-signed to deliver the magic password-setup
+      // link instead of a temp password. See docs/Raktify_WhatsApp_Templates.md.
+      setup_link: optional('WHATSAPP_TEMPLATE_SETUP_LINK', null),
     },
   },
 

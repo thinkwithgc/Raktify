@@ -398,6 +398,90 @@ router.post(
   },
 );
 
+// ── Setup-link password setup (institutional admins) ──────────────────────
+//
+// GET  /auth/setup/:token  — public; returns user/institution info for the
+//                            password-setup form (or 404 invalid / 410 used+expired).
+// POST /auth/setup/:token  — public; body { password, confirm_password };
+//                            consumes the token, sets password.
+//
+// Token issued by /onboarding/mou-signed (single-use, 7-day TTL).
+// See `services/users/setup.js` for the storage / validation logic.
+const setupSvc = require('../services/users/setup');
+
+const setupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 20, // generous: tokens are 256-bit; brute force isn't realistic
+  keyGenerator: (req) => req.ip,
+  standardHeaders: 'draft-8',
+  message: { error: 'rate_limit_setup' },
+});
+
+router.get('/setup/:token', setupLimiter, async (req, res) => {
+  const c = await pool.connect();
+  try {
+    await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+    const v = await setupSvc.validateSetupToken(c, req.params.token);
+    if (!v.ok) {
+      const status = v.code === 'invalid' ? 404 : 410;
+      return res.status(status).json({ error: v.code });
+    }
+    return res.json({
+      email: v.user.email,
+      role: v.user.role,
+      institution_name: v.institution.name,
+      institution_shortname: v.institution.shortname,
+      signatory_name: v.institution.signatory_name,
+      expires_at: v.expires_at,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'setup token GET failed');
+    res.status(500).json({ error: 'internal' });
+  } finally {
+    c.release();
+  }
+});
+
+router.post('/setup/:token', setupLimiter, async (req, res) => {
+  // Password rules: 12+ chars, at least one letter + one digit. Industry
+  // standard for low-friction first-password setup; staff can self-rotate
+  // to anything stronger later. We deliberately don't require special
+  // characters — they hurt adoption + don't measurably help against modern
+  // attacks (NIST SP 800-63B agrees).
+  const schema = z.object({
+    password: z
+      .string()
+      .min(12, 'min_12_chars')
+      .max(200, 'too_long')
+      .regex(/[A-Za-z]/, 'need_letter')
+      .regex(/[0-9]/, 'need_digit'),
+    confirm_password: z.string(),
+  });
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'validation_failed', issues: parsed.error.issues });
+  }
+  if (parsed.data.password !== parsed.data.confirm_password) {
+    return res.status(400).json({ error: 'password_mismatch' });
+  }
+
+  const c = await pool.connect();
+  try {
+    await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+    const r = await setupSvc.consumeSetupToken(c, req.params.token, parsed.data.password);
+    if (!r.ok) {
+      const status = r.code === 'invalid' ? 404 : 410;
+      return res.status(status).json({ error: r.code });
+    }
+    return res.json({ status: 'set', user_id: r.user_id });
+  } catch (err) {
+    logger.error({ err: err.message }, 'setup token POST failed');
+    res.status(500).json({ error: 'internal' });
+  } finally {
+    c.release();
+  }
+});
+
 // ── POST /auth/logout ─────────────────────────────────────────────────────
 // JWTs are stateless. A real session-blacklist would land in a Redis-backed
 // store. For now, the API just acknowledges; the client must drop the token.
