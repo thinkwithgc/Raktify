@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raktify · Sample MoU — Choudhari EduHealth India Foundation</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────────────
+     SAMPLE MoU — styled for A4 print.
+     OPEN this file in Chrome / Edge / Firefox → Ctrl+P (Cmd+P) →
+     Destination: "Save as PDF" → Paper size: A4 → Margins: Default →
+     Background graphics: ON → Save. Upload the resulting PDF to
+     Leegality's template editor.
+     ───────────────────────────────────────────────────────────────────── */
+  @page { size: A4; margin: 18mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Georgia, serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #222;
+    margin: 0;
+  }
+  h1, h2, h3 { font-family: Arial, Helvetica, sans-serif; color: #7c1d1b; }
+  h1 { font-size: 18pt; margin: 0 0 4px; text-align: center; letter-spacing: 0.5px; }
+  .subtitle { text-align: center; font-size: 11pt; color: #666; margin: 0 0 18px; }
+  .draft-banner {
+    background: #fff5f3;
+    border: 1px solid #ffa794;
+    color: #7c1d1b;
+    padding: 8px 12px;
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    text-align: center;
+    margin: 0 0 18px;
+    border-radius: 4px;
+  }
+  h2 { font-size: 13pt; margin: 18px 0 8px; padding-top: 6px; border-top: 1px solid #ddd; }
+  h3 { font-size: 11pt; margin: 12px 0 4px; color: #444; }
+  p { margin: 0 0 8px; text-align: justify; }
+  ol, ul { margin: 0 0 8px 18px; padding: 0; }
+  li { margin: 0 0 4px; }
+
+  /* Placeholders — these are the variable zones you'll mark in Leegality */
+  .var {
+    background: #fffbe6;
+    border: 1px dashed #c8a900;
+    color: #7a5d00;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Signature block — Leegality places its e-sign field where you draw it */
+  .sig-block {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .sig {
+    flex: 1;
+    padding-top: 50px;
+    border-top: 1px solid #222;
+    font-size: 10pt;
+  }
+  .sig .label { font-weight: 700; }
+  .sig .line { margin: 2px 0; }
+
+  .footer {
+    margin-top: 30px;
+    padding-top: 8px;
+    border-top: 1px solid #ddd;
+    font-size: 9pt;
+    color: #777;
+    text-align: center;
+  }
+  .schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 10.5pt;
+  }
+  .schedule-table th, .schedule-table td {
+    border: 1px solid #aaa;
+    padding: 5px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .schedule-table th { background: #f5ece4; font-family: Arial, Helvetica, sans-serif; font-weight: 600; }
+
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Memorandum of Understanding</h1>
+<p class="subtitle">Between Choudhari EduHealth India Foundation and <span class="var">{{institution_legal_name}}</span></p>
+
+<div class="draft-banner">
+  ⚠ <strong>DRAFT SAMPLE — for Leegality template upload + workflow validation only.</strong>
+  Replace with the final legal-reviewed MoU PDF before any real institution signs.
+  Yellow boxes mark variable zones to register in Leegality's template editor.
+</div>
+
+<h2>1. Parties</h2>
+<p>
+  This Memorandum of Understanding (the &ldquo;MoU&rdquo;) is entered into on
+  <span class="var">{{signing_date}}</span> between:
+</p>
+<ol>
+  <li>
+    <strong>Choudhari EduHealth India Foundation</strong>, a Section 8 non-profit
+    company registered under the Companies Act 2013 (CIN
+    U88900MH2025NPL447942), having its registered office at C/o Ravindra Marotrao
+    Rathi Nagar, Amravati, Maharashtra 444601 (the &ldquo;<strong>Foundation</strong>&rdquo;),
+    operating the Raktify platform; AND
+  </li>
+  <li>
+    <strong><span class="var">{{institution_legal_name}}</span></strong>,
+    a <span class="var">{{institution_type}}</span>
+    (license / registration number <span class="var">{{license_number}}</span>),
+    having its address at <span class="var">{{institution_address}}</span>
+    (the &ldquo;<strong>Institution</strong>&rdquo;).
+  </li>
+</ol>
+
+<h2>2. Purpose</h2>
+<p>
+  The Foundation operates Raktify, a community blood donation and emergency
+  matching platform. The Institution wishes to participate in the platform
+  to (a) report and manage its blood inventory, (b) raise blood requests on
+  behalf of its patients, (c) coordinate with voluntary donors mediated by
+  Foundation-trained coordinators, and (d) submit hemovigilance data to the
+  District Health Officer through the platform.
+</p>
+
+<h2>3. Term and Termination</h2>
+<p>
+  This MoU is effective from <span class="var">{{signing_date}}</span> and
+  remains in force until <span class="var">{{effective_until_date}}</span>,
+  unless terminated earlier by either party with 30 days&rsquo; written notice.
+  The Foundation may suspend the Institution&rsquo;s access immediately upon
+  written notice in the event of suspected misuse, regulatory non-compliance,
+  or material breach of clauses 4 or 5 below.
+</p>
+
+<h2>4. Roles and Responsibilities</h2>
+
+<h3>4.1 Foundation will</h3>
+<ul>
+  <li>Provide the Institution with secure platform access, training material, and a designated coordinator.</li>
+  <li>Maintain platform availability with reasonable industry-standard uptime targets and notify the Institution of planned downtime where possible.</li>
+  <li>Implement and maintain technical and organisational safeguards for patient and donor data as set out in clause 5.</li>
+  <li>Provide hemovigilance reports in formats accepted by the District Health Officer.</li>
+  <li>Not charge the Institution any fees for use of the platform during the term of this MoU.</li>
+</ul>
+
+<h3>4.2 Institution will</h3>
+<ul>
+  <li>Designate one or more trained staff members as platform users and maintain credential confidentiality.</li>
+  <li>Record blood inventory, donations, and TTI screening data accurately and promptly on the platform.</li>
+  <li>Comply with the Drugs and Cosmetics Act 1940, the Drugs and Cosmetics Rules 1945, and any directions of the CDSCO and the State Drugs Controller relating to blood banks (where applicable).</li>
+  <li>Not share platform-mediated donor contact details with any third party.</li>
+  <li>Report any data breach affecting platform-held data to the Foundation within 24 hours of discovery.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>5. Data Protection and Confidentiality</h2>
+<p>
+  Each party will treat personal data of donors, patients, and platform users
+  as confidential and process it only for the purposes set out in this MoU
+  and in accordance with the Digital Personal Data Protection Act 2023 and
+  any rules and notifications issued thereunder. The Foundation acts as the
+  Data Fiduciary in respect of donor and patient data captured through the
+  Raktify platform. The Institution acts as a Data Processor in respect of
+  any such data accessed in the course of its operational use of the platform.
+</p>
+<p>
+  Neither party may disclose any data, system credentials, audit logs, or
+  platform-specific commercial information to any third party without the
+  prior written consent of the other party, except as required by law or by
+  a competent regulatory authority.
+</p>
+
+<h2>6. Limitation of Liability</h2>
+<p>
+  The Foundation provides the Raktify platform on an as-available basis.
+  Clinical decisions, blood-bank operational decisions, and decisions to
+  accept or reject donors based on platform-surfaced data remain the sole
+  responsibility of the Institution and its medical staff. The Foundation
+  is not liable for any direct or indirect loss arising from (a) clinical
+  judgments made by the Institution, (b) failure of any third-party service
+  on which the platform depends, or (c) circumstances beyond the Foundation&rsquo;s
+  reasonable control including network outages, regulatory directions, or
+  force majeure events.
+</p>
+
+<h2>7. Governing Law and Dispute Resolution</h2>
+<p>
+  This MoU is governed by the laws of India. Any dispute arising out of or
+  in connection with this MoU which cannot be resolved through good-faith
+  discussion will be referred to arbitration before a sole arbitrator under
+  the Arbitration and Conciliation Act 1996. The seat of arbitration will
+  be Amravati, Maharashtra. The language of arbitration will be English.
+</p>
+
+<h2>8. Schedule 1 — Institution Details (auto-populated at time of signing)</h2>
+<table class="schedule-table">
+  <tr><th>Legal name</th><td><span class="var">{{institution_legal_name}}</span></td></tr>
+  <tr><th>Type</th><td><span class="var">{{institution_type}}</span> (Hospital / Blood Bank / Both)</td></tr>
+  <tr><th>License / registration number</th><td><span class="var">{{license_number}}</span></td></tr>
+  <tr><th>Address</th><td><span class="var">{{institution_address}}</span></td></tr>
+  <tr><th>District</th><td><span class="var">{{district_name}}</span>, Maharashtra</td></tr>
+  <tr><th>Primary contact name</th><td><span class="var">{{primary_contact_name}}</span></td></tr>
+  <tr><th>Primary contact designation</th><td><span class="var">{{primary_contact_designation}}</span></td></tr>
+  <tr><th>Primary contact mobile</th><td><span class="var">{{primary_contact_mobile}}</span></td></tr>
+  <tr><th>Authorised signatory name</th><td><span class="var">{{signatory_name}}</span></td></tr>
+  <tr><th>Authorised signatory designation</th><td><span class="var">{{signatory_designation}}</span></td></tr>
+  <tr><th>MoU version</th><td>v<span class="var">{{mou_version}}</span></td></tr>
+</table>
+
+<h2>9. Signatures</h2>
+
+<p>
+  This MoU is signed electronically. The Foundation&rsquo;s signature is
+  pre-applied to this document. The Institution&rsquo;s authorised signatory
+  signs via Aadhaar eSign through Leegality, with the signing event
+  recorded in the platform&rsquo;s audit log per clauses 4 and 5.
+</p>
+
+<div class="sig-block">
+  <div class="sig">
+    <div class="line"><span class="label">For Choudhari EduHealth India Foundation</span></div>
+    <div class="line">Name: Gaurav Choudhari</div>
+    <div class="line">Designation: Director</div>
+    <div class="line">Date: <span class="var">{{signing_date}}</span></div>
+    <div class="line" style="margin-top: 8px; color: #888; font-size: 9pt;">[ Foundation signature applied at template upload time ]</div>
+  </div>
+  <div class="sig">
+    <div class="line"><span class="label">For <span class="var">{{institution_legal_name}}</span></span></div>
+    <div class="line">Name: <span class="var">{{signatory_name}}</span></div>
+    <div class="line">Designation: <span class="var">{{signatory_designation}}</span></div>
+    <div class="line">Date: <span class="var">{{signing_date}}</span></div>
+    <div class="line" style="margin-top: 8px; color: #888; font-size: 9pt;">[ Aadhaar eSign placement area &mdash; draw signature box here in Leegality editor ]</div>
+  </div>
+</div>
+
+<div class="footer">
+  Raktify · An initiative of Choudhari EduHealth India Foundation · NGO-DARPAN MH/2025/0643345
+  · CIN U88900MH2025NPL447942 · Amravati, Maharashtra · contact@choudhari.ngo
+</div>
+
+</body>
+</html>
