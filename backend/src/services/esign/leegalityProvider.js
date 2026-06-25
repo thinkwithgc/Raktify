@@ -1,86 +1,169 @@
 /**
  * Leegality (Aadhaar eSign) provider — leegality.com.
  *
- * STATUS: skeleton aligned to Leegality's dashboard-side credential shape
- * (Auth Token + Private Salt + Whitelisted IPs). The actual REST endpoints
- * + request/response field names need to be reconciled against Leegality's
- * docs (partner-portal only, not publicly indexed). Real testing waits for
- * the first MoU template to be uploaded to Leegality's dashboard.
+ * Aligned to Leegality's v3.0 docs (see /leegality.md/ folder for the
+ * docs the integration was built against). The most important things
+ * that aren't obvious from reading any other eSign provider's API:
  *
- * What this does today:
- *   - sendForSign POSTs to ${LEEGALITY_BASE_URL}/api/v1/documents/send with
- *     auth header `Authorization: Bearer ${LEEGALITY_AUTH_TOKEN}` and a JSON
- *     body containing the template ID + signer mobile + variables. The exact
- *     endpoint path may differ — update once Leegality's API docs are in hand.
- *   - verifyWebhook checks an HMAC signature header (X-Leegality-Signature)
- *     computed as HMAC-SHA256(rawBody, LEEGALITY_PRIVATE_SALT). The Private
- *     Salt is the dashboard-displayed "salt" used specifically for webhook
- *     verification — NOT the Auth Token. Confusing the two = signature
- *     mismatch on every callback.
+ *   • Auth header is `X-Auth-Token: <authToken>` — NOT
+ *     `Authorization: Bearer …`. Both outbound API calls AND inbound
+ *     webhooks carry this header.
  *
- * Both call sites are kept on the same provider contract as localProvider so
- * the route handlers don't need to know which one is active. Activation is
- * via env.leegality.{authToken,privateSalt,templateId} — see services/esign/index.js.
+ *   • Webhook HMAC is computed as `HMAC-SHA1(documentId, privateSalt)`.
+ *     The signed payload is the documentId STRING ONLY, not the request
+ *     body. The MAC is returned in the JSON body as the `mac` field
+ *     (not in a header). Confusing this with the standard "HMAC of the
+ *     raw body" pattern = every webhook fails verification silently in
+ *     prod.
+ *
+ *   • Private Salt and Auth Token are DIFFERENT credentials with
+ *     DIFFERENT uses. Auth Token authenticates API calls + webhooks.
+ *     Private Salt verifies webhook integrity. Confusing the two is the
+ *     #1 source of integration bugs per their support docs.
+ *
+ *   • What we call LEEGALITY_TEMPLATE_ID in our env is what Leegality
+ *     calls `profileId` (the Workflow ID). A Leegality workflow wraps a
+ *     template + invitee config + signature placements + webhook URLs.
+ *     The "template" in our naming sense is the workflow + uploaded PDF.
+ *
+ *   • The webhook does NOT contain `signedAt` or signatory aadhaar last
+ *     4. Use server-side receipt time for signedAt; fetch aadhaar last 4
+ *     via the Details API as a follow-up if needed.
+ *
+ *   • Two webhook event categories share the same payload envelope:
+ *     `webhookType: "Success"` (Signed / Reviewer approves) and
+ *     `webhookType: "Error"` (Signer rejects / Certificate verification
+ *     fails / Document expired). The route handler branches on
+ *     webhookType + request.action.
+ *
+ * Provider contract (unchanged, matches localProvider):
+ *   sendForSign({ institutionId, signatoryMobile, signatoryName, templateData })
+ *     -> { docId, signUrl, expiresAt }
+ *   verifyWebhook(headers, body)
+ *     -> { docId, webhookType, documentStatus, signedAt,
+ *          signatoryName, signatoryAadhaarLast4, action, error }
  */
 const crypto = require('crypto');
 const env = require('../../config/env');
 const logger = require('../../config/logger');
 
+// Leegality bodies use 10-digit phone numbers (no country code). Our
+// institutions.primary_contact_mobile is stored as `+91XXXXXXXXXX` (CHAR(13)).
+function to10DigitPhone(mobile) {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
 async function sendForSign({ institutionId, signatoryMobile, signatoryName, templateData }) {
-  const url = `${env.leegality.baseUrl.replace(/\/$/, '')}/api/v1/documents/send`;
+  const url = `${env.leegality.baseUrl.replace(/\/$/, '')}/v3.0/sign/request`;
+
+  // For template-based workflows, Leegality reads PDF + signature placements
+  // from the workflow definition; we only supply the field values + invitee.
+  // Pass each templateData key as a named field; Leegality matches by name.
+  const fields = Object.entries(templateData || {}).map(([name, value]) => ({
+    name,
+    type: 'text',
+    value: String(value ?? ''),
+  }));
+
+  const body = {
+    profileId: env.leegality.templateId, // Workflow ID per Leegality terminology
+    irn: institutionId, // Internal Reference Number — our institution UUID
+    file: {
+      name: `Raktify_MoU_${institutionId}`,
+      fields,
+    },
+    invitees: [
+      {
+        name: signatoryName,
+        phone: to10DigitPhone(signatoryMobile),
+        defaultLanguageSelect: 'ENGLISH',
+      },
+    ],
+  };
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.leegality.authToken}`,
+      'X-Auth-Token': env.leegality.authToken,
     },
-    body: JSON.stringify({
-      template_id: env.leegality.templateId,
-      external_ref: institutionId,
-      signer: { mobile: signatoryMobile, name: signatoryName },
-      variables: templateData,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    logger.error({ status: res.status, body: text }, 'Leegality sendForSign failed');
-    throw new Error(`Leegality send failed: ${res.status}`);
+    logger.error({ status: res.status, body: text }, 'Leegality sendForSign HTTP error');
+    throw new Error(`Leegality send failed: HTTP ${res.status}`);
   }
+
+  // Leegality returns 200 even on validation errors — check the status
+  // field in the body. 1 = success, 0 = validation/config error.
   const data = await res.json();
+  if (data.status !== 1) {
+    const msg = (data.messages && data.messages[0]?.message) || 'unknown';
+    logger.error({ body: data }, 'Leegality sendForSign rejected by Leegality');
+    throw new Error(`Leegality rejected: ${msg}`);
+  }
+
+  const invitee = data.data?.invitees?.[0] || {};
   return {
-    docId: data.document_id || data.docId,
-    signUrl: data.signing_url || data.signUrl,
-    expiresAt: data.expires_at || data.expiresAt,
+    docId: data.data?.documentId,
+    signUrl: invitee.signUrl,
+    expiresAt: invitee.expiryDate, // Leegality format: "DD-MM-YYYY HH:MM:SS"
   };
 }
 
 function verifyWebhook(headers, body) {
-  const sig = headers['x-leegality-signature'];
-  if (!sig) throw new Error('Leegality webhook missing signature header');
-
-  // CRITICAL: HMAC key is the Private Salt (dashboard → API → Private Salt),
-  // NOT the Auth Token. Confusing the two = every webhook fails verification
-  // silently in prod. The dashboard explicitly labels Private Salt as
-  // "used to verify the webhook calls made by Leegality".
-  const computed = crypto
-    .createHmac('sha256', env.leegality.privateSalt)
-    .update(typeof body === 'string' ? body : JSON.stringify(body))
-    .digest('hex');
-
-  if (
-    sig.length !== computed.length ||
-    !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(computed))
-  ) {
-    throw new Error('Leegality webhook signature mismatch');
+  // Two auth checks: (a) the X-Auth-Token header must match our authToken
+  // (Leegality sends this on every webhook), and (b) the `mac` body field
+  // must be HMAC-SHA1(documentId, privateSalt).
+  const headerToken = headers['x-auth-token'] || headers['X-Auth-Token'];
+  if (!headerToken) {
+    throw new Error('Leegality webhook missing X-Auth-Token header');
+  }
+  if (headerToken !== env.leegality.authToken) {
+    throw new Error('Leegality webhook X-Auth-Token mismatch');
   }
 
   const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Leegality webhook body is not an object');
+  }
+
+  const { documentId, mac } = parsed;
+  if (!documentId || !mac) {
+    throw new Error('Leegality webhook missing documentId or mac');
+  }
+
+  // HMAC-SHA1, NOT SHA-256. Signed value is the documentId STRING ONLY,
+  // not the JSON body. Key is the dashboard's Private Salt.
+  const computed = crypto
+    .createHmac('sha1', env.leegality.privateSalt)
+    .update(String(documentId))
+    .digest('hex');
+
+  if (
+    mac.length !== computed.length ||
+    !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(computed))
+  ) {
+    throw new Error('Leegality webhook mac mismatch (HMAC-SHA1 of documentId failed verification)');
+  }
+
+  // The webhook envelope doesn't carry signedAt or aadhaarLast4. signedAt
+  // uses server receipt time; aadhaarLast4 is fetched via the Details API
+  // later if needed (institutions.mou_signatory_aadhaar_last4 stays null
+  // for now — non-blocking).
   return {
-    docId: parsed.document_id || parsed.docId,
-    signedAt: parsed.signed_at || parsed.signedAt,
-    signatoryName: parsed.signatory_name || parsed.signatoryName,
-    signatoryAadhaarLast4: parsed.signatory_aadhaar_last4 || parsed.signatoryAadhaarLast4,
+    docId: documentId,
+    irn: parsed.irn || null, // Our institution_id was set as irn at sendForSign time
+    webhookType: parsed.webhookType || 'Success',
+    documentStatus: parsed.documentStatus || null,
+    signedAt: new Date().toISOString(),
+    signatoryName: parsed.request?.name || null,
+    signatoryAadhaarLast4: null,
+    action: parsed.request?.action || null,
+    error: parsed.request?.error || null,
   };
 }
 

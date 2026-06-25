@@ -222,6 +222,17 @@ router.post(
 );
 
 // ── POST /onboarding/mou-signed (eSign webhook) ──────────────────────────
+// Leegality sends BOTH Success and Error event payloads here (the same URL
+// is configured for the workflow's Webhook URL + Error Webhook URL). The
+// handler branches on webhookType + action:
+//   • Success / Signed   → existing activation flow (create user, send link)
+//   • Error   / Rejected → log + leave institution in VE state (admin can
+//                          re-send MoU from /admin)
+//   • Error   / Expired  → log + leave institution in VE state
+// Leegality retries non-2XX responses (immediate, +1h, +3h). Always return
+// 2XX on receipt — even for events we can't fully process — so they don't
+// pile up in the retry queue. Errors we couldn't process are surfaced via
+// logs + an audit_log row, not via HTTP status.
 router.post('/mou-signed', async (req, res) => {
   let webhook;
   try {
@@ -231,13 +242,27 @@ router.post('/mou-signed', async (req, res) => {
     return res.status(401).json({ error: 'invalid_webhook' });
   }
 
-  // Find the institution by doc_id stored on the latest mou_versions row,
-  // OR (since we don't write a placeholder row at send-time yet) fall back
-  // to reading it from /generate-mou's eSign external_ref. For the smoke
-  // test, we use external_ref = institution_id.
-  // The local provider stores the institutionId in its doc payload; pull
-  // institution_id from the local outbox file when in dev.
-  let institutionId = req.body.institution_id;
+  // Branch on event type. Anything not a Signed-success event short-circuits
+  // here — we log + 200 (so Leegality doesn't retry). Future enhancement:
+  // notify NGO admin via WhatsApp on rejection so they can call the signatory.
+  if (webhook.webhookType === 'Error' || webhook.action !== 'Signed') {
+    logger.warn(
+      {
+        docId: webhook.docId,
+        webhookType: webhook.webhookType,
+        action: webhook.action,
+        error: webhook.error,
+      },
+      'eSign webhook received non-success event — institution stays in VE state',
+    );
+    return res.json({ status: 'acknowledged', event: webhook.webhookType });
+  }
+
+  // Resolve institution_id from the webhook's `irn` field — we set
+  // irn=institutionId at sendForSign time. Falls back to the legacy paths
+  // (req.body.institution_id, then local-provider outbox file) for
+  // backwards compat with the dev/smoke flow.
+  let institutionId = webhook.irn || req.body.institution_id;
   if (!institutionId) {
     try {
       const fs = require('fs');

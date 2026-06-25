@@ -100,8 +100,11 @@ const env = {
   leegality: {
     authToken: optional('LEEGALITY_AUTH_TOKEN', null),
     privateSalt: optional('LEEGALITY_PRIVATE_SALT', null),
+    // Note: Leegality calls this `profileId` (Workflow ID). Our env name
+    // is historical — it IS the workflow ID from the dashboard.
     templateId: optional('LEEGALITY_TEMPLATE_ID', null),
-    baseUrl: optional('LEEGALITY_BASE_URL', 'https://api.leegality.com'),
+    // Production: https://app1.leegality.com/api · Sandbox: https://sandbox.leegality.com/api
+    baseUrl: optional('LEEGALITY_BASE_URL', 'https://app1.leegality.com/api'),
   },
 
   lgd: {

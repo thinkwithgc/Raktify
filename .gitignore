@@ -50,6 +50,12 @@ local-kms-key.bin
 *-output.env
 docs/azure-cutover/*.env
 
+# Vendor docs the user pastes locally for reference (Leegality, Meta, etc.)
+# These are the vendor's IP, not ours to redistribute. Read locally, code
+# against them, but don't commit. To commit a SPECIFIC doc you want to
+# preserve as reference, copy it to docs/ explicitly.
+leegality.md/
+
 # OneDrive sync turds
 ~$*
 .tmp.driveupload/

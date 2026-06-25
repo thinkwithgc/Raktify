@@ -29,7 +29,14 @@ replace the underlying PDF in Leegality's template editor — the
 4. Save as `Raktify_MoU_Sample.pdf` somewhere local (don't commit it
    to git; the source HTML is what's versioned).
 
-### Step 2 — upload to Leegality + register variables (~10 min)
+### Step 2 — upload to Leegality + create the workflow (~15 min)
+
+> **Important terminology**: Leegality has both **Templates** (PDF +
+> variable fields) and **Workflows** (a Template wrapped with invitee
+> config, signature placements, and webhook URLs). The eSign API
+> requires the **Workflow ID** (`profileId`), not the Template ID. Our
+> env var `LEEGALITY_TEMPLATE_ID` historically named is actually the
+> Workflow ID. Create the Template first, then a Workflow that wraps it.
 
 1. Open [dashboard.leegality.com](https://dashboard.leegality.com) → **Templates** → **Create New Template**.
 2. Upload `Raktify_MoU_Sample.pdf`.
@@ -62,16 +69,28 @@ replace the underlying PDF in Leegality's template editor — the
    block): if Leegality supports a pre-applied signature for the
    template owner, configure that here. Otherwise, the Foundation's
    signature is rendered as text only — fine for v1.
-6. **Publish** the template → copy the **Template ID** (UUID-like).
+6. **Publish** the Template.
+7. Now go to **Workflows** → **Create New Workflow** → wrap the Template
+   above. Configure:
+   - **Invitees**: leave the invitee `name`/`phone` blank — we supply
+     these per-document via the API call. Just mark this invitee as
+     the Aadhaar eSign signer with the signature placement zone bound.
+   - **Webhook URL**: `https://raktify-api.azurewebsites.net/onboarding/mou-signed`
+   - **Error Webhook URL**: same as above (the route branches on the
+     `webhookType` field to distinguish Success vs Error events)
+   - **Webhook Version**: **v2.5** (per Leegality's webhook docs)
+8. **Publish** the Workflow → copy the **Workflow ID** (`profileId`).
+   This is what we'll set as `LEEGALITY_TEMPLATE_ID` — historical name,
+   actually the workflow ID per Leegality's terminology.
 
-### Step 3 — paste Template ID back to chat
+### Step 3 — paste Workflow ID back to chat
 
-Tell me (or whichever Claude session is active) the Template ID. I'll
+Tell me (or whichever Claude session is active) the Workflow ID. I'll
 run one az command:
 
 ```bash
 az webapp config appsettings set --resource-group raktify --name raktify-api \
-  --settings LEEGALITY_TEMPLATE_ID=<paste-id-here>
+  --settings LEEGALITY_TEMPLATE_ID=<paste-workflow-id-here>
 ```
 
 Once that's set + the App Service restarts (~30 sec), the eSign
