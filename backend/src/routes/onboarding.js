@@ -387,17 +387,19 @@ router.post('/mou-signed', async (req, res) => {
     },
   );
 
-  // Send the magic-link via WhatsApp. The template renders the link as
-  // https://raktify.choudhari.ngo/setup/<token> via its URL button param.
-  // SETUP_LINK template handler in whatsappCloudProvider takes signatory_name,
-  // institution_name, expires_in (body) + setup_token (button URL var).
+  // Send the magic-link via WhatsApp. Meta-approved template name is
+  // `institution_link` (Utility). Template renders the link as
+  // https://raktify.choudhari.ngo/activate/<token> via its URL button param.
+  // Handler in whatsappCloudProvider takes signatory_name + institution_name
+  // (body) + setup_token (button URL var). The earlier-drafted expires_in
+  // line was removed to clear Meta's Utility classifier; the 7-day token TTL
+  // is still enforced server-side by setupSvc.consumeSetupToken.
   await sendNotification({
     recipientId: i.primary_contact_mobile,
     templateType: 'SETUP_LINK',
     variables: {
       signatory_name: webhook.signatoryName || i.primary_contact_name || 'Admin',
       institution_name: i.display_name || i.shortname,
-      expires_in: `${setupSvc.DEFAULT_TTL_DAYS} days`,
       setup_token: result.setupToken,
     },
     channel: 'WA',

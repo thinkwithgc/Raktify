@@ -69,16 +69,18 @@ const TEMPLATE_HANDLERS = {
     ];
   },
 
-  // institutional_setup_link — 3 body vars + 1 URL button var (the setup token).
-  // Body: {{1}}=signatory_name, {{2}}=institution_name, {{3}}=expires_in
-  // Button URL pattern: https://raktify.choudhari.ngo/setup/{{1}}  (token)
+  // institution_link (Meta-approved template name) — 2 body vars + 1 URL button.
+  // Body: {{1}}=signatory_name, {{2}}=institution_name
+  // Button URL pattern: https://raktify.choudhari.ngo/activate/{{1}}  (token)
+  // (Earlier draft included an `expires_in` var — Meta rejected templates
+  // mentioning "7 days" / expiry framing as auth-flavoured. The user
+  // dropped that line + got approval as `institution_link` Utility.)
   SETUP_LINK: (vars) => [
     {
       type: 'body',
       parameters: [
         { type: 'text', text: String(vars.signatory_name || '') },
         { type: 'text', text: String(vars.institution_name || '') },
-        { type: 'text', text: String(vars.expires_in || '7 days') },
       ],
     },
     {
