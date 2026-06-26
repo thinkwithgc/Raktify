@@ -91,10 +91,16 @@ const TEMPLATE_HANDLERS = {
     },
   ],
 
-  // community_leader_welcome — sent on NGO-admin invite. 2 body vars only;
-  // the URL button is STATIC (https://raktify.choudhari.ngo/login?role=community_leader),
-  // no per-recipient variable, so no button parameters here. Community leaders
-  // authenticate via mobile + OTP — no setup token to embed.
+  // community_leader_welcome — sent on NGO-admin invite. 2 body vars +
+  // 1 URL button variable. The URL pattern was switched from static to
+  // dynamic (https://raktify.choudhari.ngo/login?role={{1}}) on 2026-06-27
+  // specifically to SUPPRESS the WhatsApp link preview — dynamic URL
+  // buttons don't get previewed because Meta can't fetch them at
+  // template-review time. The button var is always the literal string
+  // 'community_leader' (matches the role_hint the /login page expects).
+  // Meta reclassified the template as MARKETING on the edit — acceptable
+  // for now (delivers to allow-listed test recipients). Future iteration
+  // may switch to a per-recipient setup token to win back UTILITY class.
   COMMUNITY_LEADER_WELCOME: (vars) => [
     {
       type: 'body',
@@ -102,6 +108,12 @@ const TEMPLATE_HANDLERS = {
         { type: 'text', text: String(vars.leader_name || '') },
         { type: 'text', text: String(vars.organization_name || '') },
       ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: 'community_leader' }],
     },
   ],
 };
