@@ -1,5 +1,5 @@
 /**
- * NGO admin / ops endpoints (Phase 6 + Phase 8).
+ * NGO admin / ops endpoints (Phase 6 + Phase 8 + post-Phase-8).
  *
  *   GET  /admin/jobs                          list registered scheduler jobs
  *   POST /admin/jobs/run                      manually trigger one job (super_admin)
@@ -17,6 +17,11 @@
  *   GET  /admin/audit                         filterable audit_log_safe view
  *                                             (table, actor, since, until, limit)
  *   GET  /admin/audit/integrity               sample N rows + verify hash chain
+ *
+ *   POST /admin/community-leaders             invite a new community_leader
+ *   GET  /admin/community-leaders             list (filter: status=active|suspended)
+ *   POST /admin/community-leaders/:id/suspend  suspend a leader (auto-handover to co-leader is Phase 2)
+ *   POST /admin/community-leaders/:id/reactivate  un-suspend a leader
  */
 const express = require('express');
 const { z } = require('zod');
@@ -24,6 +29,7 @@ const { z } = require('zod');
 const { pool } = require('../config/db');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { normaliseIndianMobile } = require('../utils/phone');
 const scheduler = require('../services/scheduler');
 
 const router = express.Router();
@@ -334,6 +340,212 @@ router.get(
       ok: breaks === 0,
       broken_examples: broken,
     });
+  },
+);
+
+// ── Community-leader management (post-Phase-8) ───────────────────────────
+// External volunteers who run pre-existing donor communities (WhatsApp
+// groups). NGO admin invites them; they log in via mobile + OTP (donor-style
+// auth path). Profile lives in community_leaders (migration 271). See the
+// Phase 1 plan in this session for the full taxonomy + capability split.
+//
+// Activation is intentionally low-friction in v1: the NGO admin enters
+// mobile + name, backend inserts both rows, then NGO admin tells the leader
+// out-of-band ("I've added you, log in at raktify.choudhari.ngo/login").
+// No setup token / no automatic WhatsApp template — the leader's existing
+// WhatsApp group is THEIR comms channel, we don't insert ourselves into it.
+//
+// Phase 2 adds: communities CRUD, co-leader mgmt, suspension auto-handover.
+// Phase 3 adds: donor roster, referral attribution, public community page.
+
+const inviteLeaderSchema = z.object({
+  mobile: z.string(),
+  full_name: z.string().min(2).max(120),
+  display_name: z.string().min(2).max(80),
+  preferred_language: z.enum(['mr', 'hi', 'en']).optional(),
+  state_id: z.number().int().positive().optional(),
+  district_id: z.number().int().positive().optional(),
+  email: z.string().email().optional(),
+  invitation_notes: z.string().max(500).optional(),
+});
+
+router.post(
+  '/community-leaders',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const parsed = inviteLeaderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const data = parsed.data;
+    const mobile = normaliseIndianMobile(data.mobile);
+    if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
+
+    // The OTP-cluster partial unique index (migration 269) prevents two leader
+    // rows for one mobile. Check explicitly so we can return a clean 409
+    // instead of letting the DB raise a violation that the user has to parse.
+    const existing = await pool.query(
+      `SELECT id FROM platform_users WHERE mobile = $1 AND role = 'community_leader'`,
+      [mobile],
+    );
+    if (existing.rowCount > 0) {
+      return res.status(409).json({ error: 'mobile_already_invited' });
+    }
+
+    try {
+      const result = await withRlsContext(
+        req,
+        async (c) => {
+          // 1. platform_users row — OTP-auth path, no password.
+          const userR = await c.query(
+            `INSERT INTO platform_users (role, mobile)
+             VALUES ('community_leader', $1)
+             RETURNING id`,
+            [mobile],
+          );
+          const userId = userR.rows[0].id;
+
+          // 2. community_leaders profile row — approved immediately since the
+          //    ngo_admin's invite IS the approval.
+          const profR = await c.query(
+            `INSERT INTO community_leaders
+               (platform_user_id, full_name, display_name,
+                preferred_language, state_id, district_id,
+                email, invitation_notes,
+                approved_at, approved_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+             RETURNING id`,
+            [
+              userId,
+              data.full_name,
+              data.display_name,
+              data.preferred_language || 'mr',
+              data.state_id || null,
+              data.district_id || null,
+              data.email || null,
+              data.invitation_notes || null,
+              req.user.userId,
+            ],
+          );
+          return { platform_user_id: userId, community_leader_id: profR.rows[0].id };
+        },
+        { change_reason: 'invite community_leader' },
+      );
+
+      res.status(201).json({
+        community_leader_id: result.community_leader_id,
+        platform_user_id: result.platform_user_id,
+        mobile,
+        display_name: data.display_name,
+        next_step:
+          'Tell the leader to log in at /login with this mobile. They will receive an OTP. No password needed.',
+      });
+    } catch (err) {
+      // Defensive: cluster index could still trip if a race happened between
+      // the existence check above and the INSERT.
+      if (/idx_platform_users_mobile_otp_cluster/.test(err.message)) {
+        return res.status(409).json({ error: 'mobile_already_in_otp_cluster' });
+      }
+      throw err;
+    }
+  },
+);
+
+router.get(
+  '/community-leaders',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const status = req.query.status || 'all'; // 'active' | 'suspended' | 'all'
+    const r = await withRlsContext(req, (c) =>
+      c.query(
+        `SELECT cl.id, cl.display_name, cl.is_active,
+                cl.suspended_at, cl.suspension_reason,
+                cl.communities_count, cl.total_donor_count,
+                cl.donations_facilitated, cl.camps_hosted,
+                cl.preferred_language, cl.joined_at, cl.created_at,
+                cl.invitation_notes,
+                pu.mobile, pu.last_login_at,
+                d.name AS district_name,
+                s.name AS state_name
+           FROM community_leaders cl
+           JOIN platform_users pu ON pu.id = cl.platform_user_id
+           LEFT JOIN districts d ON d.id = cl.district_id
+           LEFT JOIN states    s ON s.id = cl.state_id
+          WHERE CASE
+                  WHEN $1 = 'active'    THEN cl.is_active = TRUE
+                  WHEN $1 = 'suspended' THEN cl.suspended_at IS NOT NULL
+                  ELSE TRUE
+                END
+          ORDER BY cl.created_at DESC
+          LIMIT 500`,
+        [status],
+      ),
+    );
+    // Mask mobile in the list view — the admin can see the last 4 digits,
+    // but the full number stays masked at this scope per the donor-PII pattern.
+    const leaders = r.rows.map((l) => ({
+      ...l,
+      mobile: l.mobile ? `+91XXXXX${l.mobile.slice(-4)}` : null,
+    }));
+    res.json({ leaders, count: r.rowCount });
+  },
+);
+
+router.post(
+  '/community-leaders/:id/suspend',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const schema = z.object({ reason: z.string().min(3).max(500) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE community_leaders
+              SET suspended_at = NOW(),
+                  suspended_by = $1,
+                  suspension_reason = $2
+            WHERE id = $3 AND suspended_at IS NULL
+            RETURNING id, display_name`,
+          [req.user.userId, parsed.data.reason, req.params.id],
+        ),
+      { change_reason: `suspend community_leader: ${parsed.data.reason.slice(0, 100)}` },
+    );
+    if (r.rowCount === 0) {
+      return res.status(404).json({ error: 'not_found_or_already_suspended' });
+    }
+    res.json({ community_leader_id: r.rows[0].id, status: 'suspended' });
+  },
+);
+
+router.post(
+  '/community-leaders/:id/reactivate',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE community_leaders
+              SET suspended_at = NULL,
+                  suspended_by = NULL,
+                  suspension_reason = NULL
+            WHERE id = $1 AND suspended_at IS NOT NULL
+            RETURNING id, display_name`,
+          [req.params.id],
+        ),
+      { change_reason: 'reactivate community_leader' },
+    );
+    if (r.rowCount === 0) {
+      return res.status(404).json({ error: 'not_found_or_already_active' });
+    }
+    res.json({ community_leader_id: r.rows[0].id, status: 'active' });
   },
 );
 

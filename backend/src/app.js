@@ -23,6 +23,7 @@ const geographyRouter = require('./routes/geography');
 const campsRouter = require('./routes/camps');
 const registriesRouter = require('./routes/registries');
 const dhoRouter = require('./routes/dho');
+const communityLeaderRouter = require('./routes/communityLeader');
 
 // Spec §10 security hardening:
 //   - Helmet with a strict CSP (no inline scripts; API only serves JSON)
@@ -133,6 +134,7 @@ function createApp() {
   app.use('/camps', campsRouter);
   app.use('/registries', registriesRouter);
   app.use('/dho', dhoRouter);
+  app.use('/community-leader', communityLeaderRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

@@ -55,7 +55,7 @@ function shouldUnlock(user) {
 router.post('/otp/send', otpSendLimiter, async (req, res) => {
   const schema = z.object({
     mobile: z.string(),
-    role_hint: z.enum(['donor', 'coordinator']).optional(),
+    role_hint: z.enum(['donor', 'coordinator', 'community_leader']).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
@@ -63,10 +63,19 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
   const mobile = normaliseIndianMobile(parsed.data.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
 
-  // Spec rule: donor/coordinator OTP path. We look up the existing user; if
-  // none, we DO NOT auto-create — registration is a separate flow.
+  // Spec rule: donor/coordinator/community_leader OTP path. We look up the
+  // existing user; if none, we DO NOT auto-create (only donors get auto-created
+  // — registration is a separate flow for everyone else).
+  //
+  // Mobile uniqueness is per-role-bucket (migration 269): a mobile may
+  // appear ONCE in the OTP cluster AND ONCE in the staff cluster. The OTP
+  // path only cares about the OTP-cluster row — filter explicitly so a
+  // staff row with the same mobile doesn't shadow the OTP-cluster row.
   const existing = await pool.query(
-    'SELECT id, role, is_locked, locked_until, otp_attempts FROM platform_users WHERE mobile = $1',
+    `SELECT id, role, is_locked, locked_until, otp_attempts
+       FROM platform_users
+      WHERE mobile = $1
+        AND role IN ('donor', 'coordinator', 'community_leader')`,
     [mobile],
   );
 
@@ -74,9 +83,13 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
   if (existing.rowCount === 0) {
     // Auto-create a thin platform_users row in 'donor' role on first OTP request.
     // The donor profile (donors table) is created later by the registration form.
-    // Coordinators are NEVER auto-created — they require ngo_admin onboarding.
+    // Coordinators + community_leaders are NEVER auto-created — they require
+    // ngo_admin onboarding (see POST /admin/community-leaders for the latter).
     if (parsed.data.role_hint === 'coordinator') {
       return res.status(403).json({ error: 'coordinator_not_registered' });
+    }
+    if (parsed.data.role_hint === 'community_leader') {
+      return res.status(403).json({ error: 'community_leader_not_registered' });
     }
     const created = await withRlsContextRaw(
       { actor_role: 'registration', change_reason: 'auth otp send first contact' },
@@ -145,10 +158,14 @@ router.post('/otp/verify', async (req, res) => {
   const mobile = normaliseIndianMobile(parsed.data.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
 
+  // Filter to the OTP cluster — staff rows with the same mobile (per the
+  // per-role-bucket index from migration 269) live in a separate auth path.
   const r = await pool.query(
     `SELECT id, role, institution_id, otp_hash, otp_expires_at, otp_attempts,
             is_locked, locked_until
-       FROM platform_users WHERE mobile = $1`,
+       FROM platform_users
+      WHERE mobile = $1
+        AND role IN ('donor', 'coordinator', 'community_leader')`,
     [mobile],
   );
   if (r.rowCount === 0) return res.status(401).json({ error: 'invalid_credentials' });

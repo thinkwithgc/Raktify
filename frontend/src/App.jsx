@@ -20,6 +20,7 @@ import { PrivacyPolicy } from './pages/legal/PrivacyPolicy.jsx';
 import { TermsOfService } from './pages/legal/TermsOfService.jsx';
 import { DataDeletion } from './pages/legal/DataDeletion.jsx';
 import { DhoDashboard } from './pages/dho/DhoDashboard.jsx';
+import { CommunityLeaderDashboard } from './pages/communityLeader/CommunityLeaderDashboard.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -32,6 +33,7 @@ function HomeRedirect() {
   if (role === 'blood_bank') return <Navigate to="/bb" replace />;
   if (role === 'ngo_admin' || role === 'super_admin') return <Navigate to="/admin" replace />;
   if (role === 'dho') return <Navigate to="/dho" replace />;
+  if (role === 'community_leader') return <Navigate to="/community-leader" replace />;
   // ngo_admin / blood_bank / super_admin still need their own dashboards;
   // Phase 7 starter sends them through the staff landing.
   return <Landing />;
@@ -119,6 +121,14 @@ export default function App() {
         element={
           <RequireAuth roles={['dho', 'ngo_admin', 'super_admin']}>
             <DhoDashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/community-leader"
+        element={
+          <RequireAuth roles={['community_leader']}>
+            <CommunityLeaderDashboard />
           </RequireAuth>
         }
       />

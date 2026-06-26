@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
 import { CoordinatorsTab } from './CoordinatorsTab.jsx';
+import { CommunityLeadersTab } from './CommunityLeadersTab.jsx';
 import { DuplicatesTab } from './DuplicatesTab.jsx';
 import { ReferralsTab } from './ReferralsTab.jsx';
 import { OnboardingTab } from './OnboardingTab.jsx';
@@ -21,6 +22,7 @@ import { JobsTab } from './JobsTab.jsx';
 const TABS = [
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'coordinators', label: 'Coordinators' },
+  { id: 'community-leaders', label: 'Community leaders' },
   { id: 'camps', label: 'Camps' },
   { id: 'thalassemia', label: 'Thalassemia' },
   { id: 'rare', label: 'Rare blood' },
@@ -64,6 +66,7 @@ export function AdminDashboard() {
 
         {tab === 'onboarding' ? <OnboardingTab /> : null}
         {tab === 'coordinators' ? <CoordinatorsTab /> : null}
+        {tab === 'community-leaders' ? <CommunityLeadersTab /> : null}
         {tab === 'camps' ? <CampsTab /> : null}
         {tab === 'thalassemia' ? <ThalassemiaTab /> : null}
         {tab === 'rare' ? <RareBloodTab /> : null}

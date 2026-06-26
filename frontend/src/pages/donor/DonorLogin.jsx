@@ -24,6 +24,18 @@ export function DonorLogin() {
   const [pending, setPending] = useState(false);
   const [devOtp, setDevOtp] = useState('');
 
+  // Optional ?role= URL param lets non-donor OTP-cluster users (coordinator,
+  // community_leader) land here without an auto-created donor row. The
+  // backend refuses to auto-create for these roles and returns a clear
+  // <role>_not_registered error if their row hasn't been provisioned by
+  // the admin invite flow yet.
+  const roleHint =
+    new URLSearchParams(window.location.search).get('role') === 'community_leader'
+      ? 'community_leader'
+      : new URLSearchParams(window.location.search).get('role') === 'coordinator'
+        ? 'coordinator'
+        : 'donor';
+
   async function sendOtp(e) {
     e.preventDefault();
     setError('');
@@ -36,7 +48,7 @@ export function DonorLogin() {
     try {
       const r = await apiRequest('POST', '/auth/otp/send', {
         mobile: parsed.data,
-        role_hint: 'donor',
+        role_hint: roleHint,
       });
       setStep('otp');
       // The backend echoes `dev_otp` only in development mode.
@@ -71,7 +83,9 @@ export function DonorLogin() {
             ? `/c/${encodeURIComponent(pendingCamp)}`
             : r.role === 'coordinator'
               ? '/coordinator'
-              : '/donor';
+              : r.role === 'community_leader'
+                ? '/community-leader'
+                : '/donor';
       navigate(dest, { replace: true });
     } catch (err) {
       setError(err?.response?.data?.error || 'verify_failed');
