@@ -15,6 +15,7 @@
  * 1:1 mediated messaging (if we keep that scope after re-evaluation).
  */
 const express = require('express');
+const crypto = require('crypto');
 const { z } = require('zod');
 const QRCode = require('qrcode');
 
@@ -22,7 +23,8 @@ const env = require('../config/env');
 const { pool } = require('../config/db');
 const logger = require('../config/logger');
 const { verifyJWT, requireRole } = require('../middleware/auth');
-const { withRlsContext } = require('../middleware/rlsContext');
+const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
+const { normaliseIndianMobile } = require('../utils/phone');
 
 const router = express.Router();
 
@@ -478,6 +480,175 @@ router.get(
       url,
       qr_png_data_url: qrDataUrl,
     });
+  },
+);
+
+// ── Camp hosting wired to communities (Phase 4b) ─────────────────────────
+// A leader hosts a camp ATTACHED to one of their owned/co-led communities.
+// We create the camp in donation_camps with status='PE' (pending NGO
+// coord/admin review) + community_id set so it appears on the community
+// detail page + bumps community_leaders.camps_hosted via the trigger from
+// migration 284.
+
+function slugify(s) {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+const hostCampSchema = z.object({
+  name: z.string().min(2).max(160),
+  organiser_type: z.enum(['CC', 'CO', 'EI', 'EO', 'MC', 'OT']).default('CO'),
+  organiser_name: z.string().min(2),
+  state_id: z.number().int().positive(),
+  district_id: z.number().int().positive(),
+  taluka_id: z.number().int().positive().optional(),
+  venue: z.string().min(2),
+  address_line: z.string().min(5),
+  pincode: z
+    .string()
+    .regex(/^[1-9]\d{5}$/)
+    .optional(),
+  scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  target_donor_count: z.number().int().positive().max(2000).optional(),
+  organiser_contact_name: z.string().min(2).optional(),
+  organiser_contact_mobile: z.string().optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/communities/:id/camps',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const parsed = hostCampSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const data = parsed.data;
+    const leaderId = await resolveLeaderId(req.user.userId);
+    if (!leaderId) return res.status(404).json({ error: 'profile_not_found' });
+
+    // Verify the leader owns or co-leads this community. RLS would also
+    // hide the community row from a leader who isn't connected, but the
+    // explicit check returns a clear 403 vs a confusing INSERT failure.
+    const access = await pool.query(
+      `SELECT 1 FROM communities
+        WHERE id = $1
+          AND (owner_community_leader_id = $2
+               OR id IN (SELECT community_id FROM community_moderators WHERE community_leader_id = $2))`,
+      [req.params.id, leaderId],
+    );
+    if (access.rowCount === 0) {
+      return res.status(403).json({ error: 'not_owner_or_co_leader' });
+    }
+
+    const submitterMobile = data.organiser_contact_mobile
+      ? normaliseIndianMobile(data.organiser_contact_mobile)
+      : null;
+    const slug = `${slugify(data.name)}-${Date.now().toString(36).slice(-5)}`;
+    const qrToken = crypto.randomBytes(18).toString('base64url');
+
+    // INSERT uses actor_role='onboarding' to satisfy the existing
+    // camp_create RLS policy (which admits onboarding + status='PE');
+    // this mirrors how the public /camps/apply route does it. The
+    // ownership-of-community check above ensures the caller is
+    // actually entitled to create a camp for this community.
+    const created = await withRlsContextRaw(
+      {
+        actor_user_id: req.user.userId,
+        actor_role: 'onboarding',
+        change_reason: 'community_leader hosts camp',
+      },
+      async (c) => {
+        const r = await c.query(
+          `INSERT INTO donation_camps (
+             name, slug, qr_code_token, community_id,
+             state_id, district_id, taluka_id,
+             venue, address_line, pincode,
+             scheduled_date, start_time, end_time,
+             organiser_type, organiser_name,
+             target_donor_count, status,
+             submitted_by_name, submitted_by_mobile,
+             organiser_contact_name, organiser_contact_mobile,
+             review_notes,
+             created_by_user_id)
+           VALUES (
+             $1, $2, $3, $4,
+             $5, $6, $7,
+             $8, $9, $10,
+             $11, $12, $13,
+             $14, $15,
+             $16, 'PE',
+             $17, $18,
+             $19, $20,
+             $21,
+             $22)
+           RETURNING id, name, slug, scheduled_date, status`,
+          [
+            data.name,
+            slug,
+            qrToken,
+            req.params.id,
+            data.state_id,
+            data.district_id,
+            data.taluka_id || null,
+            data.venue,
+            data.address_line,
+            data.pincode || null,
+            data.scheduled_date,
+            data.start_time,
+            data.end_time,
+            data.organiser_type,
+            data.organiser_name,
+            data.target_donor_count || null,
+            data.organiser_contact_name || null,
+            submitterMobile,
+            data.organiser_contact_name || null,
+            submitterMobile,
+            data.notes || null,
+            req.user.userId,
+          ],
+        );
+        return r.rows[0];
+      },
+      { change_reason: 'community_leader hosts camp' },
+    );
+
+    res.status(201).json({
+      camp: created,
+      next_step:
+        'The camp is in PE (pending review). An NGO coordinator will verify and approve it. Once approved (status PL), donors can RSVP via the public camp page.',
+    });
+  },
+);
+
+// ── GET /community-leader/communities/:id/camps ──────────────────────────
+// Camps tied to this community, regardless of status (so the leader sees
+// PE pending → PL planned → LV live → CO completed lifecycle).
+router.get(
+  '/communities/:id/camps',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const r = await withRlsContext(req, (c) =>
+      c.query(
+        `SELECT dc.id, dc.name, dc.slug, dc.scheduled_date,
+                dc.start_time, dc.end_time, dc.venue,
+                dc.status, dc.registered_donor_count, dc.attended_donor_count,
+                dc.units_collected, dc.target_donor_count,
+                dc.created_at
+           FROM donation_camps dc
+          WHERE dc.community_id = $1
+          ORDER BY dc.scheduled_date DESC`,
+        [req.params.id],
+      ),
+    );
+    res.json({ camps: r.rows, count: r.rowCount });
   },
 );
 

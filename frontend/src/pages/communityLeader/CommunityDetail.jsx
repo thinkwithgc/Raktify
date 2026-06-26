@@ -112,15 +112,7 @@ export function CommunityDetail() {
 
       <ReferralCard communityId={id} />
       <DonorsCard communityId={id} />
-
-      <section className="rk-card bg-sand/40">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-          Coming next
-        </h2>
-        <ul className="mt-2 space-y-1.5 text-sm text-stone-700">
-          <li>• <strong>Phase 4:</strong> Host a blood-donation camp from this community.</li>
-        </ul>
-      </section>
+      <CampsCard community={community} />
     </Shell>
   );
 }
@@ -490,6 +482,320 @@ function EditCommunityModal({ community, onClose }) {
         </form>
       </div>
     </div>
+  );
+}
+
+// Camps card — lists camps tied to this community (any status) and lets
+// the owner host a new one. Co-leaders see the list but no "Host" button.
+function CampsCard({ community }) {
+  const [hosting, setHosting] = useState(false);
+  const campsQ = useQuery({
+    queryKey: ['cl-camps', community.id],
+    queryFn: () => apiRequest('GET', `/community-leader/communities/${community.id}/camps`),
+    staleTime: 30_000,
+  });
+  const camps = campsQ.data?.camps || [];
+  return (
+    <section className="rk-card">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          Camps ({camps.length})
+        </h2>
+        {community.is_owner ? (
+          <button
+            type="button"
+            className="rk-button-primary text-xs"
+            onClick={() => setHosting(true)}
+          >
+            + Host a camp
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-stone-500">
+        Donation drives tied to this community. New camps start in &ldquo;Pending&rdquo; — an
+        NGO coordinator reviews and approves before donors can RSVP.
+      </p>
+      {campsQ.isLoading ? (
+        <p className="mt-3 text-sm text-stone-500">Loading…</p>
+      ) : camps.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">
+          No camps yet. Host your first one to start collecting donations as a community.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-2 py-1.5 text-left">Camp</th>
+                <th className="px-2 py-1.5 text-left">When</th>
+                <th className="px-2 py-1.5 text-left">Venue</th>
+                <th className="px-2 py-1.5 text-left">Status</th>
+                <th className="px-2 py-1.5 text-right">RSVPs</th>
+                <th className="px-2 py-1.5 text-right">Attended</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {camps.map((c) => (
+                <tr key={c.id}>
+                  <td className="px-2 py-1.5 font-medium">{c.name}</td>
+                  <td className="px-2 py-1.5 text-stone-600">
+                    {new Date(c.scheduled_date).toLocaleDateString()} {c.start_time?.slice(0, 5)}
+                  </td>
+                  <td className="px-2 py-1.5 text-stone-600">{c.venue}</td>
+                  <td className="px-2 py-1.5">
+                    <CampStatusBadge status={c.status} />
+                  </td>
+                  <td className="px-2 py-1.5 text-right">{c.registered_donor_count}</td>
+                  <td className="px-2 py-1.5 text-right">{c.attended_donor_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {hosting ? (
+        <HostCampModal community={community} onClose={() => setHosting(false)} />
+      ) : null}
+    </section>
+  );
+}
+
+function CampStatusBadge({ status }) {
+  const map = {
+    PE: { label: 'Pending', cls: 'bg-amber-100 text-amber-800' },
+    PL: { label: 'Planned', cls: 'bg-blue-100 text-blue-800' },
+    LV: { label: 'Live', cls: 'bg-emerald-100 text-emerald-800' },
+    CO: { label: 'Completed', cls: 'bg-slate-100 text-slate-700' },
+    CA: { label: 'Cancelled', cls: 'bg-rk-100 text-rk-800' },
+  };
+  const m = map[status] || { label: status, cls: 'bg-slate-100 text-slate-700' };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.cls}`}>{m.label}</span>
+  );
+}
+
+function HostCampModal({ community, onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: '',
+    venue: '',
+    address_line: '',
+    pincode: '',
+    scheduled_date: '',
+    start_time: '09:00',
+    end_time: '13:00',
+    organiser_name: community.name,
+    organiser_contact_name: '',
+    organiser_contact_mobile: '+91',
+    target_donor_count: '',
+    notes: '',
+  });
+  const [error, setError] = useState(null);
+
+  const submit = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: form.name.trim(),
+        organiser_type: 'CO',
+        organiser_name: form.organiser_name.trim(),
+        state_id: community.state_id,
+        district_id: community.district_id,
+        venue: form.venue.trim(),
+        address_line: form.address_line.trim(),
+        scheduled_date: form.scheduled_date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+      };
+      if (community.taluka_id) body.taluka_id = community.taluka_id;
+      if (form.pincode.trim()) body.pincode = form.pincode.trim();
+      if (form.organiser_contact_name.trim())
+        body.organiser_contact_name = form.organiser_contact_name.trim();
+      if (form.organiser_contact_mobile.trim() && form.organiser_contact_mobile !== '+91')
+        body.organiser_contact_mobile = form.organiser_contact_mobile.trim();
+      if (form.target_donor_count) body.target_donor_count = Number(form.target_donor_count);
+      if (form.notes.trim()) body.notes = form.notes.trim();
+      return apiRequest(
+        'POST',
+        `/community-leader/communities/${community.id}/camps`,
+        body,
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cl-camps', community.id] });
+      qc.invalidateQueries({ queryKey: ['cl-community', community.id] });
+      onClose();
+    },
+    onError: (err) => setError(err?.response?.data?.error || 'host_failed'),
+  });
+
+  // Default scheduled date to a week from today (typical lead time).
+  if (!form.scheduled_date) {
+    const d = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const iso = d.toISOString().slice(0, 10);
+    setTimeout(() => setForm((p) => ({ ...p, scheduled_date: iso })), 0);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg max-h-[90vh] overflow-y-auto">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            submit.mutate();
+          }}
+          className="space-y-3"
+        >
+          <h3 className="text-lg font-semibold text-stone-900">Host a camp</h3>
+          <p className="text-xs text-slate-500">
+            Submission goes to NGO coordinators for review. Once approved, donors can RSVP via
+            the public camp page. Community location ({community.district_name},{' '}
+            {community.state_name}) is used by default.
+          </p>
+
+          <Field label="Camp name" required>
+            <input
+              type="text"
+              className="rk-input w-full"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              minLength={2}
+              maxLength={160}
+              placeholder="e.g. Marwadi Yuva Manch Annual Drive 2026"
+            />
+          </Field>
+
+          <Field label="Venue (building / hall name)" required>
+            <input
+              type="text"
+              className="rk-input w-full"
+              value={form.venue}
+              onChange={(e) => setForm({ ...form, venue: e.target.value })}
+              required
+              minLength={2}
+            />
+          </Field>
+
+          <Field label="Address" required>
+            <input
+              type="text"
+              className="rk-input w-full"
+              value={form.address_line}
+              onChange={(e) => setForm({ ...form, address_line: e.target.value })}
+              required
+              minLength={5}
+              placeholder="Street, locality, landmark"
+            />
+          </Field>
+
+          <Field label="Pincode (optional)">
+            <input
+              type="text"
+              className="rk-input w-full font-mono"
+              value={form.pincode}
+              onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              pattern="^[1-9]\d{5}$"
+            />
+          </Field>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="Date" required>
+              <input
+                type="date"
+                className="rk-input w-full"
+                value={form.scheduled_date}
+                onChange={(e) => setForm({ ...form, scheduled_date: e.target.value })}
+                required
+                min={new Date().toISOString().slice(0, 10)}
+              />
+            </Field>
+            <Field label="Start" required>
+              <input
+                type="time"
+                className="rk-input w-full"
+                value={form.start_time}
+                onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+                required
+              />
+            </Field>
+            <Field label="End" required>
+              <input
+                type="time"
+                className="rk-input w-full"
+                value={form.end_time}
+                onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+                required
+              />
+            </Field>
+          </div>
+
+          <Field label="Organiser contact name (optional)">
+            <input
+              type="text"
+              className="rk-input w-full"
+              value={form.organiser_contact_name}
+              onChange={(e) => setForm({ ...form, organiser_contact_name: e.target.value })}
+            />
+          </Field>
+
+          <Field label="Organiser contact mobile (optional)">
+            <input
+              type="tel"
+              className="rk-input w-full font-mono"
+              value={form.organiser_contact_mobile}
+              onChange={(e) => setForm({ ...form, organiser_contact_mobile: e.target.value })}
+              pattern="^\+91\d{10}$"
+              placeholder="+91XXXXXXXXXX"
+            />
+          </Field>
+
+          <Field label="Target donor count (optional)">
+            <input
+              type="number"
+              className="rk-input w-full"
+              value={form.target_donor_count}
+              onChange={(e) => setForm({ ...form, target_donor_count: e.target.value })}
+              min={1}
+              max={2000}
+            />
+          </Field>
+
+          <Field label="Notes for reviewer (optional)">
+            <textarea
+              className="rk-input w-full"
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              maxLength={2000}
+            />
+          </Field>
+
+          {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" className="rk-button-secondary flex-1" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="rk-button-primary flex-1" disabled={submit.isPending}>
+              {submit.isPending ? 'Submitting…' : 'Submit camp'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <label className="block">
+      <span className="rk-label">
+        {label}
+        {required ? <span className="text-rk-700"> *</span> : null}
+      </span>
+      {children}
+    </label>
   );
 }
 

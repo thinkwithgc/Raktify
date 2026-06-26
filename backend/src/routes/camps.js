@@ -148,6 +148,13 @@ const applySchema = z.object({
   volunteer_training_requested: z.boolean().optional(),
   expected_volunteer_count: z.number().int().min(0).max(500).optional(),
   notes: z.string().max(2000).optional(),
+
+  // Phase 4b — if a community_leader hosts the camp from their portal,
+  // the frontend forwards the community_id so the camp links to the
+  // community. Validated server-side: caller must be a community_leader
+  // who owns or co-leads this community. External /camps/apply submitters
+  // pass NULL here.
+  community_id: z.string().uuid().optional(),
 });
 
 function slugify(s) {
