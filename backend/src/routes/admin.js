@@ -521,6 +521,58 @@ router.get(
   },
 );
 
+// ── GET /admin/communities ───────────────────────────────────────────────
+// Director / NGO admin view of ALL communities across the platform.
+// Returns owner display_name (whether coordinator-owned or
+// community_leader-owned), region, denormalised counters, status.
+// Filter: ?status=active|suspended|all (default all). ?owner_type=
+// coordinator|community_leader|all (default all).
+router.get('/communities', verifyJWT, requireRole('ngo_admin', 'super_admin'), async (req, res) => {
+  const status = req.query.status || 'all';
+  const ownerType = req.query.owner_type || 'all';
+  const r = await withRlsContext(req, (c) =>
+    c.query(
+      `SELECT co.id, co.name, co.slug, co.description,
+                co.is_public, co.is_active,
+                co.donor_count, co.active_donor_count, co.donations_facilitated,
+                co.created_at,
+                s.name AS state_name,
+                d.name AS district_name,
+                t.name AS taluka_name,
+                CASE
+                  WHEN co.owner_community_leader_id IS NOT NULL THEN 'community_leader'
+                  WHEN co.owner_coordinator_id IS NOT NULL THEN 'coordinator'
+                  ELSE 'unknown'
+                END AS owner_type,
+                COALESCE(cl.display_name, coord.display_name) AS owner_display_name,
+                COALESCE(co.owner_community_leader_id::text, co.owner_coordinator_id::text)
+                  AS owner_id,
+                (SELECT COUNT(*)::int FROM community_moderators cm
+                  WHERE cm.community_id = co.id) AS moderator_count
+           FROM communities co
+           LEFT JOIN community_leaders cl   ON cl.id    = co.owner_community_leader_id
+           LEFT JOIN coordinators       coord ON coord.id = co.owner_coordinator_id
+           LEFT JOIN states    s ON s.id = co.state_id
+           LEFT JOIN districts d ON d.id = co.district_id
+           LEFT JOIN talukas   t ON t.id = co.taluka_id
+          WHERE CASE
+                  WHEN $1 = 'active'    THEN co.is_active = TRUE
+                  WHEN $1 = 'suspended' THEN co.is_active = FALSE
+                  ELSE TRUE
+                END
+            AND CASE
+                  WHEN $2 = 'community_leader' THEN co.owner_community_leader_id IS NOT NULL
+                  WHEN $2 = 'coordinator'      THEN co.owner_coordinator_id IS NOT NULL
+                  ELSE TRUE
+                END
+          ORDER BY co.created_at DESC
+          LIMIT 500`,
+      [status, ownerType],
+    ),
+  );
+  res.json({ communities: r.rows, count: r.rowCount });
+});
+
 // ── Community-leader management (post-Phase-8) ───────────────────────────
 // External volunteers who run pre-existing donor communities (WhatsApp
 // groups). NGO admin invites them; they log in via mobile + OTP (donor-style
