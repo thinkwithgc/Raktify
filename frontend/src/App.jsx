@@ -21,6 +21,8 @@ import { TermsOfService } from './pages/legal/TermsOfService.jsx';
 import { DataDeletion } from './pages/legal/DataDeletion.jsx';
 import { DhoDashboard } from './pages/dho/DhoDashboard.jsx';
 import { CommunityLeaderDashboard } from './pages/communityLeader/CommunityLeaderDashboard.jsx';
+import { CommunityCreate } from './pages/communityLeader/CommunityCreate.jsx';
+import { CommunityDetail } from './pages/communityLeader/CommunityDetail.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -129,6 +131,22 @@ export default function App() {
         element={
           <RequireAuth roles={['community_leader']}>
             <CommunityLeaderDashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/community-leader/communities/new"
+        element={
+          <RequireAuth roles={['community_leader']}>
+            <CommunityCreate />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/community-leader/communities/:id"
+        element={
+          <RequireAuth roles={['community_leader']}>
+            <CommunityDetail />
           </RequireAuth>
         }
       />

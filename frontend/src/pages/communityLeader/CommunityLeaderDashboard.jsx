@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
@@ -25,8 +26,15 @@ export function CommunityLeaderDashboard() {
     queryFn: () => apiRequest('GET', '/community-leader/me'),
     staleTime: 60_000,
   });
+  const commQ = useQuery({
+    queryKey: ['community-leader', 'communities'],
+    queryFn: () => apiRequest('GET', '/community-leader/communities'),
+    staleTime: 30_000,
+    enabled: !!meQ.data?.profile,
+  });
 
   const profile = meQ.data?.profile;
+  const communities = commQ.data?.communities || [];
 
   return (
     <div className="flex min-h-full flex-col bg-cream font-sans">
@@ -100,18 +108,69 @@ export function CommunityLeaderDashboard() {
               </dl>
             </section>
 
+            <section className="rk-card">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                  Your communities
+                </h2>
+                <Link
+                  to="/community-leader/communities/new"
+                  className="rk-button-primary text-xs"
+                >
+                  + Create community
+                </Link>
+              </div>
+
+              {commQ.isLoading ? (
+                <p className="mt-3 text-sm text-stone-500">Loading…</p>
+              ) : communities.length === 0 ? (
+                <p className="mt-3 text-sm text-stone-500">
+                  No communities yet. Create one — every community needs a co-leader so the
+                  handover path stays open if you ever step away.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-slate-100">
+                  {communities.map((co) => (
+                    <li key={co.id} className="py-2">
+                      <Link
+                        to={`/community-leader/communities/${co.id}`}
+                        className="flex items-center justify-between gap-3 rounded p-2 hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-stone-900">
+                            {co.name}
+                            {co.is_owner ? null : (
+                              <span className="ml-2 rounded-full bg-sand px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-600">
+                                Co-leader
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate text-xs text-stone-500">
+                            {[co.taluka_name, co.district_name, co.state_name]
+                              .filter(Boolean)
+                              .join(' · ')}{' '}
+                            · {co.donor_count} donors
+                          </div>
+                        </div>
+                        <span className="text-xs text-stone-400">›</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <section className="rk-card bg-sand/40">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
                 Coming next
               </h2>
               <ul className="mt-2 space-y-1.5 text-sm text-stone-700">
-                <li>• <strong>Phase 2:</strong> Create + manage your communities with a co-leader.</li>
                 <li>• <strong>Phase 3:</strong> See your donors, get referral links + QR codes to bring more in, host camps.</li>
               </ul>
               <p className="mt-3 text-xs text-stone-500">
                 <strong>Reminder:</strong> Raktify is your operations layer. Your WhatsApp group
-                remains your communication channel — we don't send messages to your community
-                members on your behalf, and we don't show you their mobile numbers (you already
+                remains your communication channel — we don&apos;t send messages to your community
+                members on your behalf, and we don&apos;t show you their mobile numbers (you already
                 have them in WhatsApp anyway).
               </p>
             </section>

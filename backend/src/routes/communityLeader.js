@@ -1,17 +1,33 @@
 /**
- * Community-leader self-service endpoints (Phase 1).
+ * Community-leader self-service endpoints.
  *
- *   GET  /community-leader/me      — own profile + summary stats
+ *   GET    /community-leader/me                              — own profile + summary stats
+ *   GET    /community-leader/communities                     — my owned + co-led communities
+ *   POST   /community-leader/communities                     — create (must include first co-leader)
+ *   GET    /community-leader/communities/:id                 — single community detail
+ *   POST   /community-leader/communities/:id/co-leaders      — add another co-leader (owner only)
+ *   DELETE /community-leader/communities/:id/co-leaders/:moderatorId — remove (owner only)
+ *   GET    /community-leader/leaders/lookup?q=…              — typeahead for picking co-leaders
  *
- * Phase 2 will add: communities CRUD, co-leader mgmt, community stats.
  * Phase 3 will add: donor roster (limited PII), referral link, camp wiring.
  */
 const express = require('express');
+const { z } = require('zod');
 
 const { pool } = require('../config/db');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { withRlsContext } = require('../middleware/rlsContext');
 
 const router = express.Router();
+
+// Helper — resolve the calling user's community_leaders.id.
+async function resolveLeaderId(userId) {
+  const r = await pool.query(
+    `SELECT cl.id FROM community_leaders cl WHERE cl.platform_user_id = $1`,
+    [userId],
+  );
+  return r.rowCount === 0 ? null : r.rows[0].id;
+}
 
 router.get('/me', verifyJWT, requireRole('community_leader'), async (req, res) => {
   // Pull the profile + the joined geo names + lookup-friendly counters.
@@ -45,6 +61,266 @@ router.get('/me', verifyJWT, requireRole('community_leader'), async (req, res) =
   }
 
   res.json({ profile: r.rows[0] });
+});
+
+// ── GET /community-leader/communities ────────────────────────────────────
+// Lists communities owned by the calling leader UNION communities they
+// co-lead. RLS in migration 278 ensures the calling actor only sees their
+// own; we still scope explicitly so the response payload is predictable.
+router.get('/communities', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'profile_not_found' });
+
+  const r = await withRlsContext(req, (c) =>
+    c.query(
+      `SELECT co.id, co.name, co.slug, co.description,
+              co.is_public, co.is_active,
+              co.donor_count, co.active_donor_count, co.donations_facilitated,
+              co.wa_bridge_enabled, co.created_at,
+              s.name AS state_name,
+              d.name AS district_name,
+              t.name AS taluka_name,
+              (co.owner_community_leader_id = $1) AS is_owner
+         FROM communities co
+         LEFT JOIN states    s ON s.id = co.state_id
+         LEFT JOIN districts d ON d.id = co.district_id
+         LEFT JOIN talukas   t ON t.id = co.taluka_id
+        WHERE co.owner_community_leader_id = $1
+           OR co.id IN (
+             SELECT community_id FROM community_moderators
+              WHERE community_leader_id = $1
+           )
+        ORDER BY co.created_at DESC`,
+      [leaderId],
+    ),
+  );
+  res.json({ communities: r.rows, count: r.rowCount });
+});
+
+// ── POST /community-leader/communities ───────────────────────────────────
+// Atomic create: community row + first co-leader (moderator) row in one
+// transaction. The deferred constraint trigger from migration 277 fires at
+// COMMIT and rolls back if no co-leader was inserted alongside.
+const createCommunitySchema = z.object({
+  name: z.string().min(2).max(120),
+  slug: z.string().regex(/^[a-z][a-z0-9-]{2,63}$/),
+  description: z.string().max(2000).optional(),
+  state_id: z.number().int().positive(),
+  district_id: z.number().int().positive(),
+  taluka_id: z.number().int().positive().optional(),
+  wa_group_jid: z.string().max(64).optional(),
+  wa_group_invite_link: z.string().url().max(500).optional(),
+  wa_bridge_enabled: z.boolean().optional(),
+  is_public: z.boolean().optional(),
+  // The first co-leader is REQUIRED — community can't exist without one.
+  co_leader_id: z.string().uuid(),
+});
+
+router.post('/communities', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const parsed = createCommunitySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+  }
+  const data = parsed.data;
+
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'profile_not_found' });
+  if (leaderId === data.co_leader_id) {
+    return res.status(400).json({ error: 'owner_cannot_be_own_co_leader' });
+  }
+
+  // Verify the chosen co-leader exists + is active.
+  const coCheck = await pool.query(
+    `SELECT id FROM community_leaders WHERE id = $1 AND is_active = TRUE`,
+    [data.co_leader_id],
+  );
+  if (coCheck.rowCount === 0) {
+    return res.status(400).json({ error: 'co_leader_not_found_or_inactive' });
+  }
+
+  try {
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        // 1. Insert community (owner = self). Deferred trigger queued — fires at COMMIT.
+        const comm = await c.query(
+          `INSERT INTO communities
+             (owner_community_leader_id, name, slug, description,
+              state_id, district_id, taluka_id,
+              wa_group_jid, wa_group_invite_link, wa_bridge_enabled,
+              is_public)
+           VALUES ($1,$2,$3,$4, $5,$6,$7, $8,$9,$10, $11)
+           RETURNING id, slug`,
+          [
+            leaderId,
+            data.name,
+            data.slug,
+            data.description || null,
+            data.state_id,
+            data.district_id,
+            data.taluka_id || null,
+            data.wa_group_jid || null,
+            data.wa_group_invite_link || null,
+            data.wa_bridge_enabled ?? false,
+            data.is_public ?? true,
+          ],
+        );
+        const communityId = comm.rows[0].id;
+
+        // 2. Insert co-leader moderator row. Trigger sees this at commit + passes.
+        await c.query(
+          `INSERT INTO community_moderators (community_id, community_leader_id, added_by)
+           VALUES ($1, $2, $3)`,
+          [communityId, data.co_leader_id, req.user.userId],
+        );
+        return { community_id: communityId, slug: comm.rows[0].slug };
+      },
+      { change_reason: 'create community' },
+    );
+    res.status(201).json(result);
+  } catch (err) {
+    if (/unique constraint/i.test(err.message) && /slug/i.test(err.message)) {
+      return res.status(409).json({ error: 'slug_taken' });
+    }
+    if (/community_must_have_co_leader/.test(err.message)) {
+      return res.status(400).json({ error: 'community_must_have_co_leader' });
+    }
+    throw err;
+  }
+});
+
+// ── GET /community-leader/communities/:id ────────────────────────────────
+router.get('/communities/:id', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'profile_not_found' });
+
+  const r = await withRlsContext(req, async (c) => {
+    const community = await c.query(
+      `SELECT co.id, co.name, co.slug, co.description,
+                co.is_public, co.is_active,
+                co.donor_count, co.active_donor_count, co.donations_facilitated,
+                co.wa_group_jid, co.wa_group_invite_link, co.wa_bridge_enabled,
+                co.created_at,
+                s.name AS state_name, d.name AS district_name, t.name AS taluka_name,
+                co.owner_community_leader_id,
+                (co.owner_community_leader_id = $2) AS is_owner
+           FROM communities co
+           LEFT JOIN states    s ON s.id = co.state_id
+           LEFT JOIN districts d ON d.id = co.district_id
+           LEFT JOIN talukas   t ON t.id = co.taluka_id
+          WHERE co.id = $1`,
+      [req.params.id, leaderId],
+    );
+    if (community.rowCount === 0) return null;
+
+    const moderators = await c.query(
+      `SELECT cm.id AS moderator_row_id, cm.community_leader_id, cm.added_at,
+                cl.display_name, cl.preferred_language,
+                d.name AS district_name
+           FROM community_moderators cm
+           JOIN community_leaders cl ON cl.id = cm.community_leader_id
+           LEFT JOIN districts d ON d.id = cl.district_id
+          WHERE cm.community_id = $1
+            AND cm.community_leader_id IS NOT NULL
+          ORDER BY cm.added_at ASC`,
+      [req.params.id],
+    );
+    return { community: community.rows[0], moderators: moderators.rows };
+  });
+
+  if (!r) return res.status(404).json({ error: 'not_found' });
+  res.json(r);
+});
+
+// ── POST /community-leader/communities/:id/co-leaders ────────────────────
+// Owner adds another co-leader to the community. Co-leaders cannot add
+// other co-leaders (RLS migration 278 restricts INSERT to owner-only).
+router.post(
+  '/communities/:id/co-leaders',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const schema = z.object({ co_leader_id: z.string().uuid() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    try {
+      const r = await withRlsContext(req, (c) =>
+        c.query(
+          `INSERT INTO community_moderators (community_id, community_leader_id, added_by)
+           VALUES ($1, $2, $3)
+           RETURNING id`,
+          [req.params.id, parsed.data.co_leader_id, req.user.userId],
+        ),
+      );
+      res.status(201).json({ moderator_row_id: r.rows[0].id });
+    } catch (err) {
+      if (/idx_community_moderators_unique_leader/.test(err.message)) {
+        return res.status(409).json({ error: 'already_a_co_leader' });
+      }
+      throw err;
+    }
+  },
+);
+
+// ── DELETE /community-leader/communities/:id/co-leaders/:moderatorId ─────
+// Owner removes a co-leader. Trigger from mig 277 doesn't block this on
+// DELETE-of-last-moderator (TODO Phase 3 if real users hit it). For now,
+// the API checks "would this leave 0 moderators?" and refuses.
+router.delete(
+  '/communities/:id/co-leaders/:moderatorId',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const result = await withRlsContext(req, async (c) => {
+      const count = await c.query(
+        `SELECT COUNT(*)::int AS n FROM community_moderators WHERE community_id = $1`,
+        [req.params.id],
+      );
+      if (count.rows[0].n <= 1) {
+        return { error: 'cannot_remove_last_co_leader' };
+      }
+      const del = await c.query(
+        `DELETE FROM community_moderators
+          WHERE id = $1 AND community_id = $2
+          RETURNING id`,
+        [req.params.moderatorId, req.params.id],
+      );
+      return del.rowCount === 0 ? { error: 'not_found' } : { ok: true };
+    });
+    if (result.error) {
+      return res.status(result.error === 'not_found' ? 404 : 409).json(result);
+    }
+    res.json({ status: 'removed' });
+  },
+);
+
+// ── GET /community-leader/leaders/lookup ─────────────────────────────────
+// Typeahead for the co-leader picker. Returns id + display_name + region
+// for active leaders matching the query string. Capped at 20 — UI shows a
+// "type more to narrow" hint when the list is full.
+router.get('/leaders/lookup', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ leaders: [] });
+  const myId = await resolveLeaderId(req.user.userId);
+
+  // ILIKE on display_name + a join to platform_users.mobile (last-4 match)
+  // so the operator can disambiguate by mobile suffix too. Self excluded.
+  const r = await pool.query(
+    `SELECT cl.id, cl.display_name, d.name AS district_name,
+              s.name AS state_name
+         FROM community_leaders cl
+         JOIN platform_users pu ON pu.id = cl.platform_user_id
+         LEFT JOIN districts d ON d.id = cl.district_id
+         LEFT JOIN states    s ON s.id = cl.state_id
+        WHERE cl.is_active = TRUE
+          AND cl.id <> COALESCE($2, '00000000-0000-0000-0000-000000000000'::uuid)
+          AND (cl.display_name ILIKE $1 OR pu.mobile LIKE $3)
+        ORDER BY cl.display_name
+        LIMIT 20`,
+    [`%${q}%`, myId, `%${q.slice(-4)}`],
+  );
+  res.json({ leaders: r.rows });
 });
 
 module.exports = router;

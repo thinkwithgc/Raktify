@@ -191,11 +191,18 @@ function StatusBadge({ l }) {
 
 function InviteModal({ onClose }) {
   const qc = useQueryClient();
+  // Defaulting to English because the community_leader_welcome WhatsApp
+  // template is only registered with Meta in `en` today. Sending with
+  // language='mr'/'hi' raises Meta error 132001 (translation not found).
+  // The leader's preferred_language is still stored on their profile and
+  // will drive downstream messages once MR/HI translations are registered.
+  // TODO(phase-3): register MR + HI translations of community_leader_welcome
+  // with Meta + flip this default back to 'mr'.
   const [form, setForm] = useState({
     mobile: '+91',
     full_name: '',
     display_name: '',
-    preferred_language: 'mr',
+    preferred_language: 'en',
     email: '',
     invitation_notes: '',
   });
@@ -317,10 +324,14 @@ function InviteModal({ onClose }) {
                 value={form.preferred_language}
                 onChange={(e) => setForm({ ...form, preferred_language: e.target.value })}
               >
-                <option value="mr">मराठी (Marathi)</option>
-                <option value="hi">हिंदी (Hindi)</option>
-                <option value="en">English</option>
+                <option value="en">English (welcome message sent in English)</option>
+                <option value="mr">मराठी (Marathi) — translation pending</option>
+                <option value="hi">हिंदी (Hindi) — translation pending</option>
               </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Stored on the leader&apos;s profile for future messages. The welcome WhatsApp is
+                always sent in English until MR/HI templates are registered with Meta.
+              </p>
             </label>
 
             <label className="block">
