@@ -530,6 +530,10 @@ router.get(
 router.get('/communities', verifyJWT, requireRole('ngo_admin', 'super_admin'), async (req, res) => {
   const status = req.query.status || 'all';
   const ownerType = req.query.owner_type || 'all';
+  // owner_id filter — drives the "leader drill-down" UX. When set,
+  // returns communities OWNED OR CO-LED by that leader (or coordinator).
+  // Empty/null = no filter (the default flat list).
+  const ownerId = req.query.owner_id || null;
   const r = await withRlsContext(req, (c) =>
     c.query(
       `SELECT co.id, co.name, co.slug, co.description,
@@ -548,7 +552,13 @@ router.get('/communities', verifyJWT, requireRole('ngo_admin', 'super_admin'), a
                 COALESCE(co.owner_community_leader_id::text, co.owner_coordinator_id::text)
                   AS owner_id,
                 (SELECT COUNT(*)::int FROM community_moderators cm
-                  WHERE cm.community_id = co.id) AS moderator_count
+                  WHERE cm.community_id = co.id) AS moderator_count,
+                CASE
+                  WHEN $3::text IS NULL THEN NULL
+                  WHEN co.owner_community_leader_id::text = $3 THEN 'owner'
+                  WHEN co.owner_coordinator_id::text      = $3 THEN 'owner'
+                  ELSE 'co_leader'
+                END AS relation
            FROM communities co
            LEFT JOIN community_leaders cl   ON cl.id    = co.owner_community_leader_id
            LEFT JOIN coordinators       coord ON coord.id = co.owner_coordinator_id
@@ -565,9 +575,17 @@ router.get('/communities', verifyJWT, requireRole('ngo_admin', 'super_admin'), a
                   WHEN $2 = 'coordinator'      THEN co.owner_coordinator_id IS NOT NULL
                   ELSE TRUE
                 END
+            AND ($3::text IS NULL
+                 OR co.owner_community_leader_id::text = $3
+                 OR co.owner_coordinator_id::text      = $3
+                 OR co.id IN (
+                   SELECT community_id FROM community_moderators
+                    WHERE community_leader_id::text = $3
+                       OR coordinator_id::text      = $3
+                 ))
           ORDER BY co.created_at DESC
           LIMIT 500`,
-      [status, ownerType],
+      [status, ownerType, ownerId],
     ),
   );
   res.json({ communities: r.rows, count: r.rowCount });

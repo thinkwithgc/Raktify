@@ -33,6 +33,7 @@ export function CommunityLeadersTab() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState('all');
   const [showInvite, setShowInvite] = useState(false);
+  const [drillLeader, setDrillLeader] = useState(null); // { id, display_name } | null
 
   const listQ = useQuery({
     queryKey: ['admin', 'community-leaders', filter],
@@ -106,7 +107,13 @@ export function CommunityLeadersTab() {
             {rows.map((l) => (
               <tr key={l.id}>
                 <td className="px-3 py-2">
-                  <div className="font-medium">{l.display_name}</div>
+                  <button
+                    type="button"
+                    className="font-medium text-rk-700 hover:underline"
+                    onClick={() => setDrillLeader({ id: l.id, display_name: l.display_name })}
+                  >
+                    {l.display_name}
+                  </button>
                   {l.invitation_notes ? (
                     <div className="text-xs text-slate-500">{l.invitation_notes}</div>
                   ) : null}
@@ -163,7 +170,82 @@ export function CommunityLeadersTab() {
       </div>
 
       {showInvite ? <InviteModal onClose={() => setShowInvite(false)} /> : null}
+      {drillLeader ? (
+        <LeaderDrillDownModal leader={drillLeader} onClose={() => setDrillLeader(null)} />
+      ) : null}
     </section>
+  );
+}
+
+function LeaderDrillDownModal({ leader, onClose }) {
+  const q = useQuery({
+    queryKey: ['admin', 'leader-drilldown', leader.id],
+    queryFn: () =>
+      apiRequest('GET', `/admin/communities?owner_id=${encodeURIComponent(leader.id)}`),
+    staleTime: 30_000,
+  });
+  const communities = q.data?.communities || [];
+  const owned = communities.filter((c) => c.relation === 'owner');
+  const coLed = communities.filter((c) => c.relation === 'co_leader');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-semibold text-stone-900">{leader.display_name}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        {q.isLoading ? (
+          <p className="mt-3 text-sm text-stone-500">Loading…</p>
+        ) : (
+          <div className="mt-3 space-y-4">
+            <DrillSection title={`Owns (${owned.length})`} rows={owned} emptyMessage="Doesn't own any communities yet." />
+            <DrillSection title={`Co-leads (${coLed.length})`} rows={coLed} emptyMessage="Not a co-leader on any communities." />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DrillSection({ title, rows, emptyMessage }) {
+  return (
+    <div>
+      <h4 className="text-sm font-semibold uppercase tracking-wide text-stone-500">{title}</h4>
+      {rows.length === 0 ? (
+        <p className="mt-2 text-sm text-stone-500">{emptyMessage}</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-slate-100">
+          {rows.map((c) => (
+            <li key={c.id} className="flex items-center justify-between py-2 text-sm">
+              <div>
+                <div className="font-medium text-stone-900">{c.name}</div>
+                <div className="text-xs text-stone-500">
+                  {[c.taluka_name, c.district_name, c.state_name].filter(Boolean).join(' · ')} ·{' '}
+                  {c.donor_count} donors · {c.moderator_count} co-leaders
+                </div>
+              </div>
+              <span
+                className={
+                  'rounded-full px-2 py-0.5 text-xs font-medium ' +
+                  (c.is_active ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-700')
+                }
+              >
+                {c.is_active ? 'Active' : 'Suspended'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
