@@ -60,34 +60,7 @@ export function CommunityDetail() {
         ← Back to dashboard
       </Link>
 
-      <section className="rk-card">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-stone-900">{community.name}</h1>
-            <p className="mt-1 text-sm text-stone-500">
-              {[community.taluka_name, community.district_name, community.state_name]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-            {community.description ? (
-              <p className="mt-2 text-sm text-stone-700">{community.description}</p>
-            ) : null}
-            <p className="mt-2 text-xs text-stone-500">
-              Public URL:{' '}
-              <code className="rounded bg-sand px-1.5 py-0.5">/community/{community.slug}</code>
-            </p>
-          </div>
-          {community.is_owner ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-              You are the owner
-            </span>
-          ) : (
-            <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-stone-700">
-              Co-leader
-            </span>
-          )}
-        </div>
-      </section>
+      <CommunityHeader community={community} />
 
       <section className="grid grid-cols-3 gap-3">
         <Stat label="Donors" value={community.donor_count} />
@@ -290,6 +263,233 @@ function DonorsCard({ communityId }) {
         </div>
       )}
     </section>
+  );
+}
+
+// Header card with name + region + description + owner badge + Edit button
+// (owner only). The Edit button opens a modal that PATCHes the community.
+// Slug is intentionally NOT editable — see comment on the backend route.
+function CommunityHeader({ community }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <section className="rk-card">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold text-stone-900">{community.name}</h1>
+          <p className="mt-1 text-sm text-stone-500">
+            {[community.taluka_name, community.district_name, community.state_name]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          {community.description ? (
+            <p className="mt-2 text-sm text-stone-700">{community.description}</p>
+          ) : null}
+          <p className="mt-2 text-xs text-stone-500">
+            Public URL:{' '}
+            <code className="rounded bg-sand px-1.5 py-0.5">/community/{community.slug}</code>
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {community.is_owner ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+              You are the owner
+            </span>
+          ) : (
+            <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-stone-700">
+              Co-leader
+            </span>
+          )}
+          {community.is_owner ? (
+            <button
+              type="button"
+              className="rk-button-secondary text-xs"
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {editing ? (
+        <EditCommunityModal community={community} onClose={() => setEditing(false)} />
+      ) : null}
+    </section>
+  );
+}
+
+function EditCommunityModal({ community, onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: community.name,
+    description: community.description || '',
+    state_id: String(community.state_id || ''),
+    district_id: String(community.district_id || ''),
+    taluka_id: String(community.taluka_id || ''),
+  });
+  const [error, setError] = useState(null);
+  const [confirmingRename, setConfirmingRename] = useState(false);
+
+  const statesQ = useQuery({
+    queryKey: ['geo', 'states'],
+    queryFn: () => apiRequest('GET', '/geography/states'),
+    staleTime: 24 * 3600_000,
+  });
+  const districtsQ = useQuery({
+    queryKey: ['geo', 'districts', form.state_id],
+    queryFn: () => apiRequest('GET', `/geography/districts?state_id=${form.state_id}`),
+    enabled: !!form.state_id,
+    staleTime: 24 * 3600_000,
+  });
+  const talukasQ = useQuery({
+    queryKey: ['geo', 'talukas', form.district_id],
+    queryFn: () => apiRequest('GET', `/geography/talukas?district_id=${form.district_id}`),
+    enabled: !!form.district_id,
+    staleTime: 24 * 3600_000,
+  });
+
+  const save = useMutation({
+    mutationFn: () => {
+      // Send only changed fields so the audit log captures the actual diff.
+      const body = {};
+      if (form.name.trim() !== community.name) body.name = form.name.trim();
+      if ((form.description || '').trim() !== (community.description || '')) {
+        body.description = form.description.trim() || null;
+      }
+      const newState = Number(form.state_id) || null;
+      const newDistrict = Number(form.district_id) || null;
+      const newTaluka = form.taluka_id ? Number(form.taluka_id) : null;
+      if (newState !== community.state_id) body.state_id = newState;
+      if (newDistrict !== community.district_id) body.district_id = newDistrict;
+      if (newTaluka !== community.taluka_id) body.taluka_id = newTaluka;
+      return apiRequest('PATCH', `/community-leader/communities/${community.id}`, body);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cl-community', community.id] });
+      qc.invalidateQueries({ queryKey: ['community-leader', 'communities'] });
+      onClose();
+    },
+    onError: (err) => setError(err?.response?.data?.error || 'save_failed'),
+  });
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+    // If the name changed, surface the donor-confusion confirmation once.
+    const nameChanged = form.name.trim() !== community.name;
+    if (nameChanged && !confirmingRename) {
+      setConfirmingRename(true);
+      return;
+    }
+    save.mutate();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg max-h-[90vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <h3 className="text-lg font-semibold text-stone-900">Edit community</h3>
+          <p className="text-xs text-slate-500">
+            URL slug (<code>{community.slug}</code>) can&apos;t be changed — printed posters
+            + shared WhatsApp links + bookmarked URLs would all break. Everything else is
+            editable.
+          </p>
+
+          <label className="block">
+            <span className="rk-label">Community name</span>
+            <input
+              type="text"
+              className="rk-input w-full"
+              value={form.name}
+              onChange={(e) => {
+                setForm({ ...form, name: e.target.value });
+                setConfirmingRename(false);
+              }}
+              required
+              minLength={2}
+              maxLength={120}
+            />
+          </label>
+
+          <label className="block">
+            <span className="rk-label">Description</span>
+            <textarea
+              className="rk-input w-full"
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              maxLength={2000}
+            />
+          </label>
+
+          <div className="grid grid-cols-3 gap-2">
+            <label className="block">
+              <span className="rk-label">State</span>
+              <select
+                className="rk-input w-full"
+                value={form.state_id}
+                onChange={(e) =>
+                  setForm({ ...form, state_id: e.target.value, district_id: '', taluka_id: '' })
+                }
+                required
+              >
+                <option value="">—</option>
+                {(statesQ.data?.states || []).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="rk-label">District</span>
+              <select
+                className="rk-input w-full"
+                value={form.district_id}
+                onChange={(e) => setForm({ ...form, district_id: e.target.value, taluka_id: '' })}
+                required
+                disabled={!form.state_id}
+              >
+                <option value="">—</option>
+                {(districtsQ.data?.districts || []).map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="rk-label">Taluka</span>
+              <select
+                className="rk-input w-full"
+                value={form.taluka_id}
+                onChange={(e) => setForm({ ...form, taluka_id: e.target.value })}
+                disabled={!form.district_id}
+              >
+                <option value="">—</option>
+                {(talukasQ.data?.talukas || []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {confirmingRename ? (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <strong>Renaming this community.</strong> Existing donors signed up under the
+              old name <strong>&ldquo;{community.name}&rdquo;</strong>. They won&apos;t be
+              notified of the rename. Continue?
+            </div>
+          ) : null}
+
+          {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" className="rk-button-secondary flex-1" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="rk-button-primary flex-1" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : confirmingRename ? 'Yes, rename + save' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

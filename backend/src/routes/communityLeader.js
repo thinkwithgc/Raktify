@@ -195,6 +195,65 @@ router.post('/communities', verifyJWT, requireRole('community_leader'), async (r
   }
 });
 
+// ── PATCH /community-leader/communities/:id ──────────────────────────────
+// Owner-only edit. Allowed fields: name, description, state_id, district_id,
+// taluka_id. SLUG is intentionally NOT editable — printed posters, WhatsApp
+// shares, and bookmarked /community/<slug> URLs would all become dead links
+// the moment slug changes; the convenience of fixing one typo isn't worth
+// that breakage. If a slug is really wrong, suspend the community and
+// create a fresh one.
+//
+// Permission: only the owner can edit; co-leaders cannot. Enforced by the
+// existing RLS communities_cl_update policy (migration 278) which checks
+// owner_community_leader_id = self. We don't need extra application-side
+// auth here — RLS will return 0 rows if a co-leader tries.
+const editCommunitySchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  description: z.string().max(2000).nullable().optional(),
+  state_id: z.number().int().positive().optional(),
+  district_id: z.number().int().positive().optional(),
+  taluka_id: z.number().int().positive().nullable().optional(),
+});
+
+router.patch('/communities/:id', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const parsed = editCommunitySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+  }
+  const data = parsed.data;
+  const sets = [];
+  const vals = [req.params.id];
+  let i = 2;
+  for (const k of ['name', 'description', 'state_id', 'district_id', 'taluka_id']) {
+    if (Object.prototype.hasOwnProperty.call(data, k)) {
+      sets.push(`${k} = $${i}`);
+      vals.push(data[k]);
+      i += 1;
+    }
+  }
+  if (sets.length === 0) {
+    return res.status(400).json({ error: 'no_fields_to_update' });
+  }
+
+  const r = await withRlsContext(
+    req,
+    (c) =>
+      c.query(
+        // Whitelisted column names assembled above — no user input in the
+        // SET clause identifiers. UPDATE returns 0 rows for co-leaders
+        // (RLS prevents the row from being matched).
+        // eslint-disable-next-line no-restricted-syntax
+        `UPDATE communities SET ${sets.join(', ')} WHERE id = $1 RETURNING id, name, description, state_id, district_id, taluka_id`,
+        vals,
+      ),
+    { change_reason: 'edit community' },
+  );
+  if (r.rowCount === 0) {
+    return res.status(404).json({ error: 'not_found_or_not_owner' });
+  }
+  res.json({ community: r.rows[0] });
+});
+
 // ── GET /community-leader/communities/:id ────────────────────────────────
 router.get('/communities/:id', verifyJWT, requireRole('community_leader'), async (req, res) => {
   const leaderId = await resolveLeaderId(req.user.userId);
