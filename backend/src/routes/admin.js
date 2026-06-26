@@ -481,10 +481,10 @@ router.post(
           : `Row created but WhatsApp invitation did NOT send (template may still be pending Meta approval). Tell the leader out-of-band: log in at /login?role=community_leader with mobile ${mobile}.`,
       });
     } catch (err) {
-      // Defensive: cluster index could still trip if a race happened between
-      // the existence check above and the INSERT.
-      if (/idx_platform_users_mobile_otp_cluster/.test(err.message)) {
-        return res.status(409).json({ error: 'mobile_already_in_otp_cluster' });
+      // Defensive: per-role index could still trip if a race happened
+      // between the existence check above and the INSERT.
+      if (/idx_platform_users_mobile_community_leader/.test(err.message)) {
+        return res.status(409).json({ error: 'mobile_already_invited' });
       }
       // Postgres error code 23514 = check_violation. Surface a readable
       // version of which constraint tripped so the admin doesn't see a

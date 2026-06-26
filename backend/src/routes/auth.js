@@ -67,16 +67,18 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
   // existing user; if none, we DO NOT auto-create (only donors get auto-created
   // — registration is a separate flow for everyone else).
   //
-  // Mobile uniqueness is per-role-bucket (migration 269): a mobile may
-  // appear ONCE in the OTP cluster AND ONCE in the staff cluster. The OTP
-  // path only cares about the OTP-cluster row — filter explicitly so a
-  // staff row with the same mobile doesn't shadow the OTP-cluster row.
+  // Per-role mobile uniqueness (migration 274): a mobile may hold rows in
+  // donor + coordinator + community_leader IN PARALLEL (Q8 in the Phase-1
+  // planning: "a community leader can also be a donor"). role_hint
+  // disambiguates which row this OTP request is for — defaults to 'donor'
+  // when absent so the legacy donor-login UX is unchanged.
+  const targetRole = parsed.data.role_hint || 'donor';
   const existing = await pool.query(
     `SELECT id, role, is_locked, locked_until, otp_attempts
        FROM platform_users
       WHERE mobile = $1
-        AND role IN ('donor', 'coordinator', 'community_leader')`,
-    [mobile],
+        AND role = $2`,
+    [mobile, targetRole],
   );
 
   let userId;
@@ -151,6 +153,7 @@ router.post('/otp/verify', async (req, res) => {
   const schema = z.object({
     mobile: z.string(),
     otp: z.string().regex(/^\d{6}$/, 'otp must be 6 digits'),
+    role_hint: z.enum(['donor', 'coordinator', 'community_leader']).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
@@ -158,15 +161,19 @@ router.post('/otp/verify', async (req, res) => {
   const mobile = normaliseIndianMobile(parsed.data.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
 
-  // Filter to the OTP cluster — staff rows with the same mobile (per the
-  // per-role-bucket index from migration 269) live in a separate auth path.
+  // Per-role lookup (migration 274). The same mobile may hold donor +
+  // coordinator + community_leader rows in parallel — role_hint picks
+  // which row's OTP we're verifying. Defaults to 'donor' if absent so
+  // the legacy DonorLogin flow continues to work without changes; the
+  // updated DonorLogin now forwards the URL ?role= param explicitly.
+  const targetRole = parsed.data.role_hint || 'donor';
   const r = await pool.query(
     `SELECT id, role, institution_id, otp_hash, otp_expires_at, otp_attempts,
             is_locked, locked_until
        FROM platform_users
       WHERE mobile = $1
-        AND role IN ('donor', 'coordinator', 'community_leader')`,
-    [mobile],
+        AND role = $2`,
+    [mobile, targetRole],
   );
   if (r.rowCount === 0) return res.status(401).json({ error: 'invalid_credentials' });
   const u = r.rows[0];

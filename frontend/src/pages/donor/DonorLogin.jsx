@@ -69,7 +69,11 @@ export function DonorLogin() {
     }
     setPending(true);
     try {
-      const r = await apiRequest('POST', '/auth/otp/verify', { mobile, otp });
+      const r = await apiRequest('POST', '/auth/otp/verify', {
+        mobile,
+        otp,
+        role_hint: roleHint,
+      });
       setSession(r);
       // If the donor was redirected here from a public camp link (or any
       // /login?return=... handoff), bounce them back to that URL instead of
