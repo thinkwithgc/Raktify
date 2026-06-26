@@ -31,12 +31,7 @@ export function CommunityCreate() {
     taluka_id: '',
     co_leader_id: '',
     co_leader_label: '', // display string for the picked leader (UX only)
-    is_public: true,
-    wa_group_invite_link: '',
-    wa_bridge_enabled: false,
-    wa_group_jid: '',
   });
-  const [showWa, setShowWa] = useState(false);
   const [error, setError] = useState(null);
 
   // Auto-derive slug from name (only if user hasn't manually edited slug).
@@ -82,15 +77,11 @@ export function CommunityCreate() {
         state_id: Number(form.state_id),
         district_id: Number(form.district_id),
         co_leader_id: form.co_leader_id,
-        is_public: form.is_public,
+        // is_public always true — DB default handles it; no toggle in the
+        // form because all communities are publicly discoverable for v1.
       };
       if (form.description.trim()) body.description = form.description.trim();
       if (form.taluka_id) body.taluka_id = Number(form.taluka_id);
-      if (form.wa_group_invite_link.trim()) body.wa_group_invite_link = form.wa_group_invite_link.trim();
-      if (form.wa_bridge_enabled) {
-        body.wa_bridge_enabled = true;
-        body.wa_group_jid = form.wa_group_jid.trim();
-      }
       return apiRequest('POST', '/community-leader/communities', body);
     },
     onSuccess: (data) => {
@@ -230,60 +221,6 @@ export function CommunityCreate() {
             </p>
           </Field>
 
-          <label className="flex items-center gap-2 text-sm text-stone-700">
-            <input
-              type="checkbox"
-              checked={form.is_public}
-              onChange={(e) => update('is_public', e.target.checked)}
-            />
-            Public — discoverable in search and at <code>/community/{form.slug || 'slug'}</code>
-          </label>
-
-          <button
-            type="button"
-            className="text-sm text-rk-700 hover:underline"
-            onClick={() => setShowWa((s) => !s)}
-          >
-            {showWa ? '−' : '+'} WhatsApp group bridge (optional)
-          </button>
-
-          {showWa ? (
-            <div className="space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs text-stone-500">
-                These fields are metadata only for v1 — Raktify does not insert a bot into your
-                group. Storing them now keeps the door open for future bridge features without
-                a schema change.
-              </p>
-              <Field label="WhatsApp group invite link">
-                <input
-                  type="url"
-                  className="rk-input w-full"
-                  value={form.wa_group_invite_link}
-                  onChange={(e) => update('wa_group_invite_link', e.target.value)}
-                  placeholder="https://chat.whatsapp.com/…"
-                />
-              </Field>
-              <label className="flex items-center gap-2 text-sm text-stone-700">
-                <input
-                  type="checkbox"
-                  checked={form.wa_bridge_enabled}
-                  onChange={(e) => update('wa_bridge_enabled', e.target.checked)}
-                />
-                Mark this community as bridge-ready (no-op in v1)
-              </label>
-              {form.wa_bridge_enabled ? (
-                <Field label="WhatsApp group JID (e.g. 1234@g.us)" required>
-                  <input
-                    type="text"
-                    className="rk-input w-full font-mono"
-                    value={form.wa_group_jid}
-                    onChange={(e) => update('wa_group_jid', e.target.value)}
-                  />
-                </Field>
-              ) : null}
-            </div>
-          ) : null}
-
           {error ? <p className="text-sm text-rk-700">{error}</p> : null}
 
           <div className="flex gap-2 pt-2">
@@ -346,6 +283,11 @@ function CoLeaderPicker({ value, label, onPick, onClear }) {
     );
   }
 
+  // Close the dropdown when the user taps anywhere OUTSIDE the picker.
+  // Using `onMouseDown` (not `onClick`) on the dropdown buttons + `preventDefault`
+  // is the canonical fix for the bug the user hit: the input's blur was firing
+  // before the button's click registered, so the dropdown unmounted before
+  // onPick could run.
   return (
     <div className="relative">
       <input
@@ -372,12 +314,18 @@ function CoLeaderPicker({ value, label, onPick, onClear }) {
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-                    onClick={() =>
+                    // onMouseDown fires BEFORE the input's blur — without
+                    // preventDefault the input loses focus first and the
+                    // button click event is lost on mobile browsers. This
+                    // pattern is standard for dropdown menus that need to
+                    // act before the parent input releases focus.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
                       onPick(
                         l.id,
                         `${l.display_name}${l.district_name ? ` (${l.district_name})` : ''}`,
-                      )
-                    }
+                      );
+                    }}
                   >
                     <div className="font-medium text-stone-900">{l.display_name}</div>
                     {l.district_name || l.state_name ? (

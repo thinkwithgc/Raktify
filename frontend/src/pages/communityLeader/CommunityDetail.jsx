@@ -227,7 +227,14 @@ function AddCoLeaderInline({ communityId }) {
                   <button
                     type="button"
                     className="block w-full px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-                    onClick={() => add.mutate(l.id)}
+                    // onMouseDown + preventDefault — same dropdown-blur fix
+                    // as the create-form CoLeaderPicker. Without this the
+                    // input's blur fires before the button click on mobile,
+                    // and the selection is lost.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      add.mutate(l.id);
+                    }}
                     disabled={add.isPending}
                   >
                     <span className="font-medium">{l.display_name}</span>
