@@ -135,6 +135,11 @@ function createApp() {
   app.use('/registries', registriesRouter);
   app.use('/dho', dhoRouter);
   app.use('/community-leader', communityLeaderRouter);
+  // Public community profile endpoint — sibling of /community-leader,
+  // mounted under /community (singular) to keep the URL friendly for
+  // sharing. Exported as publicRouter from the same file so we keep all
+  // community-related routes in one module.
+  app.use('/community', communityLeaderRouter.publicRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

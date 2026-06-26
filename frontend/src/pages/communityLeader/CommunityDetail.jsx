@@ -137,17 +137,159 @@ export function CommunityDetail() {
         ) : null}
       </section>
 
+      <ReferralCard communityId={id} />
+      <DonorsCard communityId={id} />
+
       <section className="rk-card bg-sand/40">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
           Coming next
         </h2>
         <ul className="mt-2 space-y-1.5 text-sm text-stone-700">
-          <li>• <strong>Phase 3:</strong> Your donor roster (name + blood group + last-donation date).</li>
-          <li>• <strong>Phase 3:</strong> Referral link + QR code to share in your WhatsApp group.</li>
-          <li>• <strong>Phase 3:</strong> Host a blood-donation camp from this community.</li>
+          <li>• <strong>Phase 4:</strong> Host a blood-donation camp from this community.</li>
         </ul>
       </section>
     </Shell>
+  );
+}
+
+function ReferralCard({ communityId }) {
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const q = useQuery({
+    queryKey: ['cl-referral', communityId],
+    queryFn: () => apiRequest('GET', `/community-leader/communities/${communityId}/referral`),
+    staleTime: 5 * 60_000,
+  });
+  if (q.isLoading || !q.data) {
+    return (
+      <section className="rk-card">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          Referral link
+        </h2>
+        <p className="mt-2 text-sm text-stone-500">Generating link…</p>
+      </section>
+    );
+  }
+  const { url, qr_png_data_url } = q.data;
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard may be unavailable in some browsers — fall back silently.
+      setCopied(false);
+    }
+  }
+  return (
+    <section className="rk-card">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+        Referral link
+      </h2>
+      <p className="mt-1 text-xs text-stone-500">
+        Share this in your WhatsApp group. Anyone who signs up via this link will be
+        tagged to your community.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="text"
+          value={url}
+          readOnly
+          className="rk-input flex-1 font-mono text-xs"
+          onFocus={(e) => e.target.select()}
+        />
+        <button type="button" className="rk-button-primary text-sm" onClick={copy}>
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          className="text-xs text-rk-700 hover:underline"
+          onClick={() => setShowQr((s) => !s)}
+        >
+          {showQr ? 'Hide QR code' : 'Show QR code'}
+        </button>
+      </div>
+      {showQr && qr_png_data_url ? (
+        <div className="mt-3 flex flex-col items-center gap-2 rounded border border-slate-200 bg-white p-3">
+          <img src={qr_png_data_url} alt="Referral QR" className="h-48 w-48" />
+          <a
+            href={qr_png_data_url}
+            download={`raktify-community-${communityId.slice(0, 8)}-qr.png`}
+            className="text-xs text-rk-700 hover:underline"
+          >
+            Download PNG
+          </a>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DonorsCard({ communityId }) {
+  const q = useQuery({
+    queryKey: ['cl-donors', communityId],
+    queryFn: () => apiRequest('GET', `/community-leader/communities/${communityId}/donors`),
+    staleTime: 30_000,
+  });
+  const donors = q.data?.donors || [];
+  return (
+    <section className="rk-card">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          Donors in this community ({donors.length})
+        </h2>
+      </div>
+      <p className="mt-1 text-xs text-stone-500">
+        Name + blood group + last donation date only. Mobile numbers stay in your
+        WhatsApp group — you already have them there.
+      </p>
+      {q.isLoading ? (
+        <p className="mt-3 text-sm text-stone-500">Loading…</p>
+      ) : donors.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">
+          No donors yet. Share the referral link above to start recruiting.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-2 py-1.5 text-left">Donor</th>
+                <th className="px-2 py-1.5 text-left">Blood group</th>
+                <th className="px-2 py-1.5 text-right">Donations</th>
+                <th className="px-2 py-1.5 text-left">Last donation</th>
+                <th className="px-2 py-1.5 text-left">Joined</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {donors.map((d) => (
+                <tr key={d.id}>
+                  <td className="px-2 py-1.5 font-medium">{d.display_name}</td>
+                  <td className="px-2 py-1.5">
+                    {d.blood_group_verified || (
+                      <span className="text-slate-400">
+                        {d.blood_group_self ? `${d.blood_group_self} (unverified)` : '—'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">{d.total_donations}</td>
+                  <td className="px-2 py-1.5 text-stone-600">
+                    {d.last_donation_date
+                      ? new Date(d.last_donation_date).toLocaleDateString()
+                      : '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-stone-600">
+                    {d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

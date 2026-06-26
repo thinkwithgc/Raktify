@@ -67,6 +67,11 @@ const registerSchema = z.object({
   whatsapp_opted_in: z.boolean().default(false),
   sms_opted_in: z.boolean().default(true),
   community_id: z.string().uuid().optional(),
+  // Phase 3: if a donor signs up via a public community page or referral
+  // link, we credit the specific leader who recruited them. When the URL
+  // only carried community_id (or slug), the resolver defaults to the
+  // community owner at registration time — see resolver below.
+  referred_by_community_leader_id: z.string().uuid().optional(),
   registration_source: z.enum(['QRC', 'WAB', 'WEB', 'APP', 'BBK', 'CAM']).default('WEB'),
   registration_camp_id: z.string().uuid().optional(),
   // Pre-screening answers (Step 1) — accepted but NOT yet evaluated against
@@ -146,6 +151,20 @@ router.post('/register', async (req, res) => {
           });
         }
 
+        // Phase 3 attribution: if the donor came via a community page but
+        // the URL didn't carry a specific leader id, default to the
+        // community's current owner so somebody gets credit.
+        let referredByLeader = data.referred_by_community_leader_id || null;
+        if (data.community_id && !referredByLeader) {
+          const co = await c.query(
+            `SELECT owner_community_leader_id FROM communities WHERE id = $1`,
+            [data.community_id],
+          );
+          if (co.rowCount > 0 && co.rows[0].owner_community_leader_id) {
+            referredByLeader = co.rows[0].owner_community_leader_id;
+          }
+        }
+
         const insR = await c.query(
           `INSERT INTO donors (
               mobile, mobile_verified, full_name, date_of_birth, gender,
@@ -153,7 +172,7 @@ router.post('/register', async (req, res) => {
               village_id, pincode, address_line, max_travel_km,
               blood_group_self_reported,
               preferred_contact_channel, whatsapp_opted_in, sms_opted_in,
-              community_id, platform_user_id,
+              community_id, referred_by_community_leader_id, platform_user_id,
               registration_source, registration_camp_id,
               suspected_duplicate_of)
            VALUES (
@@ -162,9 +181,9 @@ router.post('/register', async (req, res) => {
               $8, $9, $10, $11,
               $12,
               $13, $14, $15,
-              $16, $17,
-              $18, $19,
-              $20)
+              $16, $17, $18,
+              $19, $20,
+              $21)
            RETURNING id`,
           [
             mobile,
@@ -183,6 +202,7 @@ router.post('/register', async (req, res) => {
             data.whatsapp_opted_in,
             data.sms_opted_in,
             data.community_id || null,
+            referredByLeader,
             platformUserId,
             data.registration_source,
             data.registration_camp_id || null,

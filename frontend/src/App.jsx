@@ -23,6 +23,7 @@ import { DhoDashboard } from './pages/dho/DhoDashboard.jsx';
 import { CommunityLeaderDashboard } from './pages/communityLeader/CommunityLeaderDashboard.jsx';
 import { CommunityCreate } from './pages/communityLeader/CommunityCreate.jsx';
 import { CommunityDetail } from './pages/communityLeader/CommunityDetail.jsx';
+import { PublicCommunity } from './pages/community/PublicCommunity.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -58,6 +59,7 @@ export default function App() {
       <Route path="/camps/host" element={<HostCamp />} />
       <Route path="/camp/:token" element={<CampOrganizerDashboard />} />
       <Route path="/c/:slug" element={<PublicCampPage />} />
+      <Route path="/community/:slug" element={<PublicCommunity />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/data-deletion" element={<DataDeletion />} />

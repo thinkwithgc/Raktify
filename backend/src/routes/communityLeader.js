@@ -1,20 +1,26 @@
 /**
  * Community-leader self-service endpoints.
  *
- *   GET    /community-leader/me                              — own profile + summary stats
- *   GET    /community-leader/communities                     — my owned + co-led communities
- *   POST   /community-leader/communities                     — create (must include first co-leader)
- *   GET    /community-leader/communities/:id                 — single community detail
- *   POST   /community-leader/communities/:id/co-leaders      — add another co-leader (owner only)
- *   DELETE /community-leader/communities/:id/co-leaders/:moderatorId — remove (owner only)
- *   GET    /community-leader/leaders/lookup?q=…              — typeahead for picking co-leaders
+ *   GET    /community-leader/me                                       — own profile + summary stats
+ *   GET    /community-leader/communities                              — my owned + co-led communities
+ *   POST   /community-leader/communities                              — create (must include first co-leader)
+ *   GET    /community-leader/communities/:id                          — single community detail
+ *   POST   /community-leader/communities/:id/co-leaders               — add another co-leader (owner only)
+ *   DELETE /community-leader/communities/:id/co-leaders/:moderatorId  — remove (owner only)
+ *   GET    /community-leader/leaders/lookup?q=…                       — typeahead for picking co-leaders
+ *   GET    /community-leader/communities/:id/donors                   — Phase 3: donor roster (limited PII)
+ *   GET    /community-leader/communities/:id/referral                 — Phase 3: shareable URL + QR PNG
  *
- * Phase 3 will add: donor roster (limited PII), referral link, camp wiring.
+ * Phase 4 will add: camp hosting wired to communities, plus per-donor
+ * 1:1 mediated messaging (if we keep that scope after re-evaluation).
  */
 const express = require('express');
 const { z } = require('zod');
+const QRCode = require('qrcode');
 
+const env = require('../config/env');
 const { pool } = require('../config/db');
+const logger = require('../config/logger');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { withRlsContext } = require('../middleware/rlsContext');
 
@@ -323,4 +329,139 @@ router.get('/leaders/lookup', verifyJWT, requireRole('community_leader'), async 
   res.json({ leaders: r.rows });
 });
 
+// ── GET /community-leader/communities/:id/donors ────────────────────────
+// Roster view — limited fields ONLY. We deliberately do NOT select
+// mobile, address_line, abha_id, aadhaar_last4, deferral_reason, or any
+// other PII outside the whitelist. RLS (migration 281) already restricts
+// to donors whose community_id is in the leader's owned + co-led set;
+// this query just enforces the column-level boundary.
+//
+// Returned per donor:
+//   • display_name (full_name)        — needed to know who they are
+//   • blood_group_verified / self     — that's the recruitment hook
+//   • last_donation_date              — gives the leader a recency signal
+//   • is_available                    — currently accepting alerts?
+//   • total_donations                 — pride / recognition
+//   • created_at                      — when they joined the community
+router.get(
+  '/communities/:id/donors',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const r = await withRlsContext(req, async (c) => {
+      // Verify access to this community (owner or co-leader) — the RLS
+      // policy will silently filter anyway, but an explicit 404 is
+      // friendlier than an empty list when the id is wrong.
+      const access = await c.query(`SELECT 1 FROM communities WHERE id = $1`, [req.params.id]);
+      if (access.rowCount === 0) return null;
+
+      // Last donation date is on donation_history. LEFT JOIN + MAX so a
+      // donor with zero donations gets NULL not row-dropped.
+      const donors = await c.query(
+        `SELECT d.id,
+                d.full_name AS display_name,
+                bg_v.display_name AS blood_group_verified,
+                bg_s.display_name AS blood_group_self,
+                d.total_donations,
+                d.is_available,
+                d.created_at,
+                (SELECT MAX(dh.donation_date)
+                   FROM donation_history dh
+                  WHERE dh.donor_id = d.id) AS last_donation_date
+           FROM donors d
+           LEFT JOIN blood_groups bg_v ON bg_v.id = d.blood_group_verified
+           LEFT JOIN blood_groups bg_s ON bg_s.id = d.blood_group_self_reported
+          WHERE d.community_id = $1
+          ORDER BY d.created_at DESC
+          LIMIT 500`,
+        [req.params.id],
+      );
+      return donors.rows;
+    });
+    if (r === null) return res.status(404).json({ error: 'not_found' });
+    res.json({ donors: r, count: r.length });
+  },
+);
+
+// ── GET /community-leader/communities/:id/referral ───────────────────────
+// Returns the shareable URL + a base64-encoded QR PNG. The leader pastes
+// the URL in their WhatsApp group OR shows the QR to a prospective donor
+// in person.
+//
+// URL pattern: https://<frontend>/community/<slug>
+// The public /community/:slug page leads to /register with attribution
+// pre-filled.
+router.get(
+  '/communities/:id/referral',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const r = await withRlsContext(req, (c) =>
+      c.query(`SELECT id, slug, name FROM communities WHERE id = $1`, [req.params.id]),
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'not_found' });
+    const co = r.rows[0];
+    const url = `${env.frontendUrl}/community/${co.slug}`;
+    let qrDataUrl = null;
+    try {
+      qrDataUrl = await QRCode.toDataURL(url, {
+        margin: 1,
+        scale: 8,
+        errorCorrectionLevel: 'M',
+      });
+    } catch (err) {
+      logger.warn({ err: err.message }, 'QR generation failed — returning URL only');
+    }
+    res.json({
+      community_id: co.id,
+      slug: co.slug,
+      name: co.name,
+      url,
+      qr_png_data_url: qrDataUrl,
+    });
+  },
+);
+
+// ── GET /community/:slug (PUBLIC) ────────────────────────────────────────
+// Public community profile — visible to anyone. Drives donor recruitment:
+// shows community name + region + donor count + owner display name + a
+// "Join as a donor" CTA that points to /register?community=<slug>.
+//
+// PII discipline: nothing here exposes donor mobiles/names. Owner's
+// display_name is intentionally shown (the leader chose it as public when
+// they signed up).
+//
+// Mounted under /community-leader for code locality but PUBLIC (no auth
+// middleware). The route is a sibling of leader-side endpoints; the
+// path prefix differs by an `s`. App-level mounting handles the routing.
+const publicRouter = express.Router();
+publicRouter.get('/:slug', async (req, res) => {
+  // Use a system-actor RLS context so the public page can read communities
+  // even though the bearer has no JWT / no actor_user_id.
+  const r = await withRlsContext(
+    { user: {} },
+    (c) =>
+      c.query(
+        `SELECT co.id, co.slug, co.name, co.description,
+              co.donor_count, co.active_donor_count, co.donations_facilitated,
+              co.created_at,
+              s.name AS state_name,
+              d.name AS district_name,
+              t.name AS taluka_name,
+              cl.display_name AS owner_display_name
+         FROM communities co
+         LEFT JOIN states    s  ON s.id  = co.state_id
+         LEFT JOIN districts d  ON d.id  = co.district_id
+         LEFT JOIN talukas   t  ON t.id  = co.taluka_id
+         LEFT JOIN community_leaders cl ON cl.id = co.owner_community_leader_id
+        WHERE co.slug = $1 AND co.is_public = TRUE AND co.is_active = TRUE`,
+        [req.params.slug],
+      ),
+    { actor_role: 'system', change_reason: 'public community page' },
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'not_found' });
+  res.json({ community: r.rows[0] });
+});
+
 module.exports = router;
+module.exports.publicRouter = publicRouter;

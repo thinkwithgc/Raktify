@@ -88,6 +88,32 @@ export function DonorRegister() {
     if (campParam) window.sessionStorage.setItem('rk.pendingCampRsvp', campParam);
   }, []);
 
+  // Phase 3: if the user arrived from /community/<slug> (a leader's referral
+  // link), resolve the community slug → id and stash it. We send community_id
+  // with the register payload so the donor is attributed correctly.
+  const [communityId, setCommunityId] = useState(null);
+  const [communityName, setCommunityName] = useState(null);
+  useEffect(() => {
+    const slug =
+      new URLSearchParams(window.location.search).get('community') ||
+      window.sessionStorage.getItem('rk.pendingCommunitySlug');
+    if (!slug) return;
+    let alive = true;
+    (async () => {
+      try {
+        const data = await apiRequest('GET', `/community/${encodeURIComponent(slug)}`);
+        if (!alive) return;
+        setCommunityId(data.community.id);
+        setCommunityName(data.community.name);
+      } catch {
+        // Bad slug — ignore silently; donor can still register without attribution.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Load DRAFT eligibility bank from backend so question copy stays in sync
   // with whatever the medical advisor signs off on.
   const eligibilityQ = useQuery({
@@ -156,6 +182,11 @@ export function DonorRegister() {
         // strip empties the backend treats as undefined
         ...(parsed.data.pincode === '' ? { pincode: undefined } : {}),
         ...(parsed.data.address_line === '' ? { address_line: undefined } : {}),
+        // Phase 3 attribution: if the user came from /community/<slug>,
+        // tag the donor to that community. The backend defaults
+        // referred_by_community_leader_id to the community's current owner
+        // when only community_id is provided.
+        ...(communityId ? { community_id: communityId } : {}),
       };
       const r = await apiRequest('POST', '/donors/register', payload);
 
@@ -231,6 +262,13 @@ export function DonorRegister() {
           labels={['Health', 'You', 'Recent', 'Consent']}
           onJump={(s) => (s < step ? backTo(s) : null)}
         />
+
+        {communityName ? (
+          <div className="mb-3 rounded-md bg-rk-50 p-2 text-sm text-rk-900 ring-1 ring-rk-200">
+            You&apos;re joining <strong>{communityName}</strong>. The community organisers will
+            see your name + blood group only — never your mobile.
+          </div>
+        ) : null}
 
         {eligibilityQ.data?.draft ? (
           <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800 ring-1 ring-amber-200">
