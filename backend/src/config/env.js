@@ -90,10 +90,16 @@ const env = {
       // template. Used by /onboarding/mou-signed to deliver the magic password-setup
       // link instead of a temp password. See docs/Raktify_WhatsApp_Templates.md.
       setup_link: optional('WHATSAPP_TEMPLATE_SETUP_LINK', null),
-      // community_leader_welcome — sent by /admin/community-leaders after the
-      // NGO admin invites a leader. Two body vars (leader name, organisation
-      // name) + static URL button pointing at /login?role=community_leader.
+      // community_leader_welcome — DEPRECATED. Original Utility template was
+      // re-classified MARKETING by Meta after we switched it to a dynamic URL
+      // with a constant button value. Kept here so old code paths don't
+      // break during rollout; new code uses community_leader_signin below.
       community_leader_welcome: optional('WHATSAPP_TEMPLATE_COMMUNITY_LEADER_WELCOME', null),
+      // community_leader_signin — replacement. Per-recipient URL pattern
+      // (?m={{1}} = leader's mobile) gives Meta's NLP classifier a unique
+      // per-message URL → reads as transactional → Utility category preserved.
+      // Frontend /login reads ?m= and pre-fills the mobile field for one-tap OTP.
+      community_leader_signin: optional('WHATSAPP_TEMPLATE_COMMUNITY_LEADER_SIGNIN', null),
     },
   },
 

@@ -443,17 +443,24 @@ router.post(
       let waSent = false;
       let waMessageId = null;
       try {
-        // Send in English — the welcome template is only registered in en
+        // Send in English — the signin template is only registered in en
         // at Meta today. Sending with language='mr'/'hi' returns Meta
         // error 132001 ("Template name does not exist in the translation").
         // The leader's preferred_language is still stored on their profile
         // for downstream messages once we register MR/HI translations.
+        //
+        // templateType: COMMUNITY_LEADER_SIGNIN (replaces the deprecated
+        // COMMUNITY_LEADER_WELCOME — see comment in env.js / provider).
+        // The mobile is passed in variables so the URL button substitution
+        // (?m={{1}}) gets the per-recipient value Meta needs to read this
+        // as Utility-class transactional, not Marketing.
         const sendResult = await sendNotification({
           recipientId: mobile,
-          templateType: 'COMMUNITY_LEADER_WELCOME',
+          templateType: 'COMMUNITY_LEADER_SIGNIN',
           variables: {
             leader_name: data.display_name,
             organization_name: 'Choudhari Foundation',
+            mobile,
           },
           channel: 'WA',
           language: 'en',

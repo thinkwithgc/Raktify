@@ -17,8 +17,24 @@ export function DonorLogin() {
   const { setSession } = useAuth();
   const navigate = useNavigate();
 
+  // Pre-fill mobile from ?m= URL param — set by the community_leader_signin
+  // WhatsApp template so a leader who taps the "Sign in" button doesn't have
+  // to retype their own mobile. Stored as digits only by Meta's button
+  // substitution; we strip any non-digit, then re-add the +91 prefix if it's
+  // a 10-digit number (the standard Indian shape).
+  const params = new URLSearchParams(window.location.search);
+  const prefillRaw = (params.get('m') || '').replace(/\D/g, '');
+  const prefill =
+    prefillRaw.length === 12 && prefillRaw.startsWith('91')
+      ? `+${prefillRaw}`
+      : prefillRaw.length === 10
+        ? `+91${prefillRaw}`
+        : prefillRaw
+          ? `+${prefillRaw}`
+          : '';
+
   const [step, setStep] = useState('mobile'); // 'mobile' | 'otp'
-  const [mobile, setMobile] = useState('');
+  const [mobile, setMobile] = useState(prefill);
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -30,9 +46,9 @@ export function DonorLogin() {
   // <role>_not_registered error if their row hasn't been provisioned by
   // the admin invite flow yet.
   const roleHint =
-    new URLSearchParams(window.location.search).get('role') === 'community_leader'
+    params.get('role') === 'community_leader'
       ? 'community_leader'
-      : new URLSearchParams(window.location.search).get('role') === 'coordinator'
+      : params.get('role') === 'coordinator'
         ? 'coordinator'
         : 'donor';
 

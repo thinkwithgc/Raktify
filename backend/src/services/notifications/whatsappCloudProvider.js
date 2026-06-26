@@ -91,16 +91,11 @@ const TEMPLATE_HANDLERS = {
     },
   ],
 
-  // community_leader_welcome — sent on NGO-admin invite. 2 body vars +
-  // 1 URL button variable. The URL pattern was switched from static to
-  // dynamic (https://raktify.choudhari.ngo/login?role={{1}}) on 2026-06-27
-  // specifically to SUPPRESS the WhatsApp link preview — dynamic URL
-  // buttons don't get previewed because Meta can't fetch them at
-  // template-review time. The button var is always the literal string
-  // 'community_leader' (matches the role_hint the /login page expects).
-  // Meta reclassified the template as MARKETING on the edit — acceptable
-  // for now (delivers to allow-listed test recipients). Future iteration
-  // may switch to a per-recipient setup token to win back UTILITY class.
+  // community_leader_welcome — DEPRECATED. Original Utility template was
+  // re-classified MARKETING by Meta after the URL switch (constant-value
+  // dynamic URL didn't read as transactional). Kept here so the handler
+  // doesn't break if anything still references the templateType during
+  // rollout. New code uses COMMUNITY_LEADER_SIGNIN below.
   COMMUNITY_LEADER_WELCOME: (vars) => [
     {
       type: 'body',
@@ -116,6 +111,33 @@ const TEMPLATE_HANDLERS = {
       parameters: [{ type: 'text', text: 'community_leader' }],
     },
   ],
+
+  // community_leader_signin — Utility-class welcome with per-recipient URL.
+  // The URL button variable is the recipient's mobile (digits only, no '+');
+  // template URL is `?role=community_leader&m={{1}}`. Per-message unique URL
+  // = Meta classifier reads transactional. Frontend /login reads ?m= to
+  // pre-fill the mobile field for one-tap OTP.
+  COMMUNITY_LEADER_SIGNIN: (vars) => {
+    // Mobile must be digits only for the URL — the leading + sign breaks
+    // URL templating in Meta's button substitution and the frontend doesn't
+    // need it either.
+    const mobileDigits = String(vars.mobile || '').replace(/\D/g, '');
+    return [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: String(vars.leader_name || '') },
+          { type: 'text', text: String(vars.organization_name || '') },
+        ],
+      },
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [{ type: 'text', text: mobileDigits }],
+      },
+    ];
+  },
 };
 
 function buildComponents(templateType, variables) {
