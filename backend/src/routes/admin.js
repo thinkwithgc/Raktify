@@ -443,6 +443,11 @@ router.post(
       let waSent = false;
       let waMessageId = null;
       try {
+        // Send in English — the welcome template is only registered in en
+        // at Meta today. Sending with language='mr'/'hi' returns Meta
+        // error 132001 ("Template name does not exist in the translation").
+        // The leader's preferred_language is still stored on their profile
+        // for downstream messages once we register MR/HI translations.
         const sendResult = await sendNotification({
           recipientId: mobile,
           templateType: 'COMMUNITY_LEADER_WELCOME',
@@ -451,7 +456,7 @@ router.post(
             organization_name: 'Choudhari Foundation',
           },
           channel: 'WA',
-          language: data.preferred_language || 'en',
+          language: 'en',
         });
         if (sendResult?.success) {
           waSent = true;
