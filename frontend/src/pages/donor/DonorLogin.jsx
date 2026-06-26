@@ -40,17 +40,11 @@ export function DonorLogin() {
   const [pending, setPending] = useState(false);
   const [devOtp, setDevOtp] = useState('');
 
-  // Optional ?role= URL param lets non-donor OTP-cluster users (coordinator,
-  // community_leader) land here without an auto-created donor row. The
-  // backend refuses to auto-create for these roles and returns a clear
-  // <role>_not_registered error if their row hasn't been provisioned by
-  // the admin invite flow yet.
+  // Optional ?role= URL param. OTP cluster post-migration 282 is
+  // donor + community_leader only — coordinator moved to staff auth
+  // (/staff/login with username + password + TOTP).
   const roleHint =
-    params.get('role') === 'community_leader'
-      ? 'community_leader'
-      : params.get('role') === 'coordinator'
-        ? 'coordinator'
-        : 'donor';
+    params.get('role') === 'community_leader' ? 'community_leader' : 'donor';
 
   async function sendOtp(e) {
     e.preventDefault();

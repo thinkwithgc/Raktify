@@ -26,6 +26,7 @@
 const express = require('express');
 const { z } = require('zod');
 
+const env = require('../config/env');
 const { pool } = require('../config/db');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
@@ -33,6 +34,7 @@ const { normaliseIndianMobile } = require('../utils/phone');
 const scheduler = require('../services/scheduler');
 const { sendNotification } = require('../services/notifications');
 const logger = require('../config/logger');
+const setupSvc = require('../services/users/setup');
 
 const router = express.Router();
 
@@ -91,6 +93,180 @@ router.get(
       ),
     );
     res.json({ coordinators: r.rows, count: r.rowCount });
+  },
+);
+
+// ── POST /admin/coordinators ─────────────────────────────────────────────
+// Invite a new NGO-employed coordinator. Coordinator is staff-cluster
+// auth (migration 282) — username + password + TOTP, NOT mobile + OTP.
+// Same setup-link magic-link pattern as institutional admin staff:
+// backend creates the platform_users + coordinators profile rows,
+// generates a setup token, sends the activation WhatsApp template,
+// returns the activation URL as fallback.
+const inviteCoordinatorSchema = z.object({
+  mobile: z.string(),
+  full_name: z.string().min(2).max(120),
+  display_name: z.string().min(2).max(80).optional(),
+  username: z
+    .string()
+    .regex(/^[a-z][a-z0-9_-]{2,31}$/)
+    .optional(),
+  email: z.string().email().optional(),
+  state_id: z.number().int().positive(),
+  district_id: z.number().int().positive(),
+  taluka_id: z.number().int().positive().optional(),
+  village_id: z.number().int().positive().optional(),
+  preferred_language: z.enum(['mr', 'hi', 'en']).optional(),
+  is_district_lead: z.boolean().optional(),
+});
+
+router.post(
+  '/coordinators',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const parsed = inviteCoordinatorSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const data = parsed.data;
+    const mobile = normaliseIndianMobile(data.mobile);
+    if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
+
+    // Auto-derive a username from the full_name if the caller didn't
+    // provide one — pattern is firstname_coord (slugified). Caller can
+    // override; uniqueness checked below.
+    const fallbackUsername = (
+      data.username
+        ? data.username
+        : `${data.full_name
+            .toLowerCase()
+            .trim()
+            .split(/\s+/)[0]
+            .replace(/[^a-z0-9]/g, '')}_coord`
+    ).slice(0, 32);
+
+    // Check username + mobile uniqueness BEFORE the transaction so the
+    // common "already invited" case gets a clean 409 instead of a CHECK
+    // violation deep in the insert.
+    const dup = await pool.query(
+      `SELECT id FROM platform_users WHERE username = $1 OR (mobile = $2 AND role IN ('hospital','blood_bank','ngo_admin','super_admin','dho','coordinator'))`,
+      [fallbackUsername, mobile],
+    );
+    if (dup.rowCount > 0) {
+      return res.status(409).json({ error: 'username_or_mobile_already_in_staff_cluster' });
+    }
+
+    try {
+      const placeholderHash = await setupSvc.unusablePasswordHash();
+      const result = await withRlsContext(
+        req,
+        async (c) => {
+          // 1. platform_users row — staff auth path, placeholder password
+          //    until the coord activates via the setup token.
+          const userR = await c.query(
+            `INSERT INTO platform_users
+               (role, username, mobile, email, password_hash, password_set_at,
+                force_password_change)
+             VALUES ('coordinator', $1, $2, $3, $4, NOW(), TRUE)
+             RETURNING id`,
+            [fallbackUsername, mobile, data.email || null, placeholderHash],
+          );
+          const userId = userR.rows[0].id;
+
+          // 2. coordinators profile row.
+          const coR = await c.query(
+            `INSERT INTO coordinators
+               (platform_user_id, full_name, display_name,
+                preferred_language, state_id, district_id, taluka_id, village_id,
+                is_district_lead)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING id`,
+            [
+              userId,
+              data.full_name,
+              data.display_name || data.full_name,
+              data.preferred_language || 'mr',
+              data.state_id,
+              data.district_id,
+              data.taluka_id || null,
+              data.village_id || null,
+              data.is_district_lead ?? false,
+            ],
+          );
+
+          // 3. setup token for the activation magic link.
+          const { token, expiresAt } = await setupSvc.generateSetupToken(c, userId);
+          return {
+            platform_user_id: userId,
+            coordinator_id: coR.rows[0].id,
+            username: fallbackUsername,
+            setupToken: token,
+            expiresAt,
+          };
+        },
+        { change_reason: 'invite coordinator' },
+      );
+
+      // Send the activation WhatsApp (reuses the proven `institution_link`
+      // template — the body works generically for "<role> on Raktify"
+      // and the URL button goes to /activate/<token>). Best-effort: row
+      // is still committed even if the WhatsApp send fails (admin can
+      // re-send via reset-password or share the URL out-of-band).
+      let waSent = false;
+      let waMessageId = null;
+      try {
+        const r = await sendNotification({
+          recipientId: mobile,
+          templateType: 'SETUP_LINK',
+          variables: {
+            signatory_name: data.display_name || data.full_name,
+            institution_name: 'Choudhari Foundation',
+            setup_token: result.setupToken,
+          },
+          channel: 'WA',
+          language: 'en',
+        });
+        if (r?.success) {
+          waSent = true;
+          waMessageId = r.messageId || r.message_id || null;
+        } else {
+          logger.warn(
+            { r, coordinator_id: result.coordinator_id },
+            'coordinator invite WhatsApp non-success',
+          );
+        }
+      } catch (err) {
+        logger.error({ err: err.message }, 'coordinator invite WhatsApp threw');
+      }
+
+      const activationUrl = `${env.frontendUrl}/activate/${result.setupToken}`;
+      res.status(201).json({
+        coordinator_id: result.coordinator_id,
+        platform_user_id: result.platform_user_id,
+        username: result.username,
+        mobile,
+        activation_url: activationUrl,
+        whatsapp_sent: waSent,
+        whatsapp_message_id: waMessageId,
+        next_step: waSent
+          ? `Activation WhatsApp sent to ${mobile}. They'll set their password, then sign in at /staff/login as "${result.username}".`
+          : `Row created. WhatsApp did NOT send — share the activation URL out-of-band so they can sign in as "${result.username}".`,
+      });
+    } catch (err) {
+      if (err.code === '23514') {
+        return res.status(400).json({
+          error: 'check_violation',
+          constraint: err.constraint || 'unknown',
+          detail: err.detail || err.message,
+        });
+      }
+      if (/idx_platform_users_mobile_staff_cluster/.test(err.message)) {
+        return res.status(409).json({ error: 'mobile_already_in_staff_cluster' });
+      }
+      logger.error({ err: err.message, code: err.code }, 'coordinator invite failed');
+      return res.status(500).json({ error: 'invite_failed', detail: err.message });
+    }
   },
 );
 

@@ -13,6 +13,7 @@ const FILTERS = [
 export function CoordinatorsTab() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState('pending');
+  const [showInvite, setShowInvite] = useState(false);
 
   const listQ = useQuery({
     queryKey: ['admin', 'coordinators', filter],
@@ -52,7 +53,14 @@ export function CoordinatorsTab() {
             {f.label}
           </button>
         ))}
-        <span className="ml-auto text-sm text-slate-500">
+        <button
+          type="button"
+          onClick={() => setShowInvite(true)}
+          className="rk-button-primary ml-auto text-sm"
+        >
+          + Invite coordinator
+        </button>
+        <span className="text-sm text-slate-500">
           {listQ.isFetching ? '…' : `${rows.length} shown`}
         </span>
       </div>
@@ -125,7 +133,250 @@ export function CoordinatorsTab() {
           </tbody>
         </table>
       </div>
+
+      {showInvite ? <InviteCoordinatorModal onClose={() => setShowInvite(false)} /> : null}
     </section>
+  );
+}
+
+function InviteCoordinatorModal({ onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    full_name: '',
+    display_name: '',
+    username: '',
+    mobile: '+91',
+    email: '',
+    state_id: '',
+    district_id: '',
+    taluka_id: '',
+    is_district_lead: false,
+  });
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const statesQ = useQuery({
+    queryKey: ['geo', 'states'],
+    queryFn: () => apiRequest('GET', '/geography/states'),
+    staleTime: 24 * 3600_000,
+  });
+  const districtsQ = useQuery({
+    queryKey: ['geo', 'districts', form.state_id],
+    queryFn: () => apiRequest('GET', `/geography/districts?state_id=${form.state_id}`),
+    enabled: !!form.state_id,
+    staleTime: 24 * 3600_000,
+  });
+  const talukasQ = useQuery({
+    queryKey: ['geo', 'talukas', form.district_id],
+    queryFn: () => apiRequest('GET', `/geography/talukas?district_id=${form.district_id}`),
+    enabled: !!form.district_id,
+    staleTime: 24 * 3600_000,
+  });
+
+  const invite = useMutation({
+    mutationFn: () => {
+      const body = {
+        full_name: form.full_name.trim(),
+        mobile: form.mobile.trim(),
+        state_id: Number(form.state_id),
+        district_id: Number(form.district_id),
+        is_district_lead: !!form.is_district_lead,
+      };
+      if (form.display_name.trim()) body.display_name = form.display_name.trim();
+      if (form.username.trim()) body.username = form.username.trim();
+      if (form.email.trim()) body.email = form.email.trim();
+      if (form.taluka_id) body.taluka_id = Number(form.taluka_id);
+      return apiRequest('POST', '/admin/coordinators', body);
+    },
+    onSuccess: (data) => {
+      setSuccess(data);
+      qc.invalidateQueries({ queryKey: ['admin', 'coordinators'] });
+    },
+    onError: (err) => {
+      const b = err?.response?.data || {};
+      if (b.error === 'check_violation') {
+        setError(`Database rejected: ${b.constraint} (${b.detail || ''})`);
+      } else if (b.detail) {
+        setError(`${b.error}: ${b.detail}`);
+      } else {
+        setError(b.error || 'invite_failed');
+      }
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg max-h-[90vh] overflow-y-auto">
+        {success ? (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-stone-900">Coordinator invited ✓</h3>
+            <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <p className="font-medium">{success.username}</p>
+              <p className="font-mono text-xs">{success.mobile}</p>
+              {success.whatsapp_sent ? (
+                <p className="mt-2 text-xs">
+                  ✓ Activation WhatsApp sent. wamid:{' '}
+                  <code className="text-[10px]">{success.whatsapp_message_id}</code>
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-amber-700">
+                  ⚠ WhatsApp did NOT send. Share this URL out-of-band:
+                </p>
+              )}
+              <p className="mt-2 break-all rounded bg-white p-2 font-mono text-[11px]">
+                {success.activation_url}
+              </p>
+              <p className="mt-2 text-xs text-stone-600">{success.next_step}</p>
+            </div>
+            <button type="button" className="rk-button-primary w-full" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setError(null);
+              invite.mutate();
+            }}
+            className="space-y-3"
+          >
+            <h3 className="text-lg font-semibold text-stone-900">Invite NGO coordinator</h3>
+            <p className="text-xs text-slate-500">
+              Coordinator is staff-cluster auth (username + password + TOTP). They activate
+              via the WhatsApp link, then sign in at <code>/staff/login</code>.
+            </p>
+
+            <label className="block">
+              <span className="rk-label">Full name (required)</span>
+              <input
+                type="text"
+                className="rk-input w-full"
+                value={form.full_name}
+                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                required
+                minLength={2}
+              />
+            </label>
+
+            <label className="block">
+              <span className="rk-label">Display name (optional)</span>
+              <input
+                type="text"
+                className="rk-input w-full"
+                value={form.display_name}
+                onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+              />
+            </label>
+
+            <label className="block">
+              <span className="rk-label">Username (optional — auto-derived from full name)</span>
+              <input
+                type="text"
+                className="rk-input w-full font-mono"
+                value={form.username}
+                onChange={(e) =>
+                  setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })
+                }
+                pattern="^[a-z][a-z0-9_\-]{2,31}$"
+                placeholder="e.g. priya_coord"
+              />
+            </label>
+
+            <label className="block">
+              <span className="rk-label">Mobile (required)</span>
+              <input
+                type="tel"
+                className="rk-input w-full font-mono"
+                value={form.mobile}
+                onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+                required
+                pattern="^\+91\d{10}$"
+                placeholder="+91XXXXXXXXXX"
+              />
+            </label>
+
+            <label className="block">
+              <span className="rk-label">Email (optional)</span>
+              <input
+                type="email"
+                className="rk-input w-full"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </label>
+
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block">
+                <span className="rk-label">State</span>
+                <select
+                  className="rk-input w-full"
+                  value={form.state_id}
+                  onChange={(e) =>
+                    setForm({ ...form, state_id: e.target.value, district_id: '', taluka_id: '' })
+                  }
+                  required
+                >
+                  <option value="">—</option>
+                  {(statesQ.data?.states || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rk-label">District</span>
+                <select
+                  className="rk-input w-full"
+                  value={form.district_id}
+                  onChange={(e) => setForm({ ...form, district_id: e.target.value, taluka_id: '' })}
+                  required
+                  disabled={!form.state_id}
+                >
+                  <option value="">—</option>
+                  {(districtsQ.data?.districts || []).map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rk-label">Taluka</span>
+                <select
+                  className="rk-input w-full"
+                  value={form.taluka_id}
+                  onChange={(e) => setForm({ ...form, taluka_id: e.target.value })}
+                  disabled={!form.district_id}
+                >
+                  <option value="">—</option>
+                  {(talukasQ.data?.talukas || []).map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-stone-700">
+              <input
+                type="checkbox"
+                checked={form.is_district_lead}
+                onChange={(e) => setForm({ ...form, is_district_lead: e.target.checked })}
+              />
+              Mark as district lead (escalation handover anchor)
+            </label>
+
+            {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" className="rk-button-secondary flex-1" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className="rk-button-primary flex-1" disabled={invite.isPending}>
+                {invite.isPending ? '…' : 'Invite'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 

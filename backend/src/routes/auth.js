@@ -55,7 +55,9 @@ function shouldUnlock(user) {
 router.post('/otp/send', otpSendLimiter, async (req, res) => {
   const schema = z.object({
     mobile: z.string(),
-    role_hint: z.enum(['donor', 'coordinator', 'community_leader']).optional(),
+    // coordinator dropped from OTP cluster in migration 282 — they now
+    // auth via /auth/institutional/login (username + password + TOTP).
+    role_hint: z.enum(['donor', 'community_leader']).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
@@ -63,15 +65,12 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
   const mobile = normaliseIndianMobile(parsed.data.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
 
-  // Spec rule: donor/coordinator/community_leader OTP path. We look up the
-  // existing user; if none, we DO NOT auto-create (only donors get auto-created
-  // — registration is a separate flow for everyone else).
-  //
-  // Per-role mobile uniqueness (migration 274): a mobile may hold rows in
-  // donor + coordinator + community_leader IN PARALLEL (Q8 in the Phase-1
-  // planning: "a community leader can also be a donor"). role_hint
-  // disambiguates which row this OTP request is for — defaults to 'donor'
-  // when absent so the legacy donor-login UX is unchanged.
+  // OTP-cluster auth path: donor + community_leader only (migration 282
+  // moved coordinator to staff auth). role_hint disambiguates which
+  // platform_users row to load when a mobile holds rows in both buckets
+  // (Q8 in the Phase-1 planning: "a community leader can also be a donor").
+  // Defaults to 'donor' when absent so the legacy donor-login UX is
+  // unchanged.
   const targetRole = parsed.data.role_hint || 'donor';
   const existing = await pool.query(
     `SELECT id, role, is_locked, locked_until, otp_attempts
@@ -83,13 +82,10 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
 
   let userId;
   if (existing.rowCount === 0) {
-    // Auto-create a thin platform_users row in 'donor' role on first OTP request.
-    // The donor profile (donors table) is created later by the registration form.
-    // Coordinators + community_leaders are NEVER auto-created — they require
-    // ngo_admin onboarding (see POST /admin/community-leaders for the latter).
-    if (parsed.data.role_hint === 'coordinator') {
-      return res.status(403).json({ error: 'coordinator_not_registered' });
-    }
+    // Auto-create a thin platform_users row in 'donor' role on first OTP
+    // request. The donor profile (donors table) is created later by the
+    // registration form. community_leader rows are NEVER auto-created —
+    // they're invited by ngo_admin via POST /admin/community-leaders.
     if (parsed.data.role_hint === 'community_leader') {
       return res.status(403).json({ error: 'community_leader_not_registered' });
     }
@@ -153,7 +149,8 @@ router.post('/otp/verify', async (req, res) => {
   const schema = z.object({
     mobile: z.string(),
     otp: z.string().regex(/^\d{6}$/, 'otp must be 6 digits'),
-    role_hint: z.enum(['donor', 'coordinator', 'community_leader']).optional(),
+    // coordinator dropped from OTP cluster in migration 282.
+    role_hint: z.enum(['donor', 'community_leader']).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });

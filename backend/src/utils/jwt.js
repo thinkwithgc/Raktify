@@ -4,25 +4,18 @@ const env = require('../config/env');
 
 // Per-role JWT TTL.
 //
-// Donors + community_leaders bumped to 30 days (post-Phase-3 UX call):
-// these roles touch low-criticality data (own donor profile, community
-// roster without donor PII) so re-OTP-ing every day is friction with
-// no security upside. A stolen 30-day session for these roles can:
-//   • flip a donor's is_available toggle (donor can fix in seconds)
-//   • view a community's donor list (name + blood group + last-donation
-//     — no mobile/address/medical)
-// Neither is a clinical-data breach.
+// Donors + community_leaders are 30 days — they touch low-criticality
+// data (own donor profile, community roster without donor PII) so
+// re-OTP-ing every day is friction with no security upside.
 //
-// Coordinator KEPT at 12h — they accept in-flight blood requests, see
-// patient context, and act on critical alerts. A stolen 30-day session
-// could mess with active clinical orchestration.
-//
-// Staff (hospital/blood_bank/admin/super_admin/dho) stay at 8h — TOTP-
-// protected and touch clinical/operational data. Short TTL is appropriate.
+// All staff roles are 8 hours — they auth via username + password +
+// TOTP and touch clinical / operational data. Coordinator joined the
+// staff cluster in migration 282 (NGO-employed, role-shaped, signs
+// NGO terms) — same auth path, same short TTL as the rest of staff.
 const TTL_BY_ROLE = {
   donor: '30d',
   community_leader: '30d',
-  coordinator: '12h',
+  coordinator: '8h',
   hospital: '8h',
   blood_bank: '8h',
   ngo_admin: '8h',
