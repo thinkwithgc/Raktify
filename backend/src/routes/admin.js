@@ -31,6 +31,8 @@ const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
 const scheduler = require('../services/scheduler');
+const { sendNotification } = require('../services/notifications');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -433,13 +435,50 @@ router.post(
         { change_reason: 'invite community_leader' },
       );
 
+      // Fire the welcome WhatsApp (community_leader_welcome template). This
+      // is best-effort — if the template isn't approved yet, or Meta has a
+      // transient issue, we still return success for the invite (the row is
+      // created; the admin can re-send manually). The send failure is logged
+      // so ops can spot template approval/billing problems.
+      let waSent = false;
+      let waMessageId = null;
+      try {
+        const sendResult = await sendNotification({
+          recipientId: mobile,
+          templateType: 'COMMUNITY_LEADER_WELCOME',
+          variables: {
+            leader_name: data.display_name,
+            organization_name: 'Choudhari Foundation',
+          },
+          channel: 'WA',
+          language: data.preferred_language || 'en',
+        });
+        if (sendResult?.success) {
+          waSent = true;
+          waMessageId = sendResult.messageId || sendResult.message_id || null;
+        } else {
+          logger.warn(
+            { sendResult, community_leader_id: result.community_leader_id },
+            'community_leader_welcome send returned non-success — invite row created without delivery',
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err: err.message, community_leader_id: result.community_leader_id },
+          'community_leader_welcome send threw — invite row created without delivery',
+        );
+      }
+
       res.status(201).json({
         community_leader_id: result.community_leader_id,
         platform_user_id: result.platform_user_id,
         mobile,
         display_name: data.display_name,
-        next_step:
-          'Tell the leader to log in at /login with this mobile. They will receive an OTP. No password needed.',
+        whatsapp_sent: waSent,
+        whatsapp_message_id: waMessageId,
+        next_step: waSent
+          ? `WhatsApp invitation sent to ${mobile}. Leader taps "Sign in" → enters mobile → OTP → dashboard.`
+          : `Row created but WhatsApp invitation did NOT send (template may still be pending Meta approval). Tell the leader out-of-band: log in at /login?role=community_leader with mobile ${mobile}.`,
       });
     } catch (err) {
       // Defensive: cluster index could still trip if a race happened between
@@ -447,7 +486,26 @@ router.post(
       if (/idx_platform_users_mobile_otp_cluster/.test(err.message)) {
         return res.status(409).json({ error: 'mobile_already_in_otp_cluster' });
       }
-      throw err;
+      // Postgres error code 23514 = check_violation. Surface a readable
+      // version of which constraint tripped so the admin doesn't see a
+      // bare "23514" in the UI.
+      if (err.code === '23514') {
+        logger.error(
+          { constraint: err.constraint, table: err.table, detail: err.detail },
+          'community_leader invite hit a CHECK constraint',
+        );
+        return res.status(400).json({
+          error: 'check_violation',
+          constraint: err.constraint || 'unknown',
+          detail: err.detail || err.message,
+        });
+      }
+      // Any other DB error: log + return generic 500. Don't leak DB internals.
+      logger.error(
+        { err: err.message, code: err.code, constraint: err.constraint },
+        'community_leader invite failed',
+      );
+      return res.status(500).json({ error: 'invite_failed', detail: err.message });
     }
   },
 );

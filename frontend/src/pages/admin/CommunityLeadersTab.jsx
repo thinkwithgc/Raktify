@@ -218,7 +218,19 @@ function InviteModal({ onClose }) {
       setSuccess(data);
       qc.invalidateQueries({ queryKey: ['admin', 'community-leaders'] });
     },
-    onError: (err) => setError(err?.response?.data?.error || 'invite_failed'),
+    onError: (err) => {
+      const body = err?.response?.data || {};
+      // Surface the real reason instead of a bare error code. CHECK
+      // constraint failures (23514) flow through with constraint name +
+      // detail; other DB errors get the detail string from the API.
+      if (body.error === 'check_violation') {
+        setError(`Database rejected: ${body.constraint || 'check'} (${body.detail || ''})`);
+      } else if (body.detail) {
+        setError(`${body.error || 'failed'}: ${body.detail}`);
+      } else {
+        setError(body.error || 'invite_failed');
+      }
+    },
   });
 
   return (
@@ -230,7 +242,18 @@ function InviteModal({ onClose }) {
             <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <p className="font-medium">{success.display_name}</p>
               <p className="font-mono text-xs">{success.mobile}</p>
-              <p className="mt-2 text-xs">{success.next_step}</p>
+              {success.whatsapp_sent ? (
+                <p className="mt-2 text-xs">
+                  ✓ WhatsApp invitation accepted by Meta. wamid:{' '}
+                  <code className="text-[10px]">{success.whatsapp_message_id}</code>
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-amber-700">
+                  ⚠ Row created but WhatsApp did NOT send — template may still be in Meta
+                  approval, or billing/delivery issue. Tell the leader out-of-band.
+                </p>
+              )}
+              <p className="mt-2 text-xs text-stone-600">{success.next_step}</p>
             </div>
             <button type="button" className="rk-button-primary w-full" onClick={onClose}>
               Done

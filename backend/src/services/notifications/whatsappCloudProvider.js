@@ -90,6 +90,20 @@ const TEMPLATE_HANDLERS = {
       parameters: [{ type: 'text', text: String(vars.setup_token || '') }],
     },
   ],
+
+  // community_leader_welcome — sent on NGO-admin invite. 2 body vars only;
+  // the URL button is STATIC (https://raktify.choudhari.ngo/login?role=community_leader),
+  // no per-recipient variable, so no button parameters here. Community leaders
+  // authenticate via mobile + OTP — no setup token to embed.
+  COMMUNITY_LEADER_WELCOME: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.leader_name || '') },
+        { type: 'text', text: String(vars.organization_name || '') },
+      ],
+    },
+  ],
 };
 
 function buildComponents(templateType, variables) {

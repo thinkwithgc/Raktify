@@ -90,6 +90,10 @@ const env = {
       // template. Used by /onboarding/mou-signed to deliver the magic password-setup
       // link instead of a temp password. See docs/Raktify_WhatsApp_Templates.md.
       setup_link: optional('WHATSAPP_TEMPLATE_SETUP_LINK', null),
+      // community_leader_welcome — sent by /admin/community-leaders after the
+      // NGO admin invites a leader. Two body vars (leader name, organisation
+      // name) + static URL button pointing at /login?role=community_leader.
+      community_leader_welcome: optional('WHATSAPP_TEMPLATE_COMMUNITY_LEADER_WELCOME', null),
     },
   },
 
