@@ -176,15 +176,35 @@ router.post('/verify/:id', verifyJWT, requireRole('ngo_admin', 'super_admin'), a
 });
 
 // ── POST /onboarding/generate-mou/:id (ngo_admin) ────────────────────────
+// Pulls EVERYTHING the institution row holds + the joined geo names + the
+// next mou_version number, then hands the dictionary to the eSign provider
+// which merges it into the PDF template. New variable boxes the lawyer
+// adds to the final MoU PDF cost zero code change here — they just need to
+// bind the box to one of the keys in this object.
 router.post(
   '/generate-mou/:id',
   verifyJWT,
   requireRole('ngo_admin', 'super_admin'),
   async (req, res) => {
     const inst = await pool.query(
-      `SELECT id, kind, shortname, legal_name, display_name, address_line, pincode,
-              primary_contact_name, primary_contact_mobile, onboarding_status
-         FROM institutions WHERE id = $1`,
+      `SELECT i.id, i.kind, i.shortname, i.legal_name, i.display_name,
+              i.address_line, i.pincode, i.latitude, i.longitude,
+              i.cdsco_licence_number, i.cdsco_licence_expires,
+              i.hospital_registration_no,
+              i.primary_contact_name, i.primary_contact_designation,
+              i.primary_contact_mobile, i.primary_contact_email,
+              i.has_inhouse_blood_bank, i.is_blood_bank_software_user,
+              i.software_vendor, i.onboarding_status,
+              s.name  AS state_name,
+              d.name  AS district_name,
+              t.name  AS taluka_name,
+              v.name  AS village_name
+         FROM institutions i
+         LEFT JOIN states    s ON s.id = i.state_id
+         LEFT JOIN districts d ON d.id = i.district_id
+         LEFT JOIN talukas   t ON t.id = i.taluka_id
+         LEFT JOIN villages  v ON v.id = i.village_id
+        WHERE i.id = $1`,
       [req.params.id],
     );
     if (inst.rowCount === 0) return res.status(404).json({ error: 'not_found' });
@@ -193,15 +213,66 @@ router.post(
     }
 
     const i = inst.rows[0];
+
+    // Next MoU version — surfaced so the PDF can render "MoU v3" etc.
+    const versionR = await pool.query(
+      `SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM mou_versions WHERE institution_id = $1`,
+      [i.id],
+    );
+    const nextVersion = versionR.rows[0].next;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yearOut = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Variable bank for Leegality's template editor. Names mirror the form
+    // field names so a new variable in the PDF + a new column in the
+    // institutions table can be wired without thinking. Empty/null fields
+    // render as empty strings (Leegality's default) — the lawyer can decide
+    // per-variable whether to show "(Not provided)" placeholder instead.
     const templateData = {
-      legal_name: i.legal_name,
-      display_name: i.display_name,
-      kind: i.kind === 'BB' ? 'Blood Bank' : 'Hospital',
-      address: i.address_line,
+      // Identity
+      institution_legal_name: i.legal_name,
+      institution_display_name: i.display_name,
+      institution_type: i.kind === 'BB' ? 'Blood Bank' : 'Hospital',
+      institution_shortname: i.shortname,
+
+      // Address
+      institution_address: i.address_line,
+      state_name: i.state_name || '',
+      district_name: i.district_name || '',
+      taluka_name: i.taluka_name || '',
+      village_name: i.village_name || '',
       pincode: i.pincode,
+      latitude: i.latitude != null ? String(i.latitude) : '',
+      longitude: i.longitude != null ? String(i.longitude) : '',
+
+      // Licensing
+      license_number: i.cdsco_licence_number || i.hospital_registration_no || '',
+      cdsco_licence_number: i.cdsco_licence_number || '',
+      cdsco_licence_expires: i.cdsco_licence_expires
+        ? new Date(i.cdsco_licence_expires).toISOString().slice(0, 10)
+        : '',
+      hospital_registration_no: i.hospital_registration_no || '',
+
+      // Contact + signatory (same person at v1; future: separate signatory)
+      primary_contact_name: i.primary_contact_name,
+      primary_contact_designation: i.primary_contact_designation || '',
+      primary_contact_mobile: i.primary_contact_mobile,
+      primary_contact_email: i.primary_contact_email || '',
       signatory_name: i.primary_contact_name,
-      effective_from: new Date().toISOString().slice(0, 10),
-      effective_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      signatory_designation: i.primary_contact_designation || 'Authorised Signatory',
+
+      // Capability flags (rendered as Yes/No in the MoU body if the lawyer wants them)
+      has_inhouse_blood_bank: i.has_inhouse_blood_bank ? 'Yes' : 'No',
+      is_blood_bank_software_user: i.is_blood_bank_software_user ? 'Yes' : 'No',
+      software_vendor: i.software_vendor || '',
+
+      // Dates + version
+      signing_date: today,
+      effective_from: today,
+      effective_until: yearOut,
+      effective_until_date: yearOut,
+      mou_version: String(nextVersion),
     };
 
     const eSignResult = await eSign.sendForSign({
@@ -311,7 +382,13 @@ router.post('/mou-signed', async (req, res) => {
   // services/users/setup.js. This replaces the previous "temp password over
   // WhatsApp" pattern (rejected by Meta + insecure on principle).
   const placeholderHash = await setupSvc.unusablePasswordHash();
-  const adminEmail = `${i.shortname}@${env.providers.mail === 'workspace' ? 'choudhari.ngo' : 'dev.choudhari.local'}`;
+  // Username convention: `<institution_shortname>_admin`. Role-shaped (not
+  // person-shaped) so handover works: when a hospital's officer changes,
+  // the new officer activates the SAME username via a fresh setup link.
+  // Migration 268 enforces format ^[a-z][a-z0-9_-]{2,31}$ — shortname is
+  // already constrained to the same shape so suffixing with `_admin` is safe
+  // until shortname exceeds 26 chars (rare; tighten if it bites).
+  const adminUsername = `${i.shortname}_admin`;
   const role = i.kind === 'BB' ? 'blood_bank' : 'hospital';
 
   const result = await withRlsContextRaw(
@@ -351,39 +428,41 @@ router.post('/mou-signed', async (req, res) => {
         [webhook.signedAt, webhook.docId, webhook.signatoryName || null, institutionId],
       );
 
-      // 3. platform_users: provision the admin login (idempotent on email).
+      // 3. platform_users: provision the admin login (idempotent on username).
       //    Placeholder password_hash satisfies auth_path_required CHECK;
       //    user can't log in until they consume the setup token below.
-      const existing = await c.query(`SELECT id FROM platform_users WHERE email = $1`, [
-        adminEmail,
+      const existing = await c.query(`SELECT id FROM platform_users WHERE username = $1`, [
+        adminUsername,
       ]);
       let userId;
       if (existing.rowCount === 0) {
         const created = await c.query(
           `INSERT INTO platform_users
-             (role, email, password_hash, password_set_at,
+             (role, username, mobile, password_hash, password_set_at,
               force_password_change, institution_id)
-           VALUES ($1, $2, $3, NOW(), TRUE, $4)
+           VALUES ($1, $2, $3, $4, NOW(), TRUE, $5)
            RETURNING id`,
-          [role, adminEmail, placeholderHash, institutionId],
+          [role, adminUsername, i.primary_contact_mobile, placeholderHash, institutionId],
         );
         userId = created.rows[0].id;
       } else {
         userId = existing.rows[0].id;
-        // Re-signing scenario: wipe password, issue a fresh setup token.
+        // Re-signing scenario (officer handover, MoU renewal): wipe password,
+        // refresh the mobile (new officer's number), issue a fresh setup token.
         await c.query(
           `UPDATE platform_users
               SET password_hash = $1, password_set_at = NOW(),
+                  mobile = $2,
                   force_password_change = TRUE
-            WHERE id = $2`,
-          [placeholderHash, userId],
+            WHERE id = $3`,
+          [placeholderHash, i.primary_contact_mobile, userId],
         );
       }
 
       // 4. Generate fresh setup token (single-use, 7-day TTL by default).
       //    Returns plaintext for the URL; only the SHA-256 hash is stored.
       const { token: setupToken, expiresAt } = await setupSvc.generateSetupToken(c, userId);
-      return { userId, adminEmail, setupToken, expiresAt };
+      return { userId, adminUsername, setupToken, expiresAt };
     },
   );
 
@@ -409,7 +488,7 @@ router.post('/mou-signed', async (req, res) => {
   const devEcho =
     env.nodeEnv === 'development'
       ? {
-          dev_admin_email: result.adminEmail,
+          dev_admin_username: result.adminUsername,
           dev_setup_url: `${env.frontendUrl}/setup/${result.setupToken}`,
           dev_setup_expires_at: result.expiresAt,
         }

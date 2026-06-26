@@ -54,7 +54,7 @@ async function validateSetupToken(client, plaintextToken) {
   const hash = sha256(plaintextToken);
 
   const { rows } = await client.query(
-    `SELECT pu.id, pu.email, pu.role, pu.institution_id,
+    `SELECT pu.id, pu.username, pu.email, pu.role, pu.institution_id,
             pu.setup_token_expires_at, pu.setup_token_used_at,
             i.shortname           AS institution_shortname,
             i.legal_name          AS institution_name,
@@ -77,6 +77,7 @@ async function validateSetupToken(client, plaintextToken) {
     ok: true,
     user: {
       id: r.id,
+      username: r.username,
       email: r.email,
       role: r.role,
     },

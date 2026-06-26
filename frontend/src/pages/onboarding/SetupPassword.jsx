@@ -127,9 +127,9 @@ export function SetupPassword() {
                 <strong className="text-stone-900">{state.data.institution_name}</strong>
               </p>
               <p className="text-xs text-stone-500">
-                {t('setup_intro_email')}{' '}
+                {t('setup_intro_username')}{' '}
                 <code className="rounded bg-sand px-1.5 py-0.5 font-mono text-[12px] text-stone-700">
-                  {state.data.email}
+                  {state.data.username || state.data.email}
                 </code>
               </p>
             </header>

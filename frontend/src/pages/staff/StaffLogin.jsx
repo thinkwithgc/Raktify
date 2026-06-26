@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 import { useT } from '../../i18n/useT.js';
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/),
   password: z.string().min(8),
   totp_code: z
     .string()
@@ -21,7 +21,7 @@ export function StaffLogin() {
   const { setSession } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ email: '', password: '', totp_code: '' });
+  const [form, setForm] = useState({ username: '', password: '', totp_code: '' });
   const [needTotp, setNeedTotp] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -34,7 +34,7 @@ export function StaffLogin() {
     e.preventDefault();
     setError('');
     const payload = {
-      email: form.email.trim().toLowerCase(),
+      username: form.username.trim().toLowerCase(),
       password: form.password,
       ...(form.totp_code ? { totp_code: form.totp_code } : {}),
     };
@@ -80,21 +80,27 @@ export function StaffLogin() {
         <form className="rk-card space-y-4" onSubmit={submit}>
           <div>
             <h1 className="text-xl font-semibold text-rk-700">{t('role_staff')}</h1>
-            <p className="mt-1 text-sm text-slate-500">Sign in with your work email and password.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Sign in with your assigned username and password.
+            </p>
           </div>
 
           <div>
-            <label className="rk-label" htmlFor="email">
-              Email
+            <label className="rk-label" htmlFor="username">
+              Username
             </label>
             <input
-              id="email"
-              type="email"
+              id="username"
+              type="text"
               autoComplete="username"
-              className="rk-input"
-              value={form.email}
-              onChange={(e) => update('email', e.target.value)}
+              autoCapitalize="none"
+              spellCheck={false}
+              className="rk-input lowercase"
+              value={form.username}
+              onChange={(e) => update('username', e.target.value.toLowerCase())}
               required
+              pattern="^[a-z][a-z0-9_\-]{2,31}$"
+              placeholder="e.g. irwin_admin"
             />
           </div>
 

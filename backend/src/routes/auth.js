@@ -3,7 +3,7 @@
  *
  *   POST /auth/otp/send        — donors and coordinators (mobile OTP)
  *   POST /auth/otp/verify      — verify OTP, return JWT
- *   POST /auth/institutional/login         — email + password + TOTP
+ *   POST /auth/institutional/login         — username + password + TOTP
  *   POST /auth/institutional/setup-totp    — bootstrap TOTP secret
  *   POST /auth/institutional/confirm-totp  — first verification enables it
  *   POST /auth/institutional/reset-password — ngo_admin only
@@ -215,9 +215,14 @@ router.post('/otp/verify', async (req, res) => {
 });
 
 // ── POST /auth/institutional/login ───────────────────────────────────────
+// Username-based as of migration 268. The username is auto-assigned at
+// onboarding time (`<institutions.shortname>_admin` for HO/BB; manually
+// chosen for ngo_admin/super_admin/dho) so the login identifier survives
+// officer turnover — when a hospital's admin changes, the new officer
+// activates the SAME username via a fresh setup link.
 router.post('/institutional/login', institutionalLoginLimiter, async (req, res) => {
   const schema = z.object({
-    email: z.string().email(),
+    username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/),
     password: z.string().min(8),
     totp_code: z
       .string()
@@ -234,8 +239,8 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
             i.onboarding_status
        FROM platform_users pu
   LEFT JOIN institutions i ON i.id = pu.institution_id
-      WHERE pu.email = $1`,
-    [parsed.data.email.toLowerCase()],
+      WHERE pu.username = $1`,
+    [parsed.data.username],
   );
   if (r.rowCount === 0) return res.status(401).json({ error: 'invalid_credentials' });
   const u = r.rows[0];
@@ -346,55 +351,80 @@ router.post('/institutional/confirm-totp', verifyJWT, async (req, res) => {
 });
 
 // ── POST /auth/institutional/reset-password ──────────────────────────────
+// ngo_admin / super_admin triggers a magic-link password reset for a staff
+// account by username. Reuses the same setup-token + WhatsApp template
+// (`institution_link`) as initial onboarding — no separate code path, no
+// temporary password ever transits the wire.
+//
+// Resolves the user's mobile by preferring the platform_users.mobile column
+// (set at onboarding time = institution's primary_contact_mobile at the
+// time of setup); falls back to the live institution mobile if the user
+// row's mobile is null (legacy rows from before migration 268). The link
+// goes to whichever mobile is on record — the assumption being that the
+// admin doing the reset has already confirmed the new officer's mobile is
+// reflected in the institution row.
 router.post(
   '/institutional/reset-password',
   verifyJWT,
   requireRole('ngo_admin', 'super_admin'),
   async (req, res) => {
-    const schema = z.object({ email: z.string().email() });
+    const schema = z.object({ username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/) });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
     const r = await pool.query(
-      `SELECT pu.id, pu.role, i.primary_contact_mobile
+      `SELECT pu.id, pu.role, pu.username, pu.mobile,
+              i.primary_contact_mobile, i.primary_contact_name,
+              i.display_name, i.shortname
          FROM platform_users pu
     LEFT JOIN institutions i ON i.id = pu.institution_id
-        WHERE pu.email = $1`,
-      [parsed.data.email.toLowerCase()],
+        WHERE pu.username = $1`,
+      [parsed.data.username],
     );
     if (r.rowCount === 0) return res.status(404).json({ error: 'user_not_found' });
+    const u = r.rows[0];
 
-    const tempPassword = require('crypto')
-      .randomBytes(9)
-      .toString('base64url')
-      .replace(/[^A-Za-z0-9]/g, '');
-    const hash = await bcrypt.hash(tempPassword, 12);
+    const placeholderHash = await setupSvc.unusablePasswordHash();
+    const mobile = u.mobile || u.primary_contact_mobile;
+    if (!mobile) return res.status(400).json({ error: 'no_mobile_on_file' });
 
-    await pool.query(
-      `UPDATE platform_users
-          SET password_hash = $1, password_set_at = NOW(),
-              force_password_change = TRUE,
-              is_locked = FALSE, locked_until = NULL
-        WHERE id = $2`,
-      [hash, r.rows[0].id],
+    const { token: setupToken, expiresAt } = await withRlsContextRaw(
+      { actor_role: 'onboarding', change_reason: 'admin password reset' },
+      async (c) => {
+        // Wipe password + clear any lock — they're getting a fresh setup link.
+        await c.query(
+          `UPDATE platform_users
+              SET password_hash = $1, password_set_at = NOW(),
+                  force_password_change = TRUE,
+                  is_locked = FALSE, locked_until = NULL,
+                  mobile = $2
+            WHERE id = $3`,
+          [placeholderHash, mobile, u.id],
+        );
+        return setupSvc.generateSetupToken(c, u.id);
+      },
     );
 
-    if (r.rows[0].primary_contact_mobile) {
-      await sendNotification({
-        recipientId: r.rows[0].primary_contact_mobile,
-        templateType: 'CRED',
-        variables: {
-          email: parsed.data.email,
-          temp_password: tempPassword,
-          login_url: env.frontendUrl,
-        },
-        channel: 'WA',
-        language: 'en',
-      });
-    }
+    await sendNotification({
+      recipientId: mobile,
+      templateType: 'SETUP_LINK',
+      variables: {
+        signatory_name: u.primary_contact_name || u.username,
+        institution_name: u.display_name || u.shortname || 'Raktify',
+        setup_token: setupToken,
+      },
+      channel: 'WA',
+      language: 'en',
+    });
 
-    const devEcho = env.nodeEnv === 'development' ? { dev_temp_password: tempPassword } : {};
-    res.json({ status: 'reset', ...devEcho });
+    const devEcho =
+      env.nodeEnv === 'development'
+        ? {
+            dev_setup_url: `${env.frontendUrl}/setup/${setupToken}`,
+            dev_setup_expires_at: expiresAt,
+          }
+        : {};
+    res.json({ status: 'reset_link_sent', username: u.username, ...devEcho });
   },
 );
 
@@ -427,6 +457,7 @@ router.get('/setup/:token', setupLimiter, async (req, res) => {
       return res.status(status).json({ error: v.code });
     }
     return res.json({
+      username: v.user.username,
       email: v.user.email,
       role: v.user.role,
       institution_name: v.institution.name,
