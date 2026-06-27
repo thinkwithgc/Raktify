@@ -1,0 +1,458 @@
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+
+import { apiRequest } from '../../lib/api.js';
+
+/**
+ * Shared bulk donor upload UI — usable from /admin (ngo_admin) or the
+ * blood-bank portal (blood_bank). Backend POST /donors/bulk-upload
+ * branches on caller role to set registration_source (IMP vs BBK).
+ *
+ * Flow:
+ *   1. Operator picks a CSV file
+ *   2. Frontend parses CSV client-side, shows a preview of first 5 rows
+ *      + total count + validates required headers
+ *   3. Operator clicks Upload → backend processes per-row + returns a
+ *      result table: imported / skipped_duplicate / invalid (with reason)
+ *
+ * Conservative columns per the design decision:
+ *   Required: full_name, mobile, blood_group_code (A+ / O- etc)
+ *   Optional: date_of_birth (YYYY-MM-DD), gender (M/F/O), pincode, village_id
+ *
+ * Donors are imported as inert (consent_data_use=FALSE). They become
+ * matchable only after activating at next donation (BB inline flow) or
+ * via web self-register that merges into the imported row.
+ */
+const REQUIRED_HEADERS = ['full_name', 'mobile', 'blood_group_code'];
+const OPTIONAL_HEADERS = ['date_of_birth', 'gender', 'pincode', 'village_id'];
+
+function parseCsv(text) {
+  // Tiny CSV parser — handles quoted fields and embedded commas. No
+  // escape-quote support (`""`); good enough for the conservative
+  // 3-required-column shape. Operators paste from Excel which uses this
+  // dialect by default.
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const parseLine = (line) => {
+    const out = [];
+    let cur = '';
+    let inQ = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        out.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+  const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
+  const rows = lines.slice(1).map((line) => {
+    const cols = parseLine(line);
+    const obj = {};
+    headers.forEach((h, i) => {
+      if (cols[i] !== undefined && cols[i] !== '') obj[h] = cols[i];
+    });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+export function DonorBulkUpload() {
+  const [csvText, setCsvText] = useState('');
+  const [filename, setFilename] = useState('');
+  const [parseError, setParseError] = useState(null);
+  const [results, setResults] = useState(null);
+
+  const parsed = csvText
+    ? (() => {
+        try {
+          return parseCsv(csvText);
+        } catch (e) {
+          return { error: e.message };
+        }
+      })()
+    : null;
+  const missingHeaders = parsed?.headers
+    ? REQUIRED_HEADERS.filter((h) => !parsed.headers.includes(h))
+    : [];
+  const canUpload = parsed && !parsed.error && missingHeaders.length === 0 && parsed.rows.length > 0;
+
+  const upload = useMutation({
+    mutationFn: () => {
+      // Coerce numeric village_id from string.
+      const rows = parsed.rows.map((r) => ({
+        ...r,
+        ...(r.village_id ? { village_id: Number(r.village_id) } : {}),
+      }));
+      return apiRequest('POST', '/donors/bulk-upload', { rows });
+    },
+    onSuccess: (data) => setResults(data),
+    onError: (err) =>
+      setParseError(
+        err?.response?.data?.error
+          ? `${err.response.data.error}: ${err.response.data.details ? JSON.stringify(err.response.data.details).slice(0, 200) : ''}`
+          : 'upload_failed',
+      ),
+  });
+
+  function handleFile(e) {
+    setParseError(null);
+    setResults(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = () => setCsvText(String(reader.result || ''));
+    reader.onerror = () => setParseError('Could not read file');
+    reader.readAsText(file);
+  }
+
+  function reset() {
+    setCsvText('');
+    setFilename('');
+    setResults(null);
+    setParseError(null);
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rk-card">
+        <h2 className="text-lg font-semibold text-stone-900">Bulk donor upload</h2>
+        <p className="mt-1 text-sm text-stone-600">
+          Imported donors are <strong>inert</strong> — they don&apos;t receive any WhatsApp
+          messages and are excluded from emergency matching until they activate (in person at
+          their next donation, or via web self-register).
+        </p>
+        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-stone-700">
+          <p className="font-semibold">CSV format</p>
+          <p className="mt-1">
+            Required columns (header row, exact names):{' '}
+            <code className="font-mono text-[11px]">{REQUIRED_HEADERS.join(', ')}</code>
+          </p>
+          <p className="mt-1">
+            Optional columns: <code className="font-mono text-[11px]">{OPTIONAL_HEADERS.join(', ')}</code>
+          </p>
+          <p className="mt-2">
+            Example row:{' '}
+            <code className="font-mono text-[11px]">&quot;Anjali Sharma&quot;,+918586999911,B+,1990-05-15,F,,</code>
+          </p>
+          <p className="mt-2 text-stone-600">
+            Blood group codes: A+, A-, B+, B-, AB+, AB-, O+, O-. Max 2000 rows per upload.
+          </p>
+        </div>
+      </div>
+
+      <div className="rk-card space-y-3">
+        <label className="block">
+          <span className="rk-label">Pick a CSV file</span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="rk-input w-full"
+            onChange={handleFile}
+          />
+        </label>
+        {filename ? (
+          <p className="text-xs text-stone-600">
+            Loaded: <code>{filename}</code>
+          </p>
+        ) : null}
+
+        {parseError ? (
+          <p className="text-sm text-rk-700">{parseError}</p>
+        ) : null}
+
+        {parsed?.error ? <p className="text-sm text-rk-700">Parse error: {parsed.error}</p> : null}
+
+        {parsed && !parsed.error ? (
+          <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs">
+            <p className="font-semibold">Preview: {parsed.rows.length} rows</p>
+            <p className="mt-1 text-stone-600">
+              Headers detected: <code className="font-mono">{parsed.headers.join(', ')}</code>
+            </p>
+            {missingHeaders.length > 0 ? (
+              <p className="mt-1 text-rk-700">
+                Missing required: <code>{missingHeaders.join(', ')}</code>
+              </p>
+            ) : (
+              <table className="mt-2 min-w-full text-[11px]">
+                <thead>
+                  <tr className="text-left text-slate-500">
+                    {parsed.headers.map((h) => (
+                      <th key={h} className="px-2 py-1">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsed.rows.slice(0, 5).map((r, i) => (
+                    <tr key={i} className="border-t border-slate-200">
+                      {parsed.headers.map((h) => (
+                        <td key={h} className="px-2 py-1 font-mono">{r[h] || ''}</td>
+                      ))}
+                    </tr>
+                  ))}
+                  {parsed.rows.length > 5 ? (
+                    <tr>
+                      <td colSpan={parsed.headers.length} className="px-2 py-1 text-center text-slate-500">
+                        … and {parsed.rows.length - 5} more
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : null}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="rk-button-primary flex-1"
+            disabled={!canUpload || upload.isPending}
+            onClick={() => upload.mutate()}
+          >
+            {upload.isPending
+              ? 'Uploading…'
+              : parsed && !parsed.error
+                ? `Upload ${parsed.rows.length} rows`
+                : 'Upload'}
+          </button>
+          {csvText ? (
+            <button type="button" className="rk-button-secondary" onClick={reset}>
+              Clear
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {results ? (
+        <div className="rk-card">
+          <h3 className="text-base font-semibold text-stone-900">Results</h3>
+          <p className="mt-1 text-sm text-stone-600">
+            Total <strong>{results.total}</strong> · Imported{' '}
+            <strong className="text-emerald-700">{results.imported}</strong> · Skipped (duplicate){' '}
+            <strong className="text-amber-700">{results.skipped_duplicate}</strong> · Invalid{' '}
+            <strong className="text-rk-700">{results.invalid}</strong> · Source{' '}
+            <code className="font-mono">{results.source}</code>
+          </p>
+          <div className="mt-3 max-h-96 overflow-y-auto">
+            <table className="min-w-full text-xs">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-2 py-1 text-left">Row</th>
+                  <th className="px-2 py-1 text-left">Status</th>
+                  <th className="px-2 py-1 text-left">Detail</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(results.results || []).map((r) => (
+                  <tr key={r.row_index}>
+                    <td className="px-2 py-1 font-mono">{r.row_index + 1}</td>
+                    <td className="px-2 py-1">
+                      {r.status === 'imported' ? (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800">
+                          imported
+                        </span>
+                      ) : r.status === 'skipped_duplicate' ? (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">
+                          duplicate
+                        </span>
+                      ) : (
+                        <span className="rounded bg-rk-100 px-1.5 py-0.5 text-rk-800">invalid</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 font-mono text-stone-600">
+                      {r.reason || r.donor_id || ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Inline activation modal for a single imported donor at the point of
+ * donation. Captures the missing fields (DOB, gender) + a consent
+ * checkbox, posts to /donors/:id/complete-import. On success, the parent
+ * (RecordDonation in BloodBankPortal) re-runs the lookup to refresh state.
+ */
+export function ActivateImportButton({ donor, onActivated }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="rk-button-primary mt-2 text-xs"
+        onClick={() => setOpen(true)}
+      >
+        Activate donor (complete registration)
+      </button>
+      {open ? (
+        <ActivateImportModal
+          donor={donor}
+          onClose={() => setOpen(false)}
+          onActivated={(result) => {
+            setOpen(false);
+            if (onActivated) onActivated(result);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function ActivateImportModal({ donor, onClose, onActivated }) {
+  const [form, setForm] = useState({
+    date_of_birth: donor.date_of_birth || '',
+    gender: donor.gender || '',
+    blood_group_self_reported: donor.blood_group_self_reported || '',
+    pincode: '',
+    consent_given: false,
+  });
+  const [error, setError] = useState(null);
+
+  const submit = useMutation({
+    mutationFn: () => {
+      const body = {
+        date_of_birth: form.date_of_birth,
+        gender: form.gender,
+        consent_given: true,
+      };
+      if (form.blood_group_self_reported)
+        body.blood_group_self_reported = Number(form.blood_group_self_reported);
+      if (form.pincode) body.pincode = form.pincode;
+      return apiRequest('POST', `/donors/${donor.donor_id}/complete-import`, body);
+    },
+    onSuccess: (data) => {
+      if (data.status === 'soft_decline') {
+        setError(
+          'Donor failed pre-screening: ' + (data.blocks?.join(', ') || data.reason || 'declined'),
+        );
+        return;
+      }
+      onActivated(data);
+    },
+    onError: (err) => setError(err?.response?.data?.error || 'activate_failed'),
+  });
+
+  const canSubmit = form.date_of_birth && form.gender && form.consent_given;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg max-h-[90vh] overflow-y-auto">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            if (canSubmit) submit.mutate();
+          }}
+          className="space-y-3"
+        >
+          <h3 className="text-lg font-semibold text-stone-900">Activate donor</h3>
+          <p className="text-xs text-stone-600">
+            <strong>{donor.full_name}</strong> — was bulk-imported and needs to complete consent
+            + verify their details before this donation can be recorded.
+          </p>
+
+          <label className="block">
+            <span className="rk-label">Date of birth *</span>
+            <input
+              type="date"
+              className="rk-input w-full"
+              value={form.date_of_birth}
+              onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+              required
+              max={new Date().toISOString().slice(0, 10)}
+            />
+          </label>
+
+          <label className="block">
+            <span className="rk-label">Gender *</span>
+            <select
+              className="rk-input w-full"
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value })}
+              required
+            >
+              <option value="">—</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+              <option value="O">Other / prefer not to say</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="rk-label">Confirm blood group (self-reported)</span>
+            <select
+              className="rk-input w-full"
+              value={form.blood_group_self_reported}
+              onChange={(e) =>
+                setForm({ ...form, blood_group_self_reported: e.target.value })
+              }
+            >
+              <option value="">— keep imported value —</option>
+              <option value="1">A+</option>
+              <option value="2">A-</option>
+              <option value="3">B+</option>
+              <option value="4">B-</option>
+              <option value="5">AB+</option>
+              <option value="6">AB-</option>
+              <option value="7">O+</option>
+              <option value="8">O-</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="rk-label">Pincode (optional)</span>
+            <input
+              type="text"
+              className="rk-input w-full font-mono"
+              value={form.pincode}
+              onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              pattern="^[1-9]\d{5}$"
+            />
+          </label>
+
+          <label className="flex items-start gap-2 text-sm text-stone-700">
+            <input
+              type="checkbox"
+              checked={form.consent_given}
+              onChange={(e) => setForm({ ...form, consent_given: e.target.checked })}
+              className="mt-1"
+            />
+            <span>
+              <strong>Donor has verbally agreed</strong> to Raktify processing their data + being
+              contacted for future blood-donation matches.
+            </span>
+          </label>
+
+          {error ? <p className="text-sm text-rk-700">{error}</p> : null}
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" className="rk-button-secondary flex-1" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rk-button-primary flex-1"
+              disabled={!canSubmit || submit.isPending}
+            >
+              {submit.isPending ? 'Activating…' : 'Activate'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

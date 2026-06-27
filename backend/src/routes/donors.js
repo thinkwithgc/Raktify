@@ -263,12 +263,13 @@ router.get(
       },
       (c) =>
         c.query(
-          `SELECT d.id, d.full_name,
+          `SELECT d.id, d.full_name, d.date_of_birth, d.gender,
                   d.blood_group_verified, bgv.code AS blood_group_verified_code,
                   d.blood_group_self_reported, bgs.code AS blood_group_self_reported_code,
                   d.blood_group_verified_at,
                   d.deferral_status, d.deferral_until, d.next_eligible_date,
-                  d.is_available
+                  d.is_available,
+                  d.consent_data_use, d.registration_source
              FROM donors d
         LEFT JOIN blood_groups bgv ON bgv.id = d.blood_group_verified
         LEFT JOIN blood_groups bgs ON bgs.id = d.blood_group_self_reported
@@ -282,13 +283,22 @@ router.get(
     res.json({
       donor_id: d.id,
       full_name: d.full_name, // TODO encryption.decrypt() when col-encrypted
+      date_of_birth: d.date_of_birth,
+      gender: d.gender,
       blood_group_verified_code: d.blood_group_verified_code,
       blood_group_self_reported_code: d.blood_group_self_reported_code,
+      blood_group_self_reported: d.blood_group_self_reported,
       blood_group_verified: Boolean(d.blood_group_verified_code),
       deferral_status: d.deferral_status,
       deferral_until: d.deferral_until,
       next_eligible_date: d.next_eligible_date,
       is_available: d.is_available,
+      // Phase 4c bulk import: if FALSE + source IN (IMP,BBK), the donor
+      // was bulk-imported and never completed consent. BB UI surfaces a
+      // "Complete registration" inline flow before recording the donation.
+      consent_data_use: d.consent_data_use,
+      registration_source: d.registration_source,
+      needs_activation: !d.consent_data_use,
     });
   },
 );
@@ -420,5 +430,268 @@ router.post('/merge', verifyJWT, requireRole('ngo_admin', 'super_admin'), async 
     .status(501)
     .json({ error: 'not_implemented', message: 'donor merge pending medical-advisor review' });
 });
+
+// ── POST /donors/bulk-upload (ngo_admin + blood_bank) ────────────────────
+// Bulk-import legacy donor records. Imported rows are INERT until the
+// donor next walks in for a donation OR self-activates via web register.
+// They DO NOT receive any outbound WhatsApp on import. The matching
+// engine already excludes consent_data_use=FALSE so imported rows are
+// invisible to alerts.
+//
+// Payload: array of donor objects parsed from CSV client-side.
+//   Required per row: full_name, mobile, blood_group_code
+//   Optional:         date_of_birth (YYYY-MM-DD), gender (M/F/O), pincode,
+//                     village_id
+//
+// Response: per-row results { imported, skipped_duplicate, invalid }.
+//
+// registration_source:
+//   ngo_admin invokes        → 'IMP'  (general NGO-side import)
+//   blood_bank staff invokes → 'BBK'  (blood-bank historical record import)
+//
+// RLS: writes use actor_role='registration' (donors_register policy admits).
+const BG_CODE_TO_ID = {
+  'A+': 1,
+  'A-': 2,
+  'B+': 3,
+  'B-': 4,
+  'AB+': 5,
+  'AB-': 6,
+  'O+': 7,
+  'O-': 8,
+};
+
+const bulkRowSchema = z.object({
+  full_name: z.string().trim().min(2).max(120),
+  mobile: z.string(),
+  blood_group_code: z.string().toUpperCase(),
+  date_of_birth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .or(z.literal('')),
+  gender: z.enum(['M', 'F', 'O']).optional().or(z.literal('')),
+  pincode: z
+    .string()
+    .regex(/^[1-9]\d{5}$/)
+    .optional()
+    .or(z.literal('')),
+  village_id: z.number().int().positive().optional(),
+});
+
+const bulkPayloadSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(2000),
+});
+
+router.post(
+  '/bulk-upload',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin', 'blood_bank'),
+  async (req, res) => {
+    const parsed = bulkPayloadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const source = req.user.role === 'blood_bank' ? 'BBK' : 'IMP';
+    const results = [];
+    let imported = 0;
+    let skipped = 0;
+    let invalid = 0;
+
+    // Process rows sequentially — per-row tx so a bad row doesn't poison
+    // the whole batch. 2000-row cap (validation above) bounds total time.
+    for (let i = 0; i < parsed.data.rows.length; i += 1) {
+      const raw = parsed.data.rows[i];
+      const row = bulkRowSchema.safeParse(raw);
+      if (!row.success) {
+        results.push({
+          row_index: i,
+          status: 'invalid',
+          reason: row.error.issues[0]?.message || 'schema',
+        });
+        invalid += 1;
+        continue;
+      }
+      const data = row.data;
+      const mobile = normaliseIndianMobile(data.mobile);
+      if (!mobile) {
+        results.push({ row_index: i, status: 'invalid', reason: 'invalid_mobile_format' });
+        invalid += 1;
+        continue;
+      }
+      const bloodGroupId = BG_CODE_TO_ID[data.blood_group_code];
+      if (!bloodGroupId) {
+        results.push({ row_index: i, status: 'invalid', reason: 'unknown_blood_group_code' });
+        invalid += 1;
+        continue;
+      }
+
+      try {
+        const inserted = await withRlsContextRaw(
+          {
+            actor_role: 'registration',
+            change_reason: `bulk import (${source})`,
+            actor_user_id: req.user.userId,
+          },
+          async (c) => {
+            // Skip if a donor row already exists with this mobile —
+            // duplicate detection by exact mobile match.
+            const existing = await c.query(`SELECT id FROM donors WHERE mobile = $1`, [mobile]);
+            if (existing.rowCount > 0) {
+              return { kind: 'skipped', donor_id: existing.rows[0].id };
+            }
+
+            // Insert platform_users row first (auto-upsert mobile, donor role).
+            const userR = await c.query(
+              `INSERT INTO platform_users (role, mobile)
+               VALUES ('donor', $1)
+               ON CONFLICT (mobile) DO UPDATE SET role = platform_users.role
+               RETURNING id`,
+              [mobile],
+            );
+            const platformUserId = userR.rows[0].id;
+
+            // Insert donor row. consent_data_use stays FALSE (default).
+            // mobile_verified stays FALSE — they haven't OTP'd from this
+            // device. blood_group_self_reported gets the upload value;
+            // blood_group_verified stays NULL (BB will verify in person).
+            const donorR = await c.query(
+              `INSERT INTO donors (
+                 mobile, full_name, date_of_birth, gender,
+                 pincode, village_id,
+                 blood_group_self_reported,
+                 platform_user_id,
+                 registration_source)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               RETURNING id`,
+              [
+                mobile,
+                data.full_name,
+                data.date_of_birth || null,
+                data.gender || null,
+                data.pincode || null,
+                data.village_id || null,
+                bloodGroupId,
+                platformUserId,
+                source,
+              ],
+            );
+            return { kind: 'imported', donor_id: donorR.rows[0].id };
+          },
+        );
+
+        if (inserted.kind === 'imported') {
+          imported += 1;
+          results.push({ row_index: i, status: 'imported', donor_id: inserted.donor_id });
+        } else {
+          skipped += 1;
+          results.push({ row_index: i, status: 'skipped_duplicate', donor_id: inserted.donor_id });
+        }
+      } catch (err) {
+        invalid += 1;
+        results.push({
+          row_index: i,
+          status: 'invalid',
+          reason: err.message?.slice(0, 200) || 'insert_failed',
+        });
+      }
+    }
+
+    res.json({
+      total: parsed.data.rows.length,
+      imported,
+      skipped_duplicate: skipped,
+      invalid,
+      source,
+      results,
+    });
+  },
+);
+
+// ── POST /donors/:id/complete-import (blood_bank) ────────────────────────
+// BB activates an imported donor at the point of donation — captures
+// consent + the missing fields (DOB, gender, etc.). After this, the
+// donor is treated as fully-registered (consent_data_use=TRUE,
+// mobile_verified=TRUE — the BB physically saw them).
+//
+// Only allowed when the donor was imported (consent_data_use = FALSE).
+// Idempotent failure: trying to "complete" an already-active donor
+// returns 409.
+const completeImportSchema = z.object({
+  date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  gender: z.enum(['M', 'F', 'O']),
+  blood_group_self_reported: z.number().int().min(1).max(8).optional(),
+  pincode: z
+    .string()
+    .regex(/^[1-9]\d{5}$/)
+    .optional()
+    .or(z.literal('')),
+  address_line: z.string().max(240).optional().or(z.literal('')),
+  village_id: z.number().int().positive().optional(),
+  prescreening_answers: z.record(z.string(), z.enum(['YES', 'NO'])).optional(),
+  // Consent capture — BB confirms verbally with the donor + ticks the box.
+  consent_given: z.literal(true),
+});
+
+router.post(
+  '/:id/complete-import',
+  verifyJWT,
+  requireRole('blood_bank', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const parsed = completeImportSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const data = parsed.data;
+
+    // Pre-screening evaluation against the DRAFT bank — same as web register.
+    if (data.prescreening_answers) {
+      const verdict = eligibility.evaluate(data.prescreening_answers);
+      if (!verdict.eligible) {
+        return res.status(200).json({
+          status: 'soft_decline',
+          reason: 'permanent_exclusion',
+          blocks: verdict.permanent_blocks,
+        });
+      }
+    }
+
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE donors
+              SET date_of_birth          = $1,
+                  gender                 = $2,
+                  blood_group_self_reported = COALESCE($3, blood_group_self_reported),
+                  pincode                = COALESCE(NULLIF($4, ''), pincode),
+                  address_line           = COALESCE(NULLIF($5, ''), address_line),
+                  village_id             = COALESCE($6, village_id),
+                  consent_data_use       = TRUE,
+                  consent_given_at       = NOW(),
+                  consent_version        = COALESCE(consent_version, 1),
+                  mobile_verified        = TRUE,
+                  mobile_verified_at     = NOW()
+            WHERE id = $7
+              AND consent_data_use = FALSE
+         RETURNING id, full_name, mobile`,
+          [
+            data.date_of_birth,
+            data.gender,
+            data.blood_group_self_reported || null,
+            data.pincode || '',
+            data.address_line || '',
+            data.village_id || null,
+            req.params.id,
+          ],
+        ),
+      { change_reason: 'BB completes imported donor registration' },
+    );
+    if (r.rowCount === 0) {
+      return res.status(409).json({ error: 'donor_already_consented_or_not_found' });
+    }
+    res.json({ status: 'activated', donor: r.rows[0] });
+  },
+);
 
 module.exports = router;

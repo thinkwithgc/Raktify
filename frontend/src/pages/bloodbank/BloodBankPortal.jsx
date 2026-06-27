@@ -6,6 +6,7 @@ import { Footer } from '../../components/Footer.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { donationSchema, openingStockSchema, zodFlatten } from '../../lib/schemas.js';
 import { useT } from '../../i18n/useT.js';
+import { DonorBulkUpload, ActivateImportButton } from '../../components/donors/DonorBulkUpload.jsx';
 
 // Spec §7 Blood Bank Portal: inventory dashboard, record donation, TTI entry,
 // supervisor verification (4-eyes). Opening-stock and incoming-request alerts
@@ -18,6 +19,7 @@ function tabsFor(t) {
     { id: 'record', label: t('record_donation') },
     { id: 'screening', label: t('tti_screening') },
     { id: 'opening', label: t('opening_stock') },
+    { id: 'import', label: 'Import donors' },
   ];
 }
 
@@ -53,6 +55,7 @@ export function BloodBankPortal() {
         {tab === 'record' ? <RecordDonation /> : null}
         {tab === 'screening' ? <ScreeningEntry /> : null}
         {tab === 'opening' ? <OpeningStock /> : null}
+        {tab === 'import' ? <DonorBulkUpload /> : null}
       </main>
       <Footer variant="compact" />
     </div>
@@ -524,6 +527,26 @@ function RecordDonation() {
                   Donor has no verified blood group — POST /donations will fail. Verify via{' '}
                   <code>POST /donors/:id/blood-group/verify</code> first.
                 </p>
+              ) : null}
+              {donorPreview.needs_activation ? (
+                <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                  <p className="font-medium">
+                    Imported donor — needs activation before donation.
+                  </p>
+                  <p className="mt-0.5">
+                    This donor was added in bulk (source:{' '}
+                    <code>{donorPreview.registration_source}</code>) and never completed
+                    consent. Walk them through the activation steps below.
+                  </p>
+                  <ActivateImportButton
+                    donor={donorPreview}
+                    onActivated={(updated) => {
+                      setForm((prev) => ({ ...prev, donor_id: updated.donor.id }));
+                      // Refresh the lookup so the UI hides this banner.
+                      lookup.mutate(mobileQuery.trim());
+                    }}
+                  />
+                </div>
               ) : null}
             </div>
           ) : null}
