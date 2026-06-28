@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Raktify sitemap (static).
+
+  Lists publicly-crawlable pages — the SPA's authenticated routes are
+  excluded (they're behind a JWT anyway + blocked in robots.txt).
+
+  Per-community public pages (/community/:slug) are NOT listed here in
+  v1 because the slug list is dynamic. Two future options:
+    a) Backend endpoint /sitemap-communities.xml that lists active +
+       public communities, referenced from this file via <sitemapindex>.
+    b) Static-prerender + commit one entry per community.
+  Both can land when community count is large enough to matter.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://raktify.choudhari.ngo/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/register</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/login</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/staff/login</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/onboarding/apply</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/camps/host</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raktify.choudhari.ngo/data-deletion</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

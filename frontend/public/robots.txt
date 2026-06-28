@@ -1,0 +1,23 @@
+# Raktify — robots.txt
+# Generated 2026-06-27. Allow all well-behaved crawlers full access to
+# the public pages; the SPA's authenticated routes (donor portal, BB
+# portal, /admin, etc.) require a JWT so crawlers can't reach them
+# anyway, but we explicitly disallow common admin paths as defence-in-
+# depth + to keep them out of the index.
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /staff/login
+Disallow: /bb
+Disallow: /hospital
+Disallow: /coordinator
+Disallow: /community-leader
+Disallow: /donor
+Disallow: /dho
+Disallow: /onboarding/apply
+Disallow: /setup/
+Disallow: /activate/
+Disallow: /camp/
+
+Sitemap: https://raktify.choudhari.ngo/sitemap.xml

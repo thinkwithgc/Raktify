@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="mr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
@@ -7,40 +7,94 @@
     <meta name="theme-color" content="#b8231a" />
 
     <!-- ── Page metadata ────────────────────────────────────────────────── -->
-    <title>Raktify — A mission-critical operating system for India's bloodstream</title>
+    <!--
+      SEO-friendly title (≤60 chars) — leads with the brand + the literal
+      keyword phrase Google users actually type. The previous poetic title
+      ("mission-critical operating system") was beautiful but invisible to
+      anyone searching "blood donor network". Foundation name stays in the
+      title; Amravati (the geographic root) drops to the description.
+    -->
+    <title>Raktify — Blood Donor Network by Choudhari Foundation</title>
     <meta
       name="description"
-      content="Raktify is a free, life-critical platform that connects voluntary blood donors, hospitals, blood banks and camp organisers across India. Built by Choudhari EduHealth India Foundation."
+      content="Raktify connects voluntary blood donors with hospitals and blood banks across India. Built by Choudhari Foundation, Amravati. Sign up as a donor, host a camp, or onboard your hospital."
     />
     <meta name="author" content="Choudhari EduHealth India Foundation" />
+    <meta
+      name="keywords"
+      content="Raktify, blood donor, blood donation India, voluntary blood donor, blood bank, hospital blood request, blood donation camp, Choudhari Foundation, Amravati, donate blood, find blood donors"
+    />
     <link rel="canonical" href="https://raktify.choudhari.ngo/" />
 
     <!-- ── Open Graph (WhatsApp, Facebook, LinkedIn, iMessage) ──────────── -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Raktify" />
     <meta property="og:url" content="https://raktify.choudhari.ngo/" />
-    <meta property="og:title" content="Raktify — A mission-critical OS for India's bloodstream" />
+    <meta property="og:title" content="Raktify — Blood Donor Network by Choudhari Foundation" />
     <meta
       property="og:description"
-      content="Free, voluntary blood donation platform connecting donors, hospitals, blood banks and camp organisers across India. An operating system, not an app."
+      content="Raktify connects voluntary blood donors with hospitals and blood banks across India. Built by Choudhari Foundation, Amravati. Sign up as a donor, host a camp, or onboard your hospital."
     />
     <meta property="og:image" content="https://raktify.choudhari.ngo/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Raktify — A mission-critical operating system for India's bloodstream" />
+    <meta property="og:image:alt" content="Raktify — Blood donor network by Choudhari Foundation" />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:locale:alternate" content="mr_IN" />
     <meta property="og:locale:alternate" content="hi_IN" />
 
     <!-- ── Twitter / X Card ─────────────────────────────────────────────── -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Raktify — A mission-critical OS for India's bloodstream" />
+    <meta name="twitter:title" content="Raktify — Blood Donor Network by Choudhari Foundation" />
     <meta
       name="twitter:description"
-      content="Free, voluntary blood donation platform connecting donors, hospitals, blood banks and camp organisers across India."
+      content="Free voluntary blood donation platform — donors, hospitals, blood banks and camp organisers across India."
     />
     <meta name="twitter:image" content="https://raktify.choudhari.ngo/og-image.png" />
-    <meta name="twitter:image:alt" content="Raktify wordmark with the tagline 'A mission-critical operating system for India's bloodstream'" />
+    <meta name="twitter:image:alt" content="Raktify wordmark — Blood donor network by Choudhari Foundation" />
+
+    <!-- ── Structured data (NGO Organization schema) ──────────────────────
+         Drives the Google Knowledge Panel + "About this result" snippets.
+         Updates here flow through to Google within days of next crawl. Add
+         sameAs URLs (Facebook page, Instagram, LinkedIn, foundation site)
+         as soon as we have them — they bind the brand to verified profiles. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "NGO",
+        "name": "Raktify",
+        "alternateName": "Raktify Blood Donor Network",
+        "legalName": "Choudhari EduHealth India Foundation",
+        "url": "https://raktify.choudhari.ngo",
+        "logo": "https://raktify.choudhari.ngo/app-icon.png",
+        "image": "https://raktify.choudhari.ngo/og-image.png",
+        "description": "Raktify is a free, voluntary blood donation platform that connects donors with hospitals and blood banks across India. An initiative of Choudhari Foundation, Amravati.",
+        "foundingDate": "2025",
+        "founder": { "@type": "Organization", "name": "Choudhari EduHealth India Foundation" },
+        "areaServed": { "@type": "Country", "name": "India" },
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Amravati",
+          "addressRegion": "Maharashtra",
+          "addressCountry": "IN"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "email": "contact@choudhari.ngo",
+          "contactType": "customer support",
+          "availableLanguage": ["English", "Marathi", "Hindi"]
+        },
+        "knowsAbout": [
+          "blood donation",
+          "voluntary blood donor",
+          "blood bank operations",
+          "hospital blood request",
+          "blood donation camp",
+          "transfusion safety",
+          "donor matching"
+        ]
+      }
+    </script>
 
     <!-- ── Fonts ────────────────────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -52,6 +106,60 @@
   </head>
   <body class="bg-rk-50 text-slate-900 antialiased">
     <div id="root"></div>
+
+    <!--
+      Static crawler-friendly fallback. Visible to:
+       • Search engines on first crawl (before they execute the SPA JS)
+       • Users who have JavaScript disabled (rare but exists)
+       • Accessibility scrapers + indexers that don't run JS at all
+      The SPA mounts into #root above and visually replaces this content;
+      the fallback never appears for users on a modern browser. Keep this
+      keyword-rich + factually correct — it's what Google's first-pass
+      ranking uses for queries like "Raktify", "blood donor India", etc.
+    -->
+    <noscript>
+      <main style="max-width: 720px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; line-height: 1.6;">
+        <h1>Raktify — Blood Donor Network by Choudhari Foundation</h1>
+        <p>
+          <strong>Raktify</strong> is a free, voluntary blood donation platform
+          built by <strong>Choudhari EduHealth India Foundation</strong> in
+          Amravati, Maharashtra. We connect blood donors with hospitals, blood
+          banks, and donation camp organisers across India — so no critical
+          request goes unanswered.
+        </p>
+        <h2>What you can do on Raktify</h2>
+        <ul>
+          <li>
+            <strong>Become a donor</strong> — register at
+            <a href="https://raktify.choudhari.ngo/register">raktify.choudhari.ngo/register</a>
+            and receive WhatsApp alerts only when your blood type is needed
+            nearby.
+          </li>
+          <li>
+            <strong>Host a blood donation camp</strong> for your community,
+            college, or company — apply at
+            <a href="https://raktify.choudhari.ngo/host-camp">raktify.choudhari.ngo/host-camp</a>.
+          </li>
+          <li>
+            <strong>For hospitals and blood banks</strong> — onboard your
+            institution to raise blood requests, manage inventory, and reach
+            verified donors.
+          </li>
+        </ul>
+        <h2>About Choudhari Foundation</h2>
+        <p>
+          Choudhari EduHealth India Foundation is a not-for-profit registered
+          in Amravati, Maharashtra, India (CIN U88900MH2025NPL447942,
+          NGO-Darpan MH/2025/0643345). Contact: contact@choudhari.ngo.
+        </p>
+        <p>
+          This site requires JavaScript for the interactive donor portal,
+          hospital dashboards, and request workflows. Please enable JavaScript
+          or open this site in a modern browser.
+        </p>
+      </main>
+    </noscript>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
