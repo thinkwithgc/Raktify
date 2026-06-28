@@ -25,6 +25,49 @@ import { apiRequest } from '../../lib/api.js';
  */
 const REQUIRED_HEADERS = ['full_name', 'mobile', 'blood_group_code'];
 const OPTIONAL_HEADERS = ['date_of_birth', 'gender', 'pincode', 'village_id'];
+const VALID_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const VALID_GENDERS = ['M', 'F', 'O'];
+
+// Sample CSV with realistic example rows. Operators download → open in
+// Excel/Sheets → replace the example rows with their own data → save as
+// CSV → upload. Keeps column names + value formats exact.
+const SAMPLE_CSV = [
+  'full_name,mobile,blood_group_code,date_of_birth,gender,pincode,village_id',
+  '"Anjali Sharma",+918586999911,B+,1990-05-15,F,444601,',
+  '"Rajesh Patil",+919876543210,O-,1985-11-22,M,,',
+  '"Sunita Deshmukh",+919123456789,A+,,F,,',
+].join('\n') + '\n';
+
+function downloadSampleCsv() {
+  const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'raktify-donor-upload-sample.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Per-row client-side validation — mirrors the backend Zod schema so the
+// operator sees errors in the preview before uploading. Returns null if
+// the row is valid, otherwise a short error string.
+function validateRow(row) {
+  if (!row.full_name || row.full_name.length < 2) return 'full_name too short';
+  if (!row.mobile || !/^(\+?91[-\s]?)?[6-9]\d{9}$/.test(row.mobile.replace(/\s/g, '')))
+    return 'invalid mobile';
+  if (!row.blood_group_code) return 'blood_group_code missing';
+  if (!VALID_BLOOD_GROUPS.includes(row.blood_group_code.toUpperCase()))
+    return `blood group must be one of ${VALID_BLOOD_GROUPS.join('/')}`;
+  if (row.gender && !VALID_GENDERS.includes(row.gender.toUpperCase()))
+    return `gender must be M, F, or O (or blank)`;
+  if (row.date_of_birth && !/^\d{4}-\d{2}-\d{2}$/.test(row.date_of_birth))
+    return 'date_of_birth must be YYYY-MM-DD (or blank)';
+  if (row.pincode && !/^[1-9]\d{5}$/.test(row.pincode))
+    return 'pincode must be 6 digits, not starting with 0';
+  return null;
+}
 
 function parseCsv(text) {
   // Tiny CSV parser — handles quoted fields and embedded commas. No
@@ -81,7 +124,20 @@ export function DonorBulkUpload() {
   const missingHeaders = parsed?.headers
     ? REQUIRED_HEADERS.filter((h) => !parsed.headers.includes(h))
     : [];
-  const canUpload = parsed && !parsed.error && missingHeaders.length === 0 && parsed.rows.length > 0;
+  // Per-row validation (only when headers are valid). Lets the operator
+  // see + fix problems in their spreadsheet before burning a server
+  // round-trip. Backend re-validates anyway.
+  const rowErrors =
+    parsed && !parsed.error && missingHeaders.length === 0
+      ? parsed.rows.map((r) => validateRow(r))
+      : [];
+  const invalidRowCount = rowErrors.filter((e) => e !== null).length;
+  const canUpload =
+    parsed &&
+    !parsed.error &&
+    missingHeaders.length === 0 &&
+    parsed.rows.length > 0 &&
+    invalidRowCount === 0;
 
   const upload = useMutation({
     mutationFn: () => {
@@ -129,22 +185,41 @@ export function DonorBulkUpload() {
           messages and are excluded from emergency matching until they activate (in person at
           their next donation, or via web self-register).
         </p>
-        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-stone-700">
-          <p className="font-semibold">CSV format</p>
-          <p className="mt-1">
-            Required columns (header row, exact names):{' '}
-            <code className="font-mono text-[11px]">{REQUIRED_HEADERS.join(', ')}</code>
-          </p>
-          <p className="mt-1">
-            Optional columns: <code className="font-mono text-[11px]">{OPTIONAL_HEADERS.join(', ')}</code>
-          </p>
-          <p className="mt-2">
-            Example row:{' '}
-            <code className="font-mono text-[11px]">&quot;Anjali Sharma&quot;,+918586999911,B+,1990-05-15,F,,</code>
-          </p>
-          <p className="mt-2 text-stone-600">
-            Blood group codes: A+, A-, B+, B-, AB+, AB-, O+, O-. Max 2000 rows per upload.
-          </p>
+        <div className="mt-3 flex items-start justify-between gap-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-stone-700">
+          <div className="min-w-0">
+            <p className="font-semibold">CSV format</p>
+            <p className="mt-1">
+              Required columns (header row, exact names):{' '}
+              <code className="font-mono text-[11px]">{REQUIRED_HEADERS.join(', ')}</code>
+            </p>
+            <p className="mt-1">
+              Optional columns:{' '}
+              <code className="font-mono text-[11px]">{OPTIONAL_HEADERS.join(', ')}</code>
+            </p>
+            <p className="mt-2">
+              <strong>Blood group:</strong> must be one of{' '}
+              <code className="font-mono text-[11px]">{VALID_BLOOD_GROUPS.join(' / ')}</code>
+            </p>
+            <p>
+              <strong>Gender:</strong>{' '}
+              <code className="font-mono text-[11px]">M</code> (male),{' '}
+              <code className="font-mono text-[11px]">F</code> (female),{' '}
+              <code className="font-mono text-[11px]">O</code> (other) — or blank
+            </p>
+            <p>
+              <strong>Date of birth:</strong>{' '}
+              <code className="font-mono text-[11px]">YYYY-MM-DD</code> (e.g. 1990-05-15) — or
+              blank
+            </p>
+            <p className="mt-2 text-stone-500">Max 2000 rows per upload.</p>
+          </div>
+          <button
+            type="button"
+            onClick={downloadSampleCsv}
+            className="rk-button-secondary shrink-0 text-xs"
+          >
+            ⬇ Sample CSV
+          </button>
         </div>
       </div>
 
@@ -181,31 +256,67 @@ export function DonorBulkUpload() {
                 Missing required: <code>{missingHeaders.join(', ')}</code>
               </p>
             ) : (
-              <table className="mt-2 min-w-full text-[11px]">
-                <thead>
-                  <tr className="text-left text-slate-500">
-                    {parsed.headers.map((h) => (
-                      <th key={h} className="px-2 py-1">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {parsed.rows.slice(0, 5).map((r, i) => (
-                    <tr key={i} className="border-t border-slate-200">
+              <>
+                {invalidRowCount > 0 ? (
+                  <p className="mt-1 text-rk-700">
+                    ⚠ {invalidRowCount} row{invalidRowCount === 1 ? '' : 's'} have validation
+                    errors — fix in your spreadsheet + reload. Upload disabled until all rows
+                    are valid.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-emerald-700">✓ All {parsed.rows.length} rows valid</p>
+                )}
+                <table className="mt-2 min-w-full text-[11px]">
+                  <thead>
+                    <tr className="text-left text-slate-500">
+                      <th className="px-2 py-1">Row</th>
                       {parsed.headers.map((h) => (
-                        <td key={h} className="px-2 py-1 font-mono">{r[h] || ''}</td>
+                        <th key={h} className="px-2 py-1">{h}</th>
                       ))}
+                      <th className="px-2 py-1">Error</th>
                     </tr>
-                  ))}
-                  {parsed.rows.length > 5 ? (
-                    <tr>
-                      <td colSpan={parsed.headers.length} className="px-2 py-1 text-center text-slate-500">
-                        … and {parsed.rows.length - 5} more
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {/* Show invalid rows first (up to 5), then a sample of valid rows */}
+                    {parsed.rows
+                      .map((r, i) => ({ r, i, err: rowErrors[i] }))
+                      .filter(({ err }) => err !== null)
+                      .slice(0, 5)
+                      .map(({ r, i, err }) => (
+                        <tr key={`bad-${i}`} className="border-t border-slate-200 bg-rk-50/40">
+                          <td className="px-2 py-1 font-mono">{i + 2}</td>
+                          {parsed.headers.map((h) => (
+                            <td key={h} className="px-2 py-1 font-mono">{r[h] || ''}</td>
+                          ))}
+                          <td className="px-2 py-1 text-rk-700">{err}</td>
+                        </tr>
+                      ))}
+                    {parsed.rows
+                      .map((r, i) => ({ r, i, err: rowErrors[i] }))
+                      .filter(({ err }) => err === null)
+                      .slice(0, invalidRowCount > 0 ? 2 : 5)
+                      .map(({ r, i }) => (
+                        <tr key={`ok-${i}`} className="border-t border-slate-200">
+                          <td className="px-2 py-1 font-mono">{i + 2}</td>
+                          {parsed.headers.map((h) => (
+                            <td key={h} className="px-2 py-1 font-mono">{r[h] || ''}</td>
+                          ))}
+                          <td className="px-2 py-1 text-emerald-700">✓</td>
+                        </tr>
+                      ))}
+                    {parsed.rows.length > 5 ? (
+                      <tr>
+                        <td
+                          colSpan={parsed.headers.length + 2}
+                          className="px-2 py-1 text-center text-slate-500"
+                        >
+                          … and {parsed.rows.length - Math.min(5, parsed.rows.length)} more rows
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
         ) : null}
