@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
+import { RoleSwitcher } from '../../components/RoleSwitcher.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { CommunityLeaderHelpDrawer } from '../help/CommunityLeaderHelpDrawer.jsx';
 
@@ -55,6 +56,7 @@ export function CommunityLeaderDashboard() {
           </button>
         </div>
         <CommunityLeaderHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
+        <RoleSwitcher from="community leader" />
         {meQ.isLoading ? (
           <p className="text-slate-500">Loading…</p>
         ) : meQ.error ? (

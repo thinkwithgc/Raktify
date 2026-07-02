@@ -534,6 +534,87 @@ router.post('/setup/:token', setupLimiter, async (req, res) => {
   }
 });
 
+// ── GET /auth/available-roles ────────────────────────────────────────────
+// Same mobile can hold platform_users rows in multiple OTP-cluster roles
+// (donor + community_leader). Frontend calls this to show "switch to X"
+// buttons in the dashboard header without forcing the user to log out.
+//
+// Only OTP-cluster roles (donor, community_leader) are cross-linkable via
+// this endpoint. Staff cluster roles use username+password and are never
+// linked to an OTP session for security separation.
+router.get('/available-roles', verifyJWT, async (req, res) => {
+  const me = await pool.query(`SELECT mobile FROM platform_users WHERE id = $1`, [req.user.userId]);
+  if (me.rowCount === 0 || !me.rows[0].mobile) {
+    return res.json({ roles: [] });
+  }
+  const r = await pool.query(
+    `SELECT id, role FROM platform_users
+      WHERE mobile = $1
+        AND role IN ('donor', 'community_leader')
+        AND id <> $2
+        AND is_locked = FALSE`,
+    [me.rows[0].mobile, req.user.userId],
+  );
+  res.json({
+    roles: r.rows.map((row) => ({ user_id: row.id, role: row.role })),
+  });
+});
+
+// ── POST /auth/switch-role ───────────────────────────────────────────────
+// Mints a fresh JWT for another role bound to the same mobile. Only works
+// across the OTP cluster (donor <-> community_leader). The current session
+// stays valid until natural expiry — frontend just replaces the token in
+// localStorage.
+const switchRoleSchema = z.object({
+  target_role: z.enum(['donor', 'community_leader']),
+});
+router.post('/switch-role', verifyJWT, async (req, res) => {
+  const parsed = switchRoleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+  const targetRole = parsed.data.target_role;
+  if (targetRole === req.user.role) {
+    return res.status(400).json({ error: 'already_in_target_role' });
+  }
+  const me = await pool.query(`SELECT mobile FROM platform_users WHERE id = $1`, [req.user.userId]);
+  if (me.rowCount === 0 || !me.rows[0].mobile) {
+    return res.status(404).json({ error: 'mobile_missing' });
+  }
+  const target = await pool.query(
+    `SELECT id, role, is_locked, institution_id
+       FROM platform_users
+      WHERE mobile = $1 AND role = $2`,
+    [me.rows[0].mobile, targetRole],
+  );
+  if (target.rowCount === 0) {
+    return res.status(404).json({ error: 'no_such_role_for_this_mobile' });
+  }
+  if (target.rows[0].is_locked) {
+    return res.status(423).json({ error: 'target_role_account_locked' });
+  }
+  const u = target.rows[0];
+  const sessionId = newSessionId();
+  await pool.query(`UPDATE platform_users SET last_login_at = clock_timestamp() WHERE id = $1`, [
+    u.id,
+  ]);
+  const token = sign({ sub: u.id, role: u.role, sid: sessionId, inst: u.institution_id });
+  logger.info(
+    {
+      from_user_id: req.user.userId,
+      from_role: req.user.role,
+      to_user_id: u.id,
+      to_role: u.role,
+    },
+    'auth: role switched',
+  );
+  res.json({
+    token,
+    role: u.role,
+    user_id: u.id,
+    institution_id: u.institution_id,
+    session_id: sessionId,
+  });
+});
+
 // ── POST /auth/logout ─────────────────────────────────────────────────────
 // JWTs are stateless. A real session-blacklist would land in a Redis-backed
 // store. For now, the API just acknowledges; the client must drop the token.

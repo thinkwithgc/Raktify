@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
+import { RoleSwitcher } from '../../components/RoleSwitcher.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { useT } from '../../i18n/useT.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -85,6 +86,7 @@ export function DonorDashboard() {
     <div className="flex min-h-full flex-col">
       <Header subtitle={donor?.full_name || ''} />
       <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6">
+        <RoleSwitcher from="donor" />
         {outboxPending > 0 ? (
           <div className="flex items-center justify-between rounded-md bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
             <span>
