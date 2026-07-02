@@ -18,6 +18,7 @@
  *     returns the DRAFT bank for the frontend to render.
  */
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
@@ -28,6 +29,20 @@ const { buildPassport } = require('../services/donors/passport');
 const eligibility = require('../services/donors/eligibility');
 
 const router = express.Router();
+
+// Camp-day safe register limiter — key on the submitted mobile so 50 donors
+// registering from one camp WiFi don't trip an IP throttle. IP throttling
+// is intentionally weaker here because a mobile is a stronger identity than
+// an IP for this endpoint (each real signup uses a unique number anyway).
+// The global limiter in app.js is exempted for this path.
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1h
+  limit: 5, // per mobile, per hour — plenty for legit retries, kills bots
+  keyGenerator: (req) => normaliseIndianMobile(req.body?.mobile) || req.ip,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'rate_limit_donor_register' },
+});
 
 // ── GET /donors/eligibility/questions (public) ───────────────────────────
 router.get('/eligibility/questions', (_req, res) => {
@@ -80,7 +95,7 @@ const registerSchema = z.object({
 });
 
 // ── POST /donors/register (public) ───────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });

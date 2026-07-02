@@ -101,12 +101,20 @@ function createApp() {
   // Global rate limit: 100 req/IP/min. Spec §10.
   // The OTP-send and institutional-login limits in routes/auth.js stack
   // on top of this — callers that hit those limits don't bypass the global.
+  //
+  // Camp-day exemptions: /auth/otp/send and /donors/register are the two
+  // routes 50+ donors from one WiFi will hit in the same minute at a camp.
+  // Both have their own mobile-keyed limiter (see routes/auth.js +
+  // routes/donors.js), which is a tighter + more accurate abuse ceiling
+  // than IP anyway — so we skip the global for those paths rather than
+  // trip camps on 100/min.
+  const CAMP_EXEMPT_PATHS = new Set(['/auth/otp/send', '/donors/register']);
   const globalLimiter = rateLimit({
     windowMs: 60 * 1000,
     limit: 100,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
-    skip: (req) => req.path === '/health', // never throttle uptime checks
+    skip: (req) => req.path === '/health' || CAMP_EXEMPT_PATHS.has(req.path),
     message: { error: 'rate_limit_global' },
   });
   app.use(globalLimiter);

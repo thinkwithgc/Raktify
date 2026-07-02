@@ -153,6 +153,29 @@ const incomingSchema = z.object({
 // Meta delivery-status string -> notification_log.delivery_status code.
 const META_STATUS = { sent: 'SE', delivered: 'DL', read: 'RD', failed: 'FA' };
 
+// Meta error codes that indicate the recipient has opted out / cannot be
+// contacted with template messages any more. On these codes we map the
+// delivery to 'OP' so trg_notif_propagate_opt_out flips the donor's
+// whatsapp_opted_in flag automatically.
+//   131047  Re-engagement message (24-hr window expired; not really opt-out
+//           but blocks further template sends until user re-engages — treat
+//           as soft opt-out).
+//   131050  User has stopped receiving business messages from this number.
+//   131056  Number pair rate limit — not opt-out; leave as FA.
+// Only 131050 is a hard opt-out today; others can be added as we learn.
+const META_OPT_OUT_CODES = new Set([131050]);
+
+// Extract a compact failure reason from a Meta status.errors[] payload.
+function extractFailureReason(st) {
+  const err = Array.isArray(st.errors) && st.errors.length ? st.errors[0] : null;
+  if (!err) return null;
+  const bits = [
+    err.code != null ? String(err.code) : null,
+    err.title || err.message || null,
+  ].filter(Boolean);
+  return bits.join(': ') || null;
+}
+
 async function handleMetaWebhook(req, res) {
   // Meta signs the POST with X-Hub-Signature-256 (HMAC-SHA256 of the raw
   // request body, keyed by WHATSAPP_APP_SECRET). The raw body is captured
@@ -189,21 +212,40 @@ async function handleMetaWebhook(req, res) {
       }
       // Delivery / read receipts -> notification_log.
       for (const st of value.statuses || []) {
-        const code = META_STATUS[st.status];
-        if (!code || !st.id) continue;
+        if (!st.id) continue;
+        let code = META_STATUS[st.status];
+        if (!code) continue;
+        const failureReason = st.status === 'failed' ? extractFailureReason(st) : null;
+        // Promote known opt-out error codes to 'OP' so the DB trigger flips
+        // the donor's channel-opt-in flag.
+        if (st.status === 'failed' && Array.isArray(st.errors)) {
+          const optedOut = st.errors.some((e) => META_OPT_OUT_CODES.has(e.code));
+          if (optedOut) code = 'OP';
+        }
         try {
-          await withRlsContextRaw(
+          const result = await withRlsContextRaw(
             { actor_role: 'webhook', change_reason: 'WhatsApp delivery webhook' },
             (c) =>
               c.query(
                 `UPDATE notification_log
-                    SET delivery_status = $2, delivery_status_updated = clock_timestamp()
+                    SET delivery_status = $2,
+                        delivery_status_updated = clock_timestamp(),
+                        failure_reason = COALESCE($3, failure_reason)
                   WHERE provider_message_id = $1`,
-                [st.id, code],
+                [st.id, code, failureReason],
               ),
           );
+          if (result.rowCount === 0) {
+            // Not fatal — Meta occasionally replays statuses for very old
+            // wamids we no longer track, and any messages sent from outside
+            // our chokepoint (manual Graph API calls) won't be in our log.
+            logger.info(
+              { wamid: st.id, status: st.status, code },
+              'WhatsApp status for unknown wamid — skipped',
+            );
+          }
         } catch (err) {
-          logger.error({ err: err.message }, 'WhatsApp status update failed');
+          logger.error({ err: err.message, wamid: st.id }, 'WhatsApp status update failed');
         }
       }
     }
