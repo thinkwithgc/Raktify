@@ -123,6 +123,15 @@ const env = {
     apiKey: optional('LGD_API_KEY', null),
     csvDir: optional('LGD_CSV_DIR', './data/lgd'),
   },
+
+  matching: {
+    // Whether the matcher automatically reserves compatible BB inventory on
+    // request creation. Default OFF — Raktify has to earn BB trust before
+    // mediating their supply. BBs voluntarily offer via /inventory/open-requests
+    // /:requestId/offer instead. Flip to true once we operate our own blood
+    // banks or have signed MoUs that authorise auto-reservation.
+    bbAutoReserve: optional('MATCHING_BB_AUTO_RESERVE', 'false') === 'true',
+  },
 };
 
 module.exports = env;

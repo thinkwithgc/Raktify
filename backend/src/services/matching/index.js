@@ -19,6 +19,7 @@
 const { findCompatibleDonorGroups } = require('./compatibility');
 const { findAvailableBags, reserveBags } = require('./inventory');
 const { findActivatableDonors, createAlerts } = require('./donors');
+const env = require('../../config/env');
 
 /**
  * runMatch is a system side effect — invoked from request creation, manual
@@ -58,11 +59,17 @@ async function runMatchImpl(client, { request, actorUserId }) {
 
   const sameGroupBags = candidateBags.filter((b) => b.is_preferred);
   const fallbackBags = candidateBags.filter((b) => !b.is_preferred);
-  const usingFallback = sameGroupBags.length < request.units_required - request.units_fulfilled;
-  const bagsToReserve = candidateBags.slice(0, request.units_required - request.units_fulfilled);
+  const shortfall = request.units_required - request.units_fulfilled;
+  const usingFallback = sameGroupBags.length < shortfall;
+  const bagsToReserve = candidateBags.slice(0, shortfall);
 
+  // Whether the matcher auto-reserves BB inventory is gated by
+  // env.matching.bbAutoReserve. Default OFF — BBs voluntarily "Offer N units"
+  // via POST /inventory/open-requests/:requestId/offer. When ON, matcher
+  // reserves compatible bags automatically (legacy behaviour, kept for the
+  // Y5+ vision where Raktify operates its own blood banks).
   let bagsReserved = 0;
-  if (bagsToReserve.length > 0) {
+  if (env.matching.bbAutoReserve && bagsToReserve.length > 0) {
     bagsReserved = await reserveBags(client, {
       bagIds: bagsToReserve.map((b) => b.id),
       requestId: request.id,
@@ -70,10 +77,12 @@ async function runMatchImpl(client, { request, actorUserId }) {
     });
   }
 
-  // Decide request status update based on what was reserved
   const reservedFromOneBank = new Set(bagsToReserve.map((b) => b.blood_bank_id));
   const matchedBloodBankId = reservedFromOneBank.size === 1 ? [...reservedFromOneBank][0] : null;
-  const fullyMatched = bagsReserved >= request.units_required - request.units_fulfilled;
+  // Fulfilment potential is measured against candidates when auto-reserve is
+  // off (BBs can voluntarily offer up to that many). This gates donor alerts.
+  const bbsCouldFulfil = candidateBags.length >= shortfall;
+  const fullyReserved = bagsReserved >= shortfall;
   const fallbackUsed = usingFallback || bagsToReserve.some((b) => b.blood_group_id !== sameGroupId);
 
   if (bagsReserved > 0) {
@@ -91,16 +100,18 @@ async function runMatchImpl(client, { request, actorUserId }) {
         matchedBloodBankId,
         fallbackUsed,
         bagsToReserve[0]?.blood_group_id || null,
-        fullyMatched,
+        fullyReserved,
         request.id,
       ],
     );
   }
 
-  // 3. Donor alerts (only when insufficient + activation required)
+  // 3. Donor alerts — fire when BB inventory cannot cover the shortfall
+  // (candidates < needed). Under voluntary-offer mode this alerts donors in
+  // parallel with BB visibility, avoiding a silent delay if no BB offers.
   let alertsCreated = 0;
   let activatableDonors = [];
-  if (!fullyMatched && request.donor_activation_required) {
+  if (!bbsCouldFulfil && request.donor_activation_required) {
     activatableDonors = await findActivatableDonors(client, {
       districtId: request.requesting_hospital_district_id,
       compatibleGroupIds,
@@ -125,8 +136,11 @@ async function runMatchImpl(client, { request, actorUserId }) {
   return {
     request_id: request.id,
     bags_reserved: bagsReserved,
-    bags_required: request.units_required - request.units_fulfilled,
-    fully_matched_from_inventory: fullyMatched,
+    bags_required: shortfall,
+    bb_auto_reserve_enabled: env.matching.bbAutoReserve,
+    compatible_bags_available: candidateBags.length,
+    bbs_could_fulfil: bbsCouldFulfil,
+    fully_matched_from_inventory: fullyReserved,
     fallback_used: fallbackUsed,
     fallback_blood_group_id: fallbackUsed ? bagsToReserve[0]?.blood_group_id : null,
     matched_blood_bank_id: matchedBloodBankId,

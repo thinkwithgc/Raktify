@@ -15,6 +15,7 @@ import { DonorBulkUpload, ActivateImportButton } from '../../components/donors/D
 function tabsFor(t) {
   return [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'incoming', label: 'Open requests' },
     { id: 'inventory', label: t('inventory') },
     { id: 'record', label: t('record_donation') },
     { id: 'screening', label: t('tti_screening') },
@@ -51,6 +52,7 @@ export function BloodBankPortal() {
         </nav>
 
         {tab === 'dashboard' ? <BBDashboard /> : null}
+        {tab === 'incoming' ? <OpenRequestsPanel /> : null}
         {tab === 'inventory' ? <InventoryView /> : null}
         {tab === 'record' ? <RecordDonation /> : null}
         {tab === 'screening' ? <ScreeningEntry /> : null}
@@ -237,6 +239,254 @@ function BBDashboard() {
         </article>
       </div>
     </section>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Open requests I can fulfil — cross-BB partial-fulfilment view.
+// Shows open requests where THIS BB has compatible available inventory.
+// If BB1 confirmed 3 of an 11-unit request, this BB sees "8 units still needed"
+// alongside their own available exact+fallback stock. Polls every 15s.
+// ────────────────────────────────────────────────────────────────────────────
+function fmtAge(mins) {
+  if (mins == null) return '—';
+  const m = Math.floor(mins);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h}h ago` : `${h}h ${rem}m ago`;
+}
+
+function OpenRequestsPanel() {
+  const q = useQuery({
+    queryKey: ['bb', 'open-requests'],
+    queryFn: () => apiRequest('GET', '/inventory/open-requests'),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
+  if (q.isLoading) return <div className="rk-card text-center text-slate-500">Loading…</div>;
+  if (q.error)
+    return (
+      <div className="rk-card text-rk-700">
+        {q.error?.response?.data?.error || 'load_failed'}
+      </div>
+    );
+
+  const requests = q.data?.requests || [];
+
+  return (
+    <section className="space-y-4">
+      <div className="rk-card">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Open requests you can fulfil
+          </h2>
+          <span className="text-xs text-slate-400">Auto-refresh every 15s</span>
+        </div>
+        {requests.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No open requests match your available inventory right now.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {requests.map((r) => (
+              <OpenRequestCard key={r.id} r={r} />
+            ))}
+          </ul>
+        )}
+      </div>
+      <p className="text-xs text-slate-400">
+        Only requests where your available stock is compatible are shown. Bags stay in your control
+        until you voluntarily offer units — Raktify never auto-reserves your inventory. The
+        "confirmed" count aggregates offers already made by other blood banks so you can see the
+        remaining unmet need at a glance.
+      </p>
+    </section>
+  );
+}
+
+function OpenRequestCard({ r }) {
+  const qc = useQueryClient();
+  const [modalOpen, setModalOpen] = useState(false);
+  const u = URG[r.urgency_tier] || URG.PL;
+  const pct = r.units_required > 0
+    ? Math.min(100, (r.units_committed / r.units_required) * 100)
+    : 0;
+  const iOfferedAny = (r.units_i_committed ?? 0) > 0;
+  const canOffer = (r.units_i_can_offer ?? 0) > 0;
+
+  return (
+    <li className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${u.cls}`}>{u.label}</span>
+          <span className="font-mono text-[11px] text-slate-500">{r.request_number}</span>
+          {iOfferedAny ? (
+            <span className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+              You offered {r.units_i_committed}
+            </span>
+          ) : null}
+          {!r.is_same_district ? (
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+              Adjacent district
+            </span>
+          ) : null}
+        </div>
+        <span className="text-xs text-slate-500">{fmtAge(r.mins_since_raised)}</span>
+      </div>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div>
+          <div className="text-xs uppercase text-slate-500">Requesting</div>
+          <div className="text-sm font-semibold text-slate-900">{r.hospital_name}</div>
+          <div className="text-xs text-slate-500">{r.hospital_district} district</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-slate-500">Required</div>
+          <div className="text-sm font-semibold text-slate-900">
+            {r.blood_group} · {r.component}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-xs text-slate-600">
+          <span>
+            <span className="font-bold text-slate-900">{r.units_committed}</span> of{' '}
+            <span className="font-bold text-slate-900">{r.units_required}</span> committed
+            {r.units_committed > 0 && !iOfferedAny ? ' (by other BBs)' : ''}
+          </span>
+          <span>
+            <span className="font-bold text-rk-700">{r.units_still_needed}</span> still needed
+          </span>
+        </div>
+        <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      <div className="mt-3 rounded bg-slate-50 p-2 text-xs">
+        <div className="font-semibold text-slate-700">Your available compatible stock</div>
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-slate-600">
+          <span>
+            Exact match ({r.blood_group}):{' '}
+            <span className="font-bold text-slate-900">{r.exact_units}</span>
+          </span>
+          {r.fallback_units > 0 ? (
+            <span>
+              Compatible fallback:{' '}
+              <span className="font-bold text-slate-900">{r.fallback_units}</span>
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-end gap-2">
+        {canOffer ? (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="rounded bg-rk-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rk-800"
+          >
+            Offer up to {r.units_i_can_offer} unit{r.units_i_can_offer !== 1 ? 's' : ''}
+          </button>
+        ) : (
+          <span className="text-xs italic text-slate-400">
+            {iOfferedAny ? 'Your offer already recorded' : 'No further units to offer'}
+          </span>
+        )}
+      </div>
+
+      {modalOpen ? (
+        <OfferModal
+          r={r}
+          onClose={() => setModalOpen(false)}
+          onDone={() => {
+            setModalOpen(false);
+            qc.invalidateQueries({ queryKey: ['bb', 'open-requests'] });
+            qc.invalidateQueries({ queryKey: ['bb', 'dashboard'] });
+            qc.invalidateQueries({ queryKey: ['inventory'] });
+          }}
+        />
+      ) : null}
+    </li>
+  );
+}
+
+function OfferModal({ r, onClose, onDone }) {
+  const max = r.units_i_can_offer ?? 0;
+  const [units, setUnits] = useState(Math.min(max, r.units_still_needed ?? max));
+  const [err, setErr] = useState(null);
+
+  const m = useMutation({
+    mutationFn: (n) => apiRequest('POST', `/inventory/open-requests/${r.id}/offer`, { units: n }),
+    onSuccess: onDone,
+    onError: (e) => setErr(e?.response?.data?.error || 'offer_failed'),
+  });
+
+  const submit = () => {
+    setErr(null);
+    const n = Number(units);
+    if (!Number.isFinite(n) || n < 1 || n > max) {
+      setErr('choose_a_valid_number');
+      return;
+    }
+    m.mutate(n);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-slate-900">
+          Offer units for {r.request_number}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {r.hospital_name} · {r.blood_group} · {r.component} · {r.units_still_needed} still needed
+        </p>
+
+        <label className="mt-4 block text-xs font-semibold uppercase text-slate-500">
+          Units to reserve (max {max})
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={max}
+          value={units}
+          onChange={(e) => setUnits(e.target.value)}
+          className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-lg font-semibold text-slate-900 focus:border-rk-700 focus:outline-none"
+        />
+        <p className="mt-2 text-xs text-slate-500">
+          Same-group first, then compatible fallback. Bags are reserved (status RE) and remain in
+          your control until issued or released.
+        </p>
+        {err ? <p className="mt-2 text-xs text-rk-700">Error: {err}</p> : null}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={m.isPending}
+            className="flex-1 rounded bg-rk-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
+          >
+            {m.isPending ? 'Reserving…' : `Confirm offer of ${units}`}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

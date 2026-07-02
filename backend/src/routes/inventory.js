@@ -298,4 +298,242 @@ router.get('/dashboard', verifyJWT, requireRole('blood_bank'), async (req, res) 
   res.json(data);
 });
 
+// ── GET /inventory/open-requests ─────────────────────────────────────────
+// "Open requests I can fulfil" — blood_bank-only view of open blood requests
+// where THIS BB has compatible available inventory.
+//
+// units_committed = count of bags currently RE/IS/TR against this request
+// (i.e., voluntary offers from any BB already logged). So if BB1 offered 3
+// of an 11-unit request, BB2 sees "8 still needed".
+//
+// Only lists requests where this BB has at least 1 compatible AV bag.
+router.get('/open-requests', verifyJWT, requireRole('blood_bank'), async (req, res) => {
+  const bbId = req.user.institutionId;
+  if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+  const limit = Math.min(Number(req.query.limit) || 30, 100);
+
+  const rows = await withRlsContext(req, async (c) => {
+    const r = await c.query(
+      `WITH me AS (
+           SELECT id, district_id FROM institutions WHERE id = $1
+         ),
+         my_inv AS (
+           SELECT bi.blood_group_id, bi.component_id, COUNT(*)::int AS units
+             FROM blood_inventory bi, me
+            WHERE bi.blood_bank_id = me.id
+              AND bi.status = 'AV'
+              AND bi.is_recalled = FALSE
+              AND bi.expiry_date > CURRENT_DATE
+              AND bi.reserved_for_request_id IS NULL
+            GROUP BY bi.blood_group_id, bi.component_id
+         ),
+         committed AS (
+           SELECT reserved_for_request_id AS request_id, COUNT(*)::int AS units
+             FROM blood_inventory
+            WHERE status IN ('RE','IS','TR')
+              AND reserved_for_request_id IS NOT NULL
+            GROUP BY reserved_for_request_id
+         ),
+         my_committed AS (
+           SELECT reserved_for_request_id AS request_id, COUNT(*)::int AS units
+             FROM blood_inventory bi, me
+            WHERE bi.blood_bank_id = me.id
+              AND bi.status IN ('RE','IS','TR')
+              AND bi.reserved_for_request_id IS NOT NULL
+            GROUP BY reserved_for_request_id
+         ),
+         compat_req AS (
+           SELECT br.id AS request_id,
+                  SUM(CASE WHEN cm.is_preferred THEN mi.units ELSE 0 END)::int AS exact_units,
+                  SUM(mi.units)::int AS total_compat_units
+             FROM blood_requests br
+             JOIN compatibility_matrix cm
+               ON cm.component_id = br.component_id
+              AND cm.recipient_group_id = br.patient_blood_group_id
+              AND cm.is_compatible = TRUE
+             JOIN my_inv mi
+               ON mi.blood_group_id = cm.donor_group_id
+              AND mi.component_id = br.component_id
+            WHERE br.status IN ('OP','MT','AS','PF')
+            GROUP BY br.id
+           HAVING SUM(mi.units) > 0
+         )
+         SELECT br.id,
+                br.request_number,
+                br.urgency_tier,
+                br.status,
+                br.units_required,
+                COALESCE(cmt.units, 0) AS units_committed,
+                COALESCE(my_cmt.units, 0) AS units_i_committed,
+                GREATEST(br.units_required - COALESCE(cmt.units, 0), 0)::int AS units_still_needed,
+                cr.exact_units,
+                (cr.total_compat_units - cr.exact_units)::int AS fallback_units,
+                LEAST(cr.total_compat_units,
+                      GREATEST(br.units_required - COALESCE(cmt.units, 0), 0))::int AS units_i_can_offer,
+                COALESCE(ri.name, br.guest_hospital_name) AS hospital_name,
+                d.name AS hospital_district,
+                ((SELECT district_id FROM me) = br.requesting_hospital_district_id) AS is_same_district,
+                bg.code AS blood_group,
+                bc.code AS component,
+                br.raised_at,
+                EXTRACT(EPOCH FROM (NOW() - br.raised_at))/60 AS mins_since_raised,
+                br.escalation_timeout_minutes
+           FROM compat_req cr
+           JOIN blood_requests br ON br.id = cr.request_id
+      LEFT JOIN committed cmt ON cmt.request_id = br.id
+      LEFT JOIN my_committed my_cmt ON my_cmt.request_id = br.id
+      LEFT JOIN institutions ri ON ri.id = br.requesting_institution_id
+      LEFT JOIN districts d ON d.id = br.requesting_hospital_district_id
+           JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+           JOIN blood_components bc ON bc.id = br.component_id
+          WHERE br.units_required > COALESCE(cmt.units, 0)
+       ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+                (br.units_required - COALESCE(cmt.units, 0)) DESC,
+                br.raised_at ASC
+          LIMIT $2`,
+      [bbId, limit],
+    );
+    return r.rows;
+  });
+
+  res.json({ requests: rows, count: rows.length });
+});
+
+// ── POST /inventory/open-requests/:requestId/offer ───────────────────────
+// Blood bank voluntarily offers N units of compatible inventory for the given
+// request. Picks best candidates (same-group first, FIFO by expiry), reserves
+// them, and returns the updated committed counts.
+//
+// This is the ONLY path by which a BB's inventory gets committed to a request
+// when env.matching.bbAutoReserve is false (the default). Auto-reserve is
+// gated OFF until Raktify earns BB trust — see services/matching/index.js.
+const offerSchema = z.object({
+  units: z.number().int().min(1).max(50),
+});
+
+router.post(
+  '/open-requests/:requestId/offer',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+    const parsed = offerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const wantUnits = parsed.data.units;
+    const requestId = req.params.requestId;
+
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        // Verify the request is still open and has room for more offers.
+        const reqRow = (
+          await c.query(
+            `SELECT br.id, br.status, br.units_required, br.component_id,
+                    br.patient_blood_group_id
+               FROM blood_requests br
+              WHERE br.id = $1`,
+            [requestId],
+          )
+        ).rows[0];
+        if (!reqRow) {
+          throw Object.assign(new Error('request_not_found'), { status: 404 });
+        }
+        if (!['OP', 'MT', 'AS', 'PF'].includes(reqRow.status)) {
+          throw Object.assign(new Error('request_not_open'), { status: 409 });
+        }
+
+        const committedRow = (
+          await c.query(
+            `SELECT COUNT(*)::int AS n
+               FROM blood_inventory
+              WHERE reserved_for_request_id = $1
+                AND status IN ('RE','IS','TR')`,
+            [requestId],
+          )
+        ).rows[0];
+        const alreadyCommitted = committedRow.n;
+        const remaining = reqRow.units_required - alreadyCommitted;
+        if (remaining <= 0) {
+          throw Object.assign(new Error('request_already_fully_committed'), { status: 409 });
+        }
+        const willReserve = Math.min(wantUnits, remaining);
+
+        // Pick best compatible bags from this BB.
+        const bags = (
+          await c.query(
+            `SELECT bi.id
+               FROM blood_inventory bi
+               JOIN compatibility_matrix cm
+                 ON cm.component_id = bi.component_id
+                AND cm.donor_group_id = bi.blood_group_id
+                AND cm.recipient_group_id = $3
+                AND cm.is_compatible = TRUE
+              WHERE bi.blood_bank_id = $1
+                AND bi.component_id = $2
+                AND bi.status = 'AV'
+                AND bi.is_recalled = FALSE
+                AND bi.expiry_date > CURRENT_DATE
+                AND bi.reserved_for_request_id IS NULL
+           ORDER BY cm.is_preferred DESC, bi.expiry_date ASC
+              LIMIT $4`,
+            [bbId, reqRow.component_id, reqRow.patient_blood_group_id, willReserve],
+          )
+        ).rows;
+
+        if (bags.length === 0) {
+          throw Object.assign(new Error('no_compatible_inventory'), { status: 409 });
+        }
+
+        // Reserve.
+        const bagIds = bags.map((b) => b.id);
+        const reservedCount = (
+          await c.query(
+            `UPDATE blood_inventory
+                SET status = 'RE',
+                    reserved_for_request_id = $2,
+                    reserved_at = clock_timestamp(),
+                    status_changed_by = $3
+              WHERE id = ANY($1)
+                AND status = 'AV'
+                AND is_recalled = FALSE
+           RETURNING id`,
+            [bagIds, requestId, req.user.userId],
+          )
+        ).rowCount;
+
+        // Update request-level state — matched_blood_bank_id + status flip
+        // if we've now fully committed the request.
+        const newCommitted = alreadyCommitted + reservedCount;
+        const nowFullyCommitted = newCommitted >= reqRow.units_required;
+
+        await c.query(
+          `UPDATE blood_requests
+              SET status = CASE
+                    WHEN $2 THEN 'MT'
+                    WHEN status = 'OP' THEN 'PF'
+                    ELSE status END,
+                  matched_blood_bank_id = COALESCE(matched_blood_bank_id, $3),
+                  first_match_found_at = COALESCE(first_match_found_at, clock_timestamp())
+            WHERE id = $1`,
+          [requestId, nowFullyCommitted, bbId],
+        );
+
+        return {
+          bags_reserved: reservedCount,
+          new_units_committed: newCommitted,
+          units_required: reqRow.units_required,
+          fully_committed: nowFullyCommitted,
+        };
+      },
+      { change_reason: 'blood_bank offers units for open request' },
+    );
+
+    res.json(result);
+  },
+);
+
 module.exports = router;
