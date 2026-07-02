@@ -16,6 +16,7 @@ function tabsFor(t) {
   return [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'incoming', label: 'Open requests' },
+    { id: 'donors_in', label: 'Incoming donors' },
     { id: 'inventory', label: t('inventory') },
     { id: 'record', label: t('record_donation') },
     { id: 'screening', label: t('tti_screening') },
@@ -53,6 +54,7 @@ export function BloodBankPortal() {
 
         {tab === 'dashboard' ? <BBDashboard /> : null}
         {tab === 'incoming' ? <OpenRequestsPanel /> : null}
+        {tab === 'donors_in' ? <IncomingDonorsPanel /> : null}
         {tab === 'inventory' ? <InventoryView /> : null}
         {tab === 'record' ? <RecordDonation /> : null}
         {tab === 'screening' ? <ScreeningEntry /> : null}
@@ -615,6 +617,227 @@ function OfferModal({ r, onClose, onDone }) {
             className="flex-1 rounded bg-rk-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
           >
             {m.isPending ? 'Reserving…' : `Confirm offer of ${units}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Incoming donors — V2 donor-BB routing (spec §5).
+// Donors who accepted alerts and chose THIS BB show up here so staff can
+// plan intake. Actions: Arrived → No-show → Deferred at intake.
+// ────────────────────────────────────────────────────────────────────────────
+function IncomingDonorsPanel() {
+  const q = useQuery({
+    queryKey: ['bb', 'incoming-donors'],
+    queryFn: () => apiRequest('GET', '/inventory/incoming-donors'),
+    refetchInterval: 20_000,
+    staleTime: 15_000,
+  });
+
+  if (q.isLoading) return <div className="rk-card text-center text-slate-500">Loading…</div>;
+  if (q.error)
+    return (
+      <div className="rk-card text-rk-700">
+        {q.error?.response?.data?.error || 'load_failed'}
+      </div>
+    );
+
+  const donors = q.data?.incoming || [];
+
+  return (
+    <section className="space-y-4">
+      <div className="rk-card">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Incoming donors
+          </h2>
+          <span className="text-xs text-slate-400">Auto-refresh every 20s</span>
+        </div>
+        {donors.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No donors have chosen your blood bank right now. When someone accepts an alert and picks
+            you, they&apos;ll appear here so you can plan intake.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {donors.map((d) => (
+              <IncomingDonorCard key={d.choice_id} d={d} />
+            ))}
+          </ul>
+        )}
+      </div>
+      <p className="text-xs text-slate-400">
+        Donor mobile shown so you can call if they&apos;re running late. Their identity is NOT
+        visible to the requesting hospital — Raktify keeps the two sides masked.
+      </p>
+    </section>
+  );
+}
+
+function IncomingDonorCard({ d }) {
+  const qc = useQueryClient();
+  const u = URG[d.urgency_tier] || URG.PL;
+  const isArrived = d.status === 'AR';
+
+  const arrivedM = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/inventory/incoming-donors/${d.choice_id}/arrived`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bb', 'incoming-donors'] }),
+  });
+  const noShowM = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/inventory/incoming-donors/${d.choice_id}/no-show`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bb', 'incoming-donors'] }),
+  });
+  const [deferOpen, setDeferOpen] = useState(false);
+
+  return (
+    <li className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${u.cls}`}>{u.label}</span>
+          <span className="font-mono text-[11px] text-slate-500">{d.request_number}</span>
+          {isArrived ? (
+            <span className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+              Arrived
+            </span>
+          ) : (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              Expected
+            </span>
+          )}
+        </div>
+        {d.distance_to_bb_km != null ? (
+          <span className="text-xs text-slate-500">{Number(d.distance_to_bb_km).toFixed(1)} km</span>
+        ) : null}
+      </div>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div>
+          <div className="text-xs uppercase text-slate-500">Donor</div>
+          <div className="text-sm font-semibold text-slate-900">{d.donor_name}</div>
+          <a
+            href={`tel:${d.donor_mobile}`}
+            className="text-xs font-mono text-rk-700 hover:underline"
+          >
+            {d.donor_mobile}
+          </a>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-slate-500">Fulfilling</div>
+          <div className="text-sm font-semibold text-slate-900">
+            {d.blood_group} · {d.component}
+          </div>
+          <div className="text-xs text-slate-500">
+            for {d.hospital_name} · {d.hospital_district_name}
+          </div>
+        </div>
+      </div>
+
+      {d.expected_arrival_at ? (
+        <div className="mt-2 text-xs text-slate-500">
+          Expected: {new Date(d.expected_arrival_at).toLocaleString('en-IN')}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {!isArrived ? (
+          <button
+            type="button"
+            onClick={() => arrivedM.mutate()}
+            disabled={arrivedM.isPending}
+            className="rounded bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+          >
+            {arrivedM.isPending ? 'Saving…' : 'Mark arrived'}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setDeferOpen(true)}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Defer at intake
+        </button>
+        <button
+          type="button"
+          onClick={() => noShowM.mutate()}
+          disabled={noShowM.isPending}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {noShowM.isPending ? 'Saving…' : 'No-show'}
+        </button>
+      </div>
+
+      {deferOpen ? (
+        <DeferModal
+          choiceId={d.choice_id}
+          onClose={() => setDeferOpen(false)}
+          onDone={() => {
+            setDeferOpen(false);
+            qc.invalidateQueries({ queryKey: ['bb', 'incoming-donors'] });
+          }}
+        />
+      ) : null}
+    </li>
+  );
+}
+
+function DeferModal({ choiceId, onClose, onDone }) {
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState(null);
+  const m = useMutation({
+    mutationFn: (body) =>
+      apiRequest('POST', `/inventory/incoming-donors/${choiceId}/deferred`, body),
+    onSuccess: onDone,
+    onError: (e) => setErr(e?.response?.data?.error || 'defer_failed'),
+  });
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-slate-900">Defer donor at intake</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Donor is at the BB but can&apos;t donate today (low Hb, recent tattoo, blood-pressure,
+          etc.). Reason is recorded for the donor&apos;s health passport.
+        </p>
+        <textarea
+          rows={3}
+          value={reason}
+          maxLength={500}
+          onChange={(e) => setReason(e.target.value)}
+          className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-rk-700 focus:outline-none"
+          placeholder="e.g. Hb 11.8 g/dL — advise iron-rich diet, return in 6 weeks"
+        />
+        {err ? <p className="mt-2 text-xs text-rk-700">Error: {err}</p> : null}
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (reason.trim().length < 3) {
+                setErr('reason_too_short');
+                return;
+              }
+              m.mutate({ reason: reason.trim() });
+            }}
+            disabled={m.isPending}
+            className="flex-1 rounded bg-rk-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
+          >
+            {m.isPending ? 'Saving…' : 'Confirm defer'}
           </button>
         </div>
       </div>
