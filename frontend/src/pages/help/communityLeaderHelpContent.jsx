@@ -3,7 +3,8 @@
 // diagram so it prints crisp on any screen size.
 
 export const CONTACT_EMAIL = 'contact@choudhari.ngo';
-export const CONTACT_WHATSAPP = 'https://wa.me/918586999969';
+export const CONTACT_WHATSAPP_NUMBER = '+91 98505 41412';
+export const CONTACT_WHATSAPP = 'https://wa.me/919850541412';
 
 // Small helper components so sections stay declarative + consistent.
 function Cards({ items }) {
@@ -279,7 +280,7 @@ export const SECTIONS = [
             <span className="text-2xl">💬</span>
             <div>
               <div className="text-sm font-semibold text-green-900">WhatsApp us</div>
-              <div className="text-xs text-green-700">+91 85869 99969</div>
+              <div className="text-xs text-green-700">{CONTACT_WHATSAPP_NUMBER}</div>
             </div>
           </a>
           <a

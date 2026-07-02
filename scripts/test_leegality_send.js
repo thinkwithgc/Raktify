@@ -15,7 +15,7 @@
  *   LEEGALITY_BASE_URL=https://app1.leegality.com/api  \
  *   node scripts/test_leegality_send.js \
  *     --name "Gaurav Choudhari" \
- *     --phone "+918586999969" \
+ *     --phone "+919850541412" \
  *     --institution-name "Choudhari Foundation Test Hospital" \
  *     --institution-id "test-$(date +%s)"
  *
@@ -44,7 +44,7 @@ function arg(flag, fallback) {
 }
 
 const signatoryName = arg('--name', 'Test Signatory');
-const signatoryPhone = arg('--phone', '+918586999969');
+const signatoryPhone = arg('--phone', '+919850541412');
 const institutionName = arg('--institution-name', 'Test Institution');
 const institutionId = arg('--institution-id', `test-${Date.now()}`);
 

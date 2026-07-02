@@ -83,7 +83,7 @@ function sign(secret, bodyObj) {
                   id: 'wamid.smoke_test',
                   status: 'delivered',
                   timestamp: '1716300000',
-                  recipient_id: '918586999969',
+                  recipient_id: '919850541412',
                 },
               ],
             },

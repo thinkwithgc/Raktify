@@ -18,8 +18,8 @@
  *   node scripts/bootstrap_admin.js \
  *     --role super_admin \
  *     --username gaurav \
- *     --mobile +918586999969 \
- *     --email gaurav@choudhari.one     # optional
+ *     --mobile +919850541412 \
+ *     --email gaurav@choudhari.ngo     # optional
  *
  * Idempotent: re-running with the same username refreshes the password
  * placeholder + issues a new setup token (lets you re-send the activation
