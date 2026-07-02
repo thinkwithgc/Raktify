@@ -635,4 +635,141 @@ router.post(
   },
 );
 
+// ── GET /inventory/incoming-donors ───────────────────────────────────────
+// BB sees the donors who accepted alerts and chose this BB for their
+// donation, ordered by expected arrival / deadline. Used to plan phlebotomy
+// staffing and cold-chain slots.
+router.get('/incoming-donors', verifyJWT, requireRole('blood_bank'), async (req, res) => {
+  const bbId = req.user.institutionId;
+  if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+  const rows = await withRlsContext(req, async (c) => {
+    const r = await c.query(
+      `SELECT dac.id AS choice_id,
+                dac.donor_id, dac.request_id,
+                dac.accepted_at, dac.expected_arrival_at, dac.deadline_at,
+                dac.distance_to_bb_km, dac.status,
+                dac.arrived_at,
+                d.full_name AS donor_name,
+                d.mobile AS donor_mobile,
+                d.blood_group_verified AS donor_blood_group,
+                bg_donor.code AS donor_blood_group_code,
+                br.request_number, br.urgency_tier,
+                COALESCE(rh.name, br.guest_hospital_name) AS hospital_name,
+                dist.name AS hospital_district_name,
+                bg.code AS blood_group, bc.code AS component
+           FROM donor_alert_choices dac
+           JOIN donors d ON d.id = dac.donor_id
+           JOIN blood_requests br ON br.id = dac.request_id
+      LEFT JOIN blood_groups bg_donor ON bg_donor.id = d.blood_group_verified
+           JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+           JOIN blood_components bc ON bc.id = br.component_id
+      LEFT JOIN institutions rh ON rh.id = br.requesting_institution_id
+      LEFT JOIN districts dist ON dist.id = br.requesting_hospital_district_id
+          WHERE dac.chosen_blood_bank_id = $1
+            AND dac.status IN ('PE', 'AR')
+            AND dac.deadline_at > NOW()
+       ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+                dac.expected_arrival_at NULLS LAST,
+                dac.accepted_at ASC
+          LIMIT 100`,
+      [bbId],
+    );
+    return r.rows;
+  });
+  res.json({ incoming: rows, count: rows.length });
+});
+
+// ── POST /inventory/incoming-donors/:choiceId/arrived ────────────────────
+// BB marks donor as physically present. Doesn't create a bag yet — that
+// happens via POST /donations which then auto-attributes to this choice.
+router.post(
+  '/incoming-donors/:choiceId/arrived',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE donor_alert_choices
+              SET status = 'AR',
+                  arrived_at = COALESCE(arrived_at, clock_timestamp())
+            WHERE id = $1
+              AND chosen_blood_bank_id = $2
+              AND status = 'PE'
+        RETURNING id, status, arrived_at`,
+          [req.params.choiceId, bbId],
+        ),
+      { change_reason: 'BB marks donor arrived' },
+    );
+    if (r.rowCount === 0) return res.status(409).json({ error: 'choice_not_in_pending_state' });
+    res.json(r.rows[0]);
+  },
+);
+
+// ── POST /inventory/incoming-donors/:choiceId/no-show ────────────────────
+router.post(
+  '/incoming-donors/:choiceId/no-show',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE donor_alert_choices
+              SET status = 'NS',
+                  no_show_at = clock_timestamp()
+            WHERE id = $1
+              AND chosen_blood_bank_id = $2
+              AND status IN ('PE', 'AR')
+        RETURNING id, status`,
+          [req.params.choiceId, bbId],
+        ),
+      { change_reason: 'BB marks donor no-show' },
+    );
+    if (r.rowCount === 0) return res.status(409).json({ error: 'choice_not_active' });
+    res.json(r.rows[0]);
+  },
+);
+
+// ── POST /inventory/incoming-donors/:choiceId/deferred ───────────────────
+const deferredSchema = z.object({ reason: z.string().min(3).max(500) });
+router.post(
+  '/incoming-donors/:choiceId/deferred',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+    const parsed = deferredSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `UPDATE donor_alert_choices
+              SET status = 'DE',
+                  deferred_reason = $3
+            WHERE id = $1
+              AND chosen_blood_bank_id = $2
+              AND status IN ('PE', 'AR')
+        RETURNING id, status`,
+          [req.params.choiceId, bbId, parsed.data.reason],
+        ),
+      { change_reason: 'BB defers donor at intake' },
+    );
+    if (r.rowCount === 0) return res.status(409).json({ error: 'choice_not_active' });
+    res.json(r.rows[0]);
+  },
+);
+
 module.exports = router;

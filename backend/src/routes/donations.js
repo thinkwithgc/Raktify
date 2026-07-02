@@ -18,6 +18,10 @@ const { z } = require('zod');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { validateDonation } = require('../services/donations/validate');
+const {
+  lookupCandidates: lookupAttributionCandidates,
+  applyAttribution,
+} = require('../services/donations/attribution');
 
 const router = express.Router();
 
@@ -38,6 +42,10 @@ const donationSchema = z.object({
   weight_kg: z.number().min(20).max(200).optional(),
   isbt_barcode: z.string().min(4).max(64),
   notes: z.string().max(2000).optional(),
+  // Optional explicit attribution — BB picks from dropdown when multiple
+  // donor_alert_choices match this donation. Auto-attribution kicks in when
+  // exactly one candidate exists; the field is only needed for tie-breaks.
+  attribute_to_choice_id: z.string().uuid().optional(),
 });
 
 // ── POST /donations ──────────────────────────────────────────────────────
@@ -98,11 +106,43 @@ router.post('/', verifyJWT, requireRole('blood_bank'), async (req, res) => {
           [r.rows[0].id],
         );
 
+        // Auto-attribution (V2 spec §5 refinement 2). If this donor has an
+        // active donor_alert_choice matching this donation (blood group +
+        // component + BB), link them so the request's fulfilment counter
+        // increments + donation_type flips to 'DA'. If explicit
+        // attribute_to_choice_id supplied by BB (multi-match dropdown), use
+        // that; else auto-attribute only when exactly one candidate exists.
+        const donor = await c.query(`SELECT id, blood_group_verified FROM donors WHERE id = $1`, [
+          data.donor_id,
+        ]);
+        const donorBg = donor.rows[0]?.blood_group_verified;
+        let attribution = null;
+        if (donorBg) {
+          const candidates = await lookupAttributionCandidates(c, {
+            donorId: data.donor_id,
+            componentId: data.component_id,
+            bloodGroupId: donorBg,
+            bloodBankId: req.user.institutionId,
+          });
+          const chosenId =
+            data.attribute_to_choice_id ||
+            (candidates.length === 1 ? candidates[0].choice_id : null);
+          if (chosenId) {
+            attribution = await applyAttribution(c, {
+              donationId: r.rows[0].id,
+              choiceId: chosenId,
+            });
+          } else if (candidates.length > 1) {
+            attribution = { attributed: false, ambiguous_candidates: candidates };
+          }
+        }
+
         return {
           donation_id: r.rows[0].id,
           isbt_barcode: r.rows[0].isbt_barcode,
           inventory_bag: bag.rows[0] || null,
           screening_required: true,
+          attribution,
         };
       },
       { change_reason: 'blood-bank donation entry' },
