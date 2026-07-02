@@ -67,7 +67,8 @@ async function escalateRequest(
         LIMIT 200`,
       [compatibleGroupIds, stateIds],
     );
-    alertsCreated = await createAlerts(client, { requestId: request.id, donors: r.rows });
+    const alertRows = await createAlerts(client, { requestId: request.id, donors: r.rows });
+    alertsCreated = alertRows.length;
   }
 
   // Append the escalation_log row. escalation_log is append-only — we cannot

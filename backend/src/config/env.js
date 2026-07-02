@@ -100,6 +100,18 @@ const env = {
       // per-message URL → reads as transactional → Utility category preserved.
       // Frontend /login reads ?m= and pre-fills the mobile field for one-tap OTP.
       community_leader_signin: optional('WHATSAPP_TEMPLATE_COMMUNITY_LEADER_SIGNIN', null),
+      // ── V2 donor-alert-gate templates (see docs/Raktify_WhatsApp_Templates.md §8–14) ──
+      // All Utility-class. Body vars + a URL-button token pattern. Wiring
+      // status: donor_alert_bb + bb_donor_incoming are fired by code today;
+      // the other 5 have provider handlers ready but wait on scheduler /
+      // coord-panel override wiring (follow-up tasks).
+      donor_alert_bb: optional('WHATSAPP_TEMPLATE_DONOR_ALERT_BB', null),
+      donor_alert_replace: optional('WHATSAPP_TEMPLATE_DONOR_ALERT_REPLACE', null),
+      donor_alert_community: optional('WHATSAPP_TEMPLATE_DONOR_ALERT_COMMUNITY', null),
+      bb_donor_incoming: optional('WHATSAPP_TEMPLATE_BB_DONOR_INCOMING', null),
+      coord_prefire_warn: optional('WHATSAPP_TEMPLATE_COORD_PREFIRE_WARN', null),
+      coord_critical_new: optional('WHATSAPP_TEMPLATE_COORD_CRITICAL_NEW', null),
+      community_leader_mobilise: optional('WHATSAPP_TEMPLATE_COMMUNITY_LEADER_MOBILISE', null),
     },
   },
 

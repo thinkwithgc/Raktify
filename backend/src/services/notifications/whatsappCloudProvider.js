@@ -138,6 +138,150 @@ const TEMPLATE_HANDLERS = {
       },
     ];
   },
+
+  // ── V2 donor-alert-gate templates ────────────────────────────────────────
+  // Handlers below fill body variables in Meta template order and set a URL
+  // button variable that's used to build the deep link on the recipient's
+  // device. See docs/Raktify_WhatsApp_Templates.md §8–14 for full text +
+  // approval status. Callers MUST pass variables using the exact key names
+  // below so the positional order to Meta stays deterministic.
+
+  // donor_alert_bb_routed — Utility. Body vars: blood_group_component,
+  // bb_name, distance_km. URL button token: public alert JWT.
+  DONOR_ALERT_BB: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.blood_group_component || '') },
+        { type: 'text', text: String(vars.bb_name || '') },
+        { type: 'text', text: String(vars.distance_km || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.alert_token || '') }],
+    },
+  ],
+
+  // donor_alert_replacement — Utility. Body vars: donor_first_name,
+  // bb_name, component_received, timeframe. URL button token: public alert JWT.
+  DONOR_ALERT_REPLACE: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.donor_first_name || '') },
+        { type: 'text', text: String(vars.bb_name || '') },
+        { type: 'text', text: String(vars.component_received || '') },
+        { type: 'text', text: String(vars.timeframe || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.alert_token || '') }],
+    },
+  ],
+
+  // donor_alert_community_first — Utility. Body vars: donor_first_name,
+  // leader_name, blood_group_component, district. URL button token: public alert JWT.
+  DONOR_ALERT_COMMUNITY: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.donor_first_name || '') },
+        { type: 'text', text: String(vars.leader_name || '') },
+        { type: 'text', text: String(vars.blood_group_component || '') },
+        { type: 'text', text: String(vars.district || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.alert_token || '') }],
+    },
+  ],
+
+  // bb_donor_incoming — Utility. Body vars: donor_display_name,
+  // donor_blood_group, request_short_code, arrival_window. URL button: donor id.
+  BB_DONOR_INCOMING: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.donor_display_name || '') },
+        { type: 'text', text: String(vars.donor_blood_group || '') },
+        { type: 'text', text: String(vars.request_short_code || '') },
+        { type: 'text', text: String(vars.arrival_window || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.donor_id || '') }],
+    },
+  ],
+
+  // coord_prefire_warning — Utility. Body vars: request_short_code,
+  // request_summary, time_until_fire. URL button: request_id.
+  COORD_PREFIRE_WARN: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.request_short_code || '') },
+        { type: 'text', text: String(vars.request_summary || '') },
+        { type: 'text', text: String(vars.time_until_fire || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.request_id || '') }],
+    },
+  ],
+
+  // coord_critical_new — Utility. Body vars: district, request_summary,
+  // needed_by, facility_name. URL button: request_id.
+  COORD_CRITICAL_NEW: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.district || '') },
+        { type: 'text', text: String(vars.request_summary || '') },
+        { type: 'text', text: String(vars.needed_by || '') },
+        { type: 'text', text: String(vars.facility_name || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.request_id || '') }],
+    },
+  ],
+
+  // community_leader_mobilise — Utility. Body vars: leader_first_name,
+  // district, request_summary. URL button: mobilisation token / id.
+  COMMUNITY_LEADER_MOBILISE: (vars) => [
+    {
+      type: 'body',
+      parameters: [
+        { type: 'text', text: String(vars.leader_first_name || '') },
+        { type: 'text', text: String(vars.district || '') },
+        { type: 'text', text: String(vars.request_summary || '') },
+      ],
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(vars.mobilise_token || '') }],
+    },
+  ],
 };
 
 function buildComponents(templateType, variables) {

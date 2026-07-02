@@ -67,10 +67,12 @@ async function createAlerts(client, { requestId, donors, channelDefault = 'WA' }
     `INSERT INTO donor_alerts (request_id, donor_id, channel, match_reason)
      VALUES ${placeholders}
      ON CONFLICT (request_id, donor_id) DO NOTHING
-  RETURNING id`,
+  RETURNING id, donor_id, channel`,
     values,
   );
-  return r.rowCount;
+  // Return the inserted rows so callers can dispatch WhatsApp per-alert.
+  // Callers that just need a count can `.length` this.
+  return r.rows;
 }
 
 module.exports = { findActivatableDonors, createAlerts };

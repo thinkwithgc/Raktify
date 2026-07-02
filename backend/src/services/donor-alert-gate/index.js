@@ -153,7 +153,8 @@ async function evaluateAndFire(client, requestId) {
     return { fired: false, skip_reason: 'no_eligible_donors_in_pool' };
   }
 
-  const alertsCreated = await createAlerts(client, { requestId, donors: pool });
+  const alertRows = await createAlerts(client, { requestId, donors: pool });
+  const alertsCreated = alertRows.length;
 
   await client.query(
     `UPDATE pending_donor_alerts
@@ -172,6 +173,28 @@ async function evaluateAndFire(client, requestId) {
     },
     'donor-alert-gate: alerts fired',
   );
+
+  // Dispatch WhatsApp notifications for the freshly-created alerts. The
+  // dispatcher no-ops silently when the template env var isn't set (Meta
+  // hasn't approved yet) so this is safe to leave in place from day 1.
+  // Failures are logged but do NOT roll back the DB writes above — the alert
+  // rows are the source of truth; a missed WA send is recoverable via the
+  // /alert/:token URL surfaced elsewhere.
+  if (alertsCreated > 0) {
+    try {
+      const { dispatchDonorAlertsFromGate } = require('../notifications/dispatchDonorAlerts');
+      await dispatchDonorAlertsFromGate(client, {
+        requestId,
+        alertRows,
+        attributedCommunityId: reqRow.attributed_community_id,
+      });
+    } catch (err) {
+      logger.error(
+        { err: err.message, request_id: requestId },
+        'donor-alert-gate: WA dispatch failed (alerts persisted)',
+      );
+    }
+  }
 
   return { fired: true, alerts_created: alertsCreated, pool_size: pool.length };
 }

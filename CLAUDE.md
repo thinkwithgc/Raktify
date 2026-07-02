@@ -155,10 +155,9 @@ always present; the **API + UI** landed post-Phase-8.
 ### Post-Phase-8 deferred items (still open)
 1. **MSG91 SMS path** — DLT registration still pending; SMS fallback (WA→SM→CA on
    Critical) not wired. WhatsApp Cloud covers the primary channel today.
-2. **Camp QR registration rate-limit trap** — the global 100 req/IP/min limiter
-   keys on `req.ip`; 50+ donors registering from one camp WiFi will trip it. Fix:
-   key `/donors/register` + `/auth/otp/send` on `mobile`, not IP. **Do before any
-   real camp.** (~30 min.)
+2. ~~**Camp QR registration rate-limit trap**~~ — ✅ fixed 2026-07-02
+   (task 78). Global limiter now skips `/donors/register` + `/auth/otp/send`;
+   both routes have mobile-keyed per-route limiters. Camp WiFi safe.
 3. **DB pool = 10** (`backend/src/config/db.js`) — bump to ~30 before second-district
    rollout (Postgres allows ~75 conns). **PM2 cluster** not wired — vertical scale
    past 1 vCore buys nothing until it is.
@@ -168,6 +167,35 @@ always present; the **API + UI** landed post-Phase-8.
 5. Carried over: WebSocket live queue, Workbox BackgroundSync, Devanagari design
    pass, donor-merge endpoint (still 501), `audit_reader` grant for integrity check,
    adverse-reaction table, PDF report generation, medical/legal advisor sign-offs.
+
+### V2 WhatsApp templates (July 2026 — task 77)
+Seven new templates for the donor-alert-gate architecture are now written up
+in `docs/Raktify_WhatsApp_Templates.md` §8–14, with provider handlers +
+env keys ready in code. **Meta submission is the bottleneck** (1–3 days per
+template × language). Recommended submission order: `donor_alert_bb_routed`
+(EN, MR, HI) → `bb_donor_incoming` (EN) → the community/coord/replacement
+ones.
+
+- **Wired to fire today:** `donor_alert_bb_routed` (from `donor-alert-gate`
+  after `createAlerts()`), `donor_alert_community_first` (same site, when
+  request has `attributed_community_id`), `bb_donor_incoming` (from
+  `routes/donorAlerts.js` on donor accept).
+- **Provider handlers ready, wire-up deferred:**
+  `donor_alert_replacement`, `coord_prefire_warning`, `coord_critical_new`,
+  `community_leader_mobilise` — each needs a small scheduler tick or
+  coord-panel override button that doesn't exist yet.
+- **Safe default:** if a `WHATSAPP_TEMPLATE_*` env var is unset, the chokepoint
+  returns `success:false` cleanly (no throw); the notification_log row still
+  persists as a `FA` so we can see the intent. So this code ships without any
+  env change; setting the vars just flips delivery on.
+
+### V2 WhatsApp delivery-status hardening (July 2026 — task 79)
+Delivery-status webhook now captures `failure_reason` from Meta's
+`errors[]` array and promotes known opt-out codes to `delivery_status='OP'`
+so the existing `fn_notif_propagate_opt_out` trigger auto-flips
+`donors.whatsapp_opted_in`. Only Meta code `131050` maps to opt-out today;
+others (`131047` re-engagement, `131056` rate limit) stay as `FA` until we
+have data to widen. Existing HMAC-signature enforcement is unchanged.
 
 ## Phase 3 handoff (where the scaffold leaves off)
 

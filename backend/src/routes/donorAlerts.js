@@ -219,11 +219,91 @@ router.post('/public/:token/accept-with-bb', async (req, res) => {
         chosen_bb_id: choice.chosen_blood_bank_id,
         deadline_at: choice.deadline_at,
         status: choice.status,
+        request_id: alertRow.request_id,
       };
     },
   );
-  res.status(201).json(result);
+
+  // Notify the chosen BB that a donor is inbound. Done AFTER the DB write
+  // commits — the BB's Incoming Donors tab reads from donor_alert_choices,
+  // so the notification tells staff to open it. No-ops silently when the
+  // WHATSAPP_TEMPLATE_BB_DONOR_INCOMING env var isn't set yet.
+  //
+  // Fire-and-forget: a failed WA send must NOT roll back the donor's
+  // acceptance. Errors go to the log.
+  notifyBBOfIncomingDonor({
+    bbId: result.chosen_bb_id,
+    donorId: auth.donorId,
+    requestId: result.request_id,
+    alertId: auth.alertId,
+    expectedArrivalAt: data.expected_arrival_at || null,
+  }).catch((err) => {
+    require('../config/logger').error(
+      { err: err.message, alert_id: auth.alertId, bb_id: result.chosen_bb_id },
+      'bb_donor_incoming dispatch failed',
+    );
+  });
+
+  res.status(201).json({
+    choice_id: result.choice_id,
+    chosen_bb_id: result.chosen_bb_id,
+    deadline_at: result.deadline_at,
+    status: result.status,
+  });
 });
+
+// Fire the bb_donor_incoming WhatsApp to the BB's primary contact. Runs
+// AFTER the accept transaction commits, in its own actor_role='system'
+// context so RLS lets us read donor + institution.
+async function notifyBBOfIncomingDonor({ bbId, donorId, requestId, alertId, expectedArrivalAt }) {
+  if (!bbId) return;
+  const { sendNotification } = require('../services/notifications');
+  await withRlsContextRaw(
+    { actor_role: 'system', change_reason: 'bb_donor_incoming' },
+    async (c) => {
+      const row = (
+        await c.query(
+          `SELECT d.full_name AS donor_name,
+                  bg.code AS donor_blood_group,
+                  br.request_number,
+                  i.primary_contact_mobile AS bb_mobile
+             FROM donors d
+             JOIN blood_groups bg ON bg.id = d.blood_group_verified
+             JOIN blood_requests br ON br.id = $2
+             JOIN institutions i ON i.id = $3
+            WHERE d.id = $1`,
+          [donorId, requestId, bbId],
+        )
+      ).rows[0];
+      if (!row || !row.bb_mobile) return;
+
+      const arrivalWindow = expectedArrivalAt
+        ? new Date(expectedArrivalAt).toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            weekday: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'within the next 2 hours';
+
+      await sendNotification({
+        recipientId: bbId,
+        templateType: 'BB_DONOR_INCOMING',
+        variables: {
+          donor_display_name: row.donor_name || 'Donor',
+          donor_blood_group: row.donor_blood_group || '',
+          request_short_code: row.request_number || String(requestId).slice(0, 8),
+          arrival_window: arrivalWindow,
+          donor_id: donorId,
+        },
+        channel: 'WA',
+        language: 'en',
+        relatedRequestId: requestId,
+        relatedAlertId: alertId,
+      });
+    },
+  );
+}
 
 // ── POST /donor-alerts/public/:token/decline ─────────────────────────────
 router.post('/public/:token/decline', async (req, res) => {
