@@ -15,6 +15,7 @@ const { z } = require('zod');
 
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { evaluateCascade } = require('../services/donor-alert-gate');
 
 const router = express.Router();
 
@@ -601,7 +602,31 @@ router.post(
           )
         ).rows[0];
 
-        return { decline_id: row.id, reason: row.reason, expires_at: row.expires_at };
+        // If BB marked 'NS' (no stock), evaluate the cascade — all eligible
+        // BBs declined => bypass timer, fire donors on next scheduler tick.
+        // NC/ND declines only remove the BB from donor-routing; they don't
+        // change the cascade signal.
+        let cascade = null;
+        if (reason === 'NS') {
+          const prior = (await c.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`))
+            .rows[0].r;
+          await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+          try {
+            cascade = await evaluateCascade(c, {
+              requestId,
+              actorUserId: req.user.userId,
+            });
+          } finally {
+            await c.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [prior || '']);
+          }
+        }
+
+        return {
+          decline_id: row.id,
+          reason: row.reason,
+          expires_at: row.expires_at,
+          cascade,
+        };
       },
       { change_reason: `blood_bank declines open request (${reason})` },
     );

@@ -16,6 +16,7 @@ const { z } = require('zod');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { runMatch } = require('../services/matching');
+const { triggerNow, holdAlert } = require('../services/donor-alert-gate');
 
 const router = express.Router();
 
@@ -437,5 +438,97 @@ router.get('/requests/:id/thread', verifyJWT, async (req, res) => {
   );
   res.json({ messages: r.rows, count: r.rowCount });
 });
+
+// ── POST /coordinator/requests/:id/alert-donors-now ──────────────────────
+// Coordinator manually bypasses the timer window and fires donor alerts on
+// next scheduler tick. Used when coord judges BB path won't fulfil in time
+// (BB slow / holiday / patient deteriorating). Trigger source recorded as
+// 'CT' in pending_donor_alerts audit.
+router.post(
+  '/requests/:id/alert-donors-now',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const requestId = req.params.id;
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        const request = (
+          await c.query(
+            `SELECT id, urgency_tier, units_required, units_fulfilled,
+                    donor_activation_required, requesting_hospital_district_id,
+                    component_id, patient_blood_group_id, status
+               FROM blood_requests WHERE id = $1`,
+            [requestId],
+          )
+        ).rows[0];
+        if (!request) {
+          throw Object.assign(new Error('request_not_found'), { status: 404 });
+        }
+        if (!['OP', 'MT', 'AS', 'PF'].includes(request.status)) {
+          throw Object.assign(new Error('request_not_open'), { status: 409 });
+        }
+
+        const prior = (await c.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`))
+          .rows[0].r;
+        await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+        try {
+          return await triggerNow(c, {
+            actorUserId: req.user.userId,
+            request,
+          });
+        } finally {
+          await c.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [prior || '']);
+        }
+      },
+      { change_reason: 'coordinator triggers donor alerts now' },
+    );
+    res.json(result);
+  },
+);
+
+// ── POST /coordinator/requests/:id/hold-donor-alerts ─────────────────────
+// Coordinator suppresses donor alerts even if timer fires. Used when BB has
+// confirmed offline they'll handle it or when the case needs human triage
+// before donors are pinged.
+const holdSchema = z.object({ reason: z.string().min(3).max(500).optional() });
+
+router.post(
+  '/requests/:id/hold-donor-alerts',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const requestId = req.params.id;
+    const parsed = holdSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    await withRlsContext(
+      req,
+      async (c) => {
+        const request = (
+          await c.query(`SELECT id, status FROM blood_requests WHERE id = $1`, [requestId])
+        ).rows[0];
+        if (!request) {
+          throw Object.assign(new Error('request_not_found'), { status: 404 });
+        }
+
+        const prior = (await c.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`))
+          .rows[0].r;
+        await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+        try {
+          await holdAlert(c, {
+            requestId,
+            actorUserId: req.user.userId,
+            reason: parsed.data.reason,
+          });
+        } finally {
+          await c.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [prior || '']);
+        }
+      },
+      { change_reason: 'coordinator holds donor alerts' },
+    );
+    res.json({ held: true, request_id: requestId });
+  },
+);
 
 module.exports = router;
