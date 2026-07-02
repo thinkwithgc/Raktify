@@ -18,8 +18,8 @@
  */
 const { findCompatibleDonorGroups } = require('./compatibility');
 const { findAvailableBags, reserveBags } = require('./inventory');
-const { findActivatableDonors, createAlerts } = require('./donors');
 const env = require('../../config/env');
+const { schedulePendingAlert } = require('../donor-alert-gate');
 
 /**
  * runMatch is a system side effect — invoked from request creation, manual
@@ -106,31 +106,36 @@ async function runMatchImpl(client, { request, actorUserId }) {
     );
   }
 
-  // 3. Donor alerts — fire when BB inventory cannot cover the shortfall
-  // (candidates < needed). Under voluntary-offer mode this alerts donors in
-  // parallel with BB visibility, avoiding a silent delay if no BB offers.
-  let alertsCreated = 0;
-  let activatableDonors = [];
-  if (!bbsCouldFulfil && request.donor_activation_required) {
-    activatableDonors = await findActivatableDonors(client, {
-      districtId: request.requesting_hospital_district_id,
-      compatibleGroupIds,
-      limit: 50, // Cap initial alert volume; ring 2 expands geography
-    });
-    alertsCreated = await createAlerts(client, {
-      requestId: request.id,
-      donors: activatableDonors,
+  // 3. Donor alerts — schedule (do NOT fire synchronously). Matcher writes
+  // to pending_donor_alerts with scheduled_fire_at derived from urgency tier
+  // (CRITICAL 3 min, URGENT 30 min, PLANNED never). Donor_alert_gate service
+  // + scheduler tick pick it up. This prevents "crying wolf" — BBs get an
+  // exclusive window to voluntarily offer before donors are spammed.
+  //
+  // The bbsCouldFulfil recheck happens in evaluateAndFire at fire-time, so
+  // no need to gate scheduling here. Schedule for every open request that
+  // requires donor activation; fire-time gates weed out fulfilled ones.
+  let alertScheduled = null;
+  if (request.donor_activation_required) {
+    alertScheduled = await schedulePendingAlert(client, {
+      request,
+      actorUserId,
+      source: 'AT',
+      shortfall,
     });
   }
 
-  // 4. Escalation log ring=1 (district sweep)
+  // 4. Escalation log ring=1 (district sweep) — records that the system did
+  // its first pass. donors_alerted_count is 0 at this point (deferred to
+  // gate fire time); the escalation-log semantics don't require pre-fire
+  // accuracy — it's a "district sweep happened" marker.
   await client.query(
     `INSERT INTO escalation_log (
        request_id, ring, triggered_by, triggered_by_user_id,
        radius_km, search_state_ids, donors_alerted_count)
-     VALUES ($1, 1, 'AU', $2, 50, ARRAY[]::INTEGER[], $3)
+     VALUES ($1, 1, 'AU', $2, 50, ARRAY[]::INTEGER[], 0)
      ON CONFLICT (request_id, ring) DO NOTHING`,
-    [request.id, actorUserId, alertsCreated],
+    [request.id, actorUserId],
   );
 
   return {
@@ -146,8 +151,7 @@ async function runMatchImpl(client, { request, actorUserId }) {
     matched_blood_bank_id: matchedBloodBankId,
     same_group_bags_available: sameGroupBags.length,
     fallback_group_bags_available: fallbackBags.length,
-    donor_alerts_created: alertsCreated,
-    donors_to_alert: activatableDonors.length,
+    donor_alert_scheduled: alertScheduled,
     compatible_donor_group_ids: compatibleGroupIds,
   };
 }

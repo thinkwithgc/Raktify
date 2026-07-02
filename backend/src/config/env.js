@@ -131,6 +131,18 @@ const env = {
     // /:requestId/offer instead. Flip to true once we operate our own blood
     // banks or have signed MoUs that authorise auto-reservation.
     bbAutoReserve: optional('MATCHING_BB_AUTO_RESERVE', 'false') === 'true',
+
+    // Donor-alert timing gate (spec V2). Matcher writes to pending_donor_alerts
+    // with scheduled_fire_at = now + window. Scheduler evaluates every minute.
+    // BBs get an exclusive window to offer voluntarily before donors get pinged.
+    donorAlertWindowCrMin: parseInt(optional('DONOR_ALERT_WINDOW_CR_MIN', '3'), 10),
+    donorAlertWindowUrMin: parseInt(optional('DONOR_ALERT_WINDOW_UR_MIN', '30'), 10),
+
+    // Donor-fatigue caps. Rate-limits per donor to protect against "crying
+    // wolf" alert-fatigue that kills voluntary-donation platforms.
+    donorAlertPoolSizeCap: parseInt(optional('DONOR_ALERT_POOL_SIZE_CAP', '20'), 10),
+    donorFatigueCapPerWeek: parseInt(optional('DONOR_FATIGUE_CAP_PER_WEEK', '2'), 10),
+    donorRecencySkipHr: parseInt(optional('DONOR_RECENCY_SKIP_HR', '24'), 10),
   },
 };
 
