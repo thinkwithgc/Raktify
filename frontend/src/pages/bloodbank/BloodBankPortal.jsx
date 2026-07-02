@@ -309,6 +309,7 @@ function OpenRequestsPanel() {
 function OpenRequestCard({ r }) {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const u = URG[r.urgency_tier] || URG.PL;
   const pct = r.units_required > 0
     ? Math.min(100, (r.units_committed / r.units_required) * 100)
@@ -383,6 +384,13 @@ function OpenRequestCard({ r }) {
       </div>
 
       <div className="mt-3 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setDeclineOpen(true)}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Can&apos;t fulfil
+        </button>
         {canOffer ? (
           <button
             type="button"
@@ -410,7 +418,131 @@ function OpenRequestCard({ r }) {
           }}
         />
       ) : null}
+
+      {declineOpen ? (
+        <DeclineModal
+          r={r}
+          onClose={() => setDeclineOpen(false)}
+          onDone={() => {
+            setDeclineOpen(false);
+            qc.invalidateQueries({ queryKey: ['bb', 'open-requests'] });
+          }}
+        />
+      ) : null}
     </li>
+  );
+}
+
+function DeclineModal({ r, onClose, onDone }) {
+  const [reason, setReason] = useState('NS');
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState(null);
+
+  const m = useMutation({
+    mutationFn: (body) =>
+      apiRequest('POST', `/inventory/open-requests/${r.id}/decline`, body),
+    onSuccess: onDone,
+    onError: (e) => setErr(e?.response?.data?.error || 'decline_failed'),
+  });
+
+  const REASONS = [
+    {
+      key: 'NS',
+      label: 'No compatible stock',
+      hint: 'You have no matching units, but you can still accept walk-in donors for this request.',
+    },
+    {
+      key: 'NC',
+      label: 'No capacity today',
+      hint: 'Short-staffed / lab down / out of QA bags. Donors will NOT be routed to you today.',
+    },
+    {
+      key: 'ND',
+      label: 'Not on duty',
+      hint: 'Closed for the day (holiday etc.). Donors will NOT be routed to you today.',
+    },
+  ];
+
+  const submit = () => {
+    setErr(null);
+    m.mutate({ reason, note: note.trim() || undefined });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-slate-900">
+          Can&apos;t fulfil {r.request_number}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Why can&apos;t this BB help this request? Decline auto-expires in 24 hours.
+        </p>
+
+        <div className="mt-4 space-y-2">
+          {REASONS.map((opt) => (
+            <label
+              key={opt.key}
+              className={
+                'flex cursor-pointer flex-col gap-1 rounded border p-2 text-sm ' +
+                (reason === opt.key
+                  ? 'border-rk-700 bg-rk-50'
+                  : 'border-slate-200 hover:bg-slate-50')
+              }
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="decline_reason"
+                  value={opt.key}
+                  checked={reason === opt.key}
+                  onChange={() => setReason(opt.key)}
+                />
+                <span className="font-semibold text-slate-900">{opt.label}</span>
+              </div>
+              <span className="pl-6 text-xs text-slate-500">{opt.hint}</span>
+            </label>
+          ))}
+        </div>
+
+        <label className="mt-4 block text-xs font-semibold uppercase text-slate-500">
+          Note (optional)
+        </label>
+        <textarea
+          rows={2}
+          value={note}
+          maxLength={500}
+          onChange={(e) => setNote(e.target.value)}
+          className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-rk-700 focus:outline-none"
+          placeholder="Anything useful for the coordinator (e.g. expected time before you can help again)."
+        />
+
+        {err ? <p className="mt-2 text-xs text-rk-700">Error: {err}</p> : null}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={m.isPending}
+            className="flex-1 rounded bg-rk-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
+          >
+            {m.isPending ? 'Saving…' : 'Confirm decline'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

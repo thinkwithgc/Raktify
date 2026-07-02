@@ -536,4 +536,78 @@ router.post(
   },
 );
 
+// ── POST /inventory/open-requests/:requestId/decline ─────────────────────
+// Blood bank marks "can't fulfill this one" with a reason. The reason drives
+// donor-routing behaviour (spec §V2 refinement 2):
+//
+//   'NS' no compatible stock   → BB stays in donor routing list (can accept walk-ins)
+//   'NC' no capacity today     → BB removed from donor routing list
+//   'ND' not on duty           → BB removed from donor routing list
+//
+// UPSERT semantics: BB can update their reason (e.g., initially 'NS' then
+// realise 'NC' by end of shift). Decline auto-expires after 24h and BB may
+// re-decline as inventory changes.
+//
+// Cascade: when all eligible BBs (BBs with compatible AV stock for this
+// request) have declined with reason='NS', donor_alert_gate service (task 73)
+// treats this as "BBs won't fulfil" and bypasses the timer window for
+// CRITICAL requests. That wiring lands with the gate service.
+const declineSchema = z.object({
+  reason: z.enum(['NS', 'NC', 'ND']),
+  note: z.string().max(500).optional(),
+});
+
+router.post(
+  '/open-requests/:requestId/decline',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+
+    const parsed = declineSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+    }
+    const { reason, note } = parsed.data;
+    const requestId = req.params.requestId;
+
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        const reqRow = (
+          await c.query(`SELECT id, status FROM blood_requests WHERE id = $1`, [requestId])
+        ).rows[0];
+        if (!reqRow) {
+          throw Object.assign(new Error('request_not_found'), { status: 404 });
+        }
+        if (!['OP', 'MT', 'AS', 'PF'].includes(reqRow.status)) {
+          throw Object.assign(new Error('request_not_open'), { status: 409 });
+        }
+
+        const row = (
+          await c.query(
+            `INSERT INTO open_request_bb_declines
+               (request_id, blood_bank_id, reason, reason_note, declined_by, expires_at)
+             VALUES ($1, $2, $3, $4, $5, clock_timestamp() + INTERVAL '24 hours')
+             ON CONFLICT (request_id, blood_bank_id) DO UPDATE
+               SET reason = EXCLUDED.reason,
+                   reason_note = EXCLUDED.reason_note,
+                   declined_by = EXCLUDED.declined_by,
+                   declined_at = clock_timestamp(),
+                   expires_at = clock_timestamp() + INTERVAL '24 hours'
+          RETURNING id, reason, expires_at`,
+            [requestId, bbId, reason, note || null, req.user.userId],
+          )
+        ).rows[0];
+
+        return { decline_id: row.id, reason: row.reason, expires_at: row.expires_at };
+      },
+      { change_reason: `blood_bank declines open request (${reason})` },
+    );
+
+    res.status(201).json(result);
+  },
+);
+
 module.exports = router;
