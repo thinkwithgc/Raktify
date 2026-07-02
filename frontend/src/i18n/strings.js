@@ -25,7 +25,7 @@ const dict = {
     tagline: 'रक्त दान करा. जीव वाचवा.',
     role_donor: 'मी रक्तदाता आहे',
     role_staff: 'रुग्णालय / ब्लड बँक / एनजीओ',
-    login_mobile_hint: 'रक्तदाते आणि समन्वयक — तुमच्या मोबाइल नंबरने साइन इन करा',
+    login_mobile_hint: 'रक्तदाते आणि सामुदायिक नेते — तुमच्या मोबाइल नंबरने साइन इन करा',
     login_go_staff: 'रुग्णालय / ब्लड बँक / एनजीओ कर्मचारी? ईमेलने साइन इन करा',
     login_go_mobile: 'रक्तदाता किंवा समन्वयक? मोबाइलने लॉग इन करा',
     // Landing page
@@ -151,7 +151,7 @@ const dict = {
     tagline: 'रक्तदान करें. जीवन बचाएँ.',
     role_donor: 'मैं रक्तदाता हूँ',
     role_staff: 'अस्पताल / ब्लड बैंक / एनजीओ',
-    login_mobile_hint: 'रक्तदाता और समन्वयक — अपने मोबाइल नंबर से साइन इन करें',
+    login_mobile_hint: 'रक्तदाता और सामुदायिक नेता — अपने मोबाइल नंबर से साइन इन करें',
     login_go_staff: 'अस्पताल / ब्लड बैंक / एनजीओ स्टाफ? ईमेल से साइन इन करें',
     login_go_mobile: 'रक्तदाता या समन्वयक? मोबाइल से लॉग इन करें',
     // Landing page
@@ -272,7 +272,7 @@ const dict = {
     tagline: 'Donate blood. Save lives.',
     role_donor: 'I am a donor',
     role_staff: 'Hospital / Blood Bank / NGO',
-    login_mobile_hint: 'Donors & coordinators — sign in with your mobile number',
+    login_mobile_hint: 'Donors & community leaders — sign in with your mobile number',
     login_go_staff: 'Hospital / blood bank / NGO staff? Sign in with email',
     login_go_mobile: 'Donor or coordinator? Log in with your mobile',
     // Landing page

@@ -180,12 +180,19 @@ export function DonorLogin() {
 
           {step === 'mobile' ? (
             <>
-              <p className="mt-4 text-center text-sm text-slate-600">
-                First time donor?{' '}
-                <Link to="/register" className="font-medium text-rk-700 hover:underline">
-                  Register here
-                </Link>
-              </p>
+              {roleHint === 'community_leader' ? (
+                <p className="mt-4 text-center text-xs text-slate-500">
+                  Community leaders can only sign in with a mobile number that a Foundation
+                  admin has invited. If your number doesn&apos;t work, please contact us.
+                </p>
+              ) : (
+                <p className="mt-4 text-center text-sm text-slate-600">
+                  First time donor?{' '}
+                  <Link to="/register" className="font-medium text-rk-700 hover:underline">
+                    Register here
+                  </Link>
+                </p>
+              )}
               <p className="mt-2 border-t border-slate-100 pt-3 text-center text-xs text-slate-500">
                 <Link to="/staff/login" className="font-medium text-rk-700 hover:underline">
                   {t('login_go_staff')}
