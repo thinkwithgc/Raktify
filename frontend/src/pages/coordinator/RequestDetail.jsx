@@ -136,6 +136,8 @@ export function RequestDetail() {
 
             <ClinicalCard r={r} />
 
+            <DonorAlertGatePanel requestId={id} />
+
             <ThreadPanel
               messages={messages}
               loading={threadQuery.isLoading}
@@ -388,5 +390,254 @@ function ThreadPanel({ messages, loading, requestId, role, onPosted }) {
         {err ? <p className="text-sm text-rk-700">{err}</p> : null}
       </div>
     </section>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// DonorAlertGatePanel (V2) — shows BB decision matrix + donor-alert queue
+// state + Alert-now / Hold override buttons.
+// ────────────────────────────────────────────────────────────────────────────
+function DonorAlertGatePanel({ requestId }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['request', requestId, 'gate-status'],
+    queryFn: () => apiRequest('GET', `/coordinator/requests/${requestId}/gate-status`),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
+  const alertNow = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/coordinator/requests/${requestId}/alert-donors-now`, {}),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['request', requestId, 'gate-status'] }),
+  });
+
+  const [holdOpen, setHoldOpen] = useState(false);
+
+  if (q.isLoading)
+    return (
+      <section className="rk-card text-center text-sm text-slate-500">Loading gate…</section>
+    );
+  if (q.error) return null;
+
+  const d = q.data;
+  const gate = d?.gate;
+  const bbs = d?.bb_decisions || [];
+
+  const offered = bbs.filter((b) => b.state === 'offered');
+  const declined = bbs.filter((b) => b.state === 'declined');
+  const silent = bbs.filter((b) => b.state === 'silent');
+
+  const fireIn = gate?.scheduled_fire_at
+    ? Math.round((new Date(gate.scheduled_fire_at).getTime() - Date.now()) / 60_000)
+    : null;
+  const isHeld = !!gate?.held_at;
+  const isFired = !!gate?.fired_at;
+
+  return (
+    <section className="rk-card space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Donor alert gate
+        </h2>
+        <span className="text-xs text-slate-400">
+          {d.units_committed} of {d.units_required} committed · {d.units_still_needed} still needed
+        </span>
+      </div>
+
+      {/* BB decision matrix */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="rounded border border-green-200 bg-green-50 p-2">
+          <div className="font-semibold text-green-800">✓ Offered ({offered.length})</div>
+          {offered.length === 0 ? (
+            <div className="mt-1 text-slate-400">no BB has offered yet</div>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {offered.map((b) => (
+                <li key={b.bb_id} className="text-slate-800">
+                  {b.display_name}{' '}
+                  <span className="text-[11px] text-slate-500">({b.units_offered}u)</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded border border-rk-200 bg-rk-50 p-2">
+          <div className="font-semibold text-rk-700">✗ Declined ({declined.length})</div>
+          {declined.length === 0 ? (
+            <div className="mt-1 text-slate-400">no BB declined</div>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {declined.map((b) => (
+                <li key={b.bb_id} className="text-slate-800">
+                  {b.display_name}{' '}
+                  <span className="text-[11px] text-slate-500">({b.decline_reason})</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded border border-slate-200 bg-slate-50 p-2">
+          <div className="font-semibold text-slate-700">⏳ Silent ({silent.length})</div>
+          {silent.length === 0 ? (
+            <div className="mt-1 text-slate-400">none</div>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {silent.map((b) => (
+                <li key={b.bb_id} className="text-slate-800">
+                  {b.display_name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Cascade signal */}
+      {d.eligible_bb_count > 0 && d.ns_decline_count >= d.eligible_bb_count ? (
+        <div className="rounded border border-rk-200 bg-rk-50 p-2 text-xs text-rk-700">
+          All eligible BBs declined with &quot;No stock&quot; — donor alerts will fire immediately on the
+          next scheduler tick (zero-timer cascade).
+        </div>
+      ) : null}
+
+      {/* Alert queue state */}
+      <div className="rounded border border-slate-200 p-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-slate-700">Alert queue</span>
+          {gate ? (
+            <span className="text-slate-500">
+              trigger: {gate.trigger_source} · urgency: {gate.urgency_snapshot}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-1 text-slate-700">
+          {!gate ? (
+            <span className="text-slate-500">
+              No pending alert (matcher may not have run, or donor_activation_required=false)
+            </span>
+          ) : isFired ? (
+            <span className="text-green-700">
+              ✓ Fired — {gate.fired_alert_count} donors alerted at{' '}
+              {fmtDateTime(gate.fired_at)}
+            </span>
+          ) : isHeld ? (
+            <span className="text-amber-700">
+              ⏸ Held — {gate.held_reason || 'reason not given'}
+            </span>
+          ) : fireIn !== null && fireIn > 0 ? (
+            <span>
+              Scheduled to fire in <span className="font-bold">{fireIn} min</span>{' '}
+              (at {fmtDateTime(gate.scheduled_fire_at)})
+            </span>
+          ) : (
+            <span>
+              Ready to fire on next scheduler tick (target: {fmtDateTime(gate.scheduled_fire_at)})
+            </span>
+          )}
+        </div>
+        {d.donor_alerts.total > 0 ? (
+          <div className="mt-1 text-slate-500">
+            Cumulative: {d.donor_alerts.total} alerted · {d.donor_alerts.accepted} accepted ·{' '}
+            {d.donor_alerts.declined} declined
+          </div>
+        ) : null}
+      </div>
+
+      {/* Override buttons */}
+      {!isFired ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => alertNow.mutate()}
+            disabled={alertNow.isPending}
+            className="rounded bg-rk-700 px-3 py-2 text-xs font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
+          >
+            🚨 {alertNow.isPending ? 'Firing…' : 'Alert donors NOW'}
+          </button>
+          {!isHeld ? (
+            <button
+              type="button"
+              onClick={() => setHoldOpen(true)}
+              className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              ⏸ Hold donor alerts
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {holdOpen ? (
+        <HoldModal
+          requestId={requestId}
+          onClose={() => setHoldOpen(false)}
+          onDone={() => {
+            setHoldOpen(false);
+            qc.invalidateQueries({ queryKey: ['request', requestId, 'gate-status'] });
+          }}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function HoldModal({ requestId, onClose, onDone }) {
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState(null);
+  const m = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/coordinator/requests/${requestId}/hold-donor-alerts`, { reason }),
+    onSuccess: onDone,
+    onError: (e) => setErr(e?.response?.data?.error || 'hold_failed'),
+  });
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-slate-900">Hold donor alerts</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Suppress donor alerts even if the timer fires. Use when a BB has confirmed offline that
+          they&apos;ll handle the request, or when this case needs human triage first.
+        </p>
+        <textarea
+          rows={3}
+          value={reason}
+          maxLength={500}
+          onChange={(e) => setReason(e.target.value)}
+          className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-rk-700 focus:outline-none"
+          placeholder="Why are you holding (e.g. 'GMCH called — Amravati BB dispatching now')"
+        />
+        {err ? <p className="mt-2 text-xs text-rk-700">Error: {err}</p> : null}
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (reason.trim().length < 3) {
+                setErr('reason_too_short');
+                return;
+              }
+              m.mutate();
+            }}
+            disabled={m.isPending}
+            className="flex-1 rounded bg-rk-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rk-800 disabled:opacity-60"
+          >
+            {m.isPending ? 'Saving…' : 'Confirm hold'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

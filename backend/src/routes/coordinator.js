@@ -439,6 +439,144 @@ router.get('/requests/:id/thread', verifyJWT, async (req, res) => {
   res.json({ messages: r.rows, count: r.rowCount });
 });
 
+// ── GET /coordinator/requests/:id/gate-status ────────────────────────────
+// Live snapshot of the donor-alert-gate + BB decision matrix for a request.
+// Fuels the coordinator queue panel:
+//   - Which BBs offered / declined / are still silent (in-district scope)
+//   - The pending donor-alert row: scheduled_fire_at, hold state, source
+//   - Donor alerts already fired (count + last-fired timestamp)
+// Powers the "Alert donors NOW" / "Hold donor alerts" override buttons.
+router.get(
+  '/requests/:id/gate-status',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const requestId = req.params.id;
+
+    const result = await withRlsContext(req, async (c) => {
+      const request = (
+        await c.query(
+          `SELECT id, urgency_tier, status,
+                  requesting_hospital_district_id,
+                  component_id, patient_blood_group_id,
+                  units_required
+             FROM blood_requests WHERE id = $1`,
+          [requestId],
+        )
+      ).rows[0];
+      if (!request) {
+        throw Object.assign(new Error('request_not_found'), { status: 404 });
+      }
+
+      // Eligible BBs = in-district + have compatible AV stock. Each row
+      // shows their offer (bags reserved for this request), decline (open
+      // decline row), or silence.
+      const bbs = (
+        await c.query(
+          `WITH eligible AS (
+             SELECT DISTINCT i.id AS bb_id, i.display_name
+               FROM blood_inventory bi
+               JOIN institutions i ON i.id = bi.blood_bank_id
+               JOIN compatibility_matrix cm
+                 ON cm.component_id = bi.component_id
+                AND cm.donor_group_id = bi.blood_group_id
+                AND cm.recipient_group_id = $2
+                AND cm.is_compatible = TRUE
+              WHERE i.district_id = $1
+                AND bi.component_id = $3
+           ),
+           offers AS (
+             SELECT blood_bank_id, COUNT(*)::int AS units_offered
+               FROM blood_inventory
+              WHERE reserved_for_request_id = $4
+                AND status IN ('RE','IS','TR')
+              GROUP BY blood_bank_id
+           ),
+           declines AS (
+             SELECT blood_bank_id, reason, expires_at
+               FROM open_request_bb_declines
+              WHERE request_id = $4 AND expires_at > NOW()
+           )
+           SELECT e.bb_id,
+                  e.display_name,
+                  COALESCE(o.units_offered, 0) AS units_offered,
+                  d.reason AS decline_reason,
+                  d.expires_at AS decline_expires_at,
+                  CASE
+                    WHEN o.units_offered > 0 THEN 'offered'
+                    WHEN d.reason IS NOT NULL THEN 'declined'
+                    ELSE 'silent'
+                  END AS state
+             FROM eligible e
+        LEFT JOIN offers o ON o.blood_bank_id = e.bb_id
+        LEFT JOIN declines d ON d.blood_bank_id = e.bb_id
+         ORDER BY CASE WHEN o.units_offered > 0 THEN 0
+                       WHEN d.reason IS NOT NULL THEN 1
+                       ELSE 2 END,
+                  e.display_name`,
+          [
+            request.requesting_hospital_district_id,
+            request.patient_blood_group_id,
+            request.component_id,
+            requestId,
+          ],
+        )
+      ).rows;
+
+      const gate =
+        (
+          await c.query(
+            `SELECT scheduled_fire_at, trigger_source, urgency_snapshot,
+                  shortfall_snapshot, held_at, held_by, held_reason,
+                  fired_at, fired_alert_count, fire_skip_reason
+             FROM pending_donor_alerts
+            WHERE request_id = $1`,
+            [requestId],
+          )
+        ).rows[0] || null;
+
+      const alertsCount = (
+        await c.query(
+          `SELECT COUNT(*)::int AS n,
+                  COUNT(*) FILTER (WHERE donor_response = 'YE')::int AS accepted,
+                  COUNT(*) FILTER (WHERE donor_response = 'NO')::int AS declined,
+                  MAX(created_at) AS last_created_at
+             FROM donor_alerts WHERE request_id = $1`,
+          [requestId],
+        )
+      ).rows[0];
+
+      const committed = (
+        await c.query(
+          `SELECT COUNT(*)::int AS n
+             FROM blood_inventory
+            WHERE reserved_for_request_id = $1
+              AND status IN ('RE','IS','TR')`,
+          [requestId],
+        )
+      ).rows[0].n;
+
+      return {
+        request_id: requestId,
+        units_required: request.units_required,
+        units_committed: committed,
+        units_still_needed: Math.max(0, request.units_required - committed),
+        bb_decisions: bbs,
+        eligible_bb_count: bbs.length,
+        ns_decline_count: bbs.filter((b) => b.decline_reason === 'NS').length,
+        gate,
+        donor_alerts: {
+          total: alertsCount.n,
+          accepted: alertsCount.accepted,
+          declined: alertsCount.declined,
+          last_created_at: alertsCount.last_created_at,
+        },
+      };
+    });
+    res.json(result);
+  },
+);
+
 // ── POST /coordinator/requests/:id/alert-donors-now ──────────────────────
 // Coordinator manually bypasses the timer window and fires donor alerts on
 // next scheduler tick. Used when coord judges BB path won't fulfil in time
