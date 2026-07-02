@@ -29,13 +29,22 @@ const env = require('../../config/env');
 
 async function selectDonorPool(
   client,
-  { districtId, compatibleGroupIds, limit, excludeDonorsAlertedForRequest },
+  { districtId, compatibleGroupIds, limit, excludeDonorsAlertedForRequest, attributedCommunityId },
 ) {
   if (compatibleGroupIds.length === 0) return [];
 
   const fatigueCap = env.matching.donorFatigueCapPerWeek;
   const recencySkipHr = env.matching.donorRecencySkipHr;
 
+  // Community-first ordering (V2 spec §6). When the request is attributed
+  // to a community, donors referred by the leader who OWNS that community
+  // are surfaced first in the pool. Rate-limit + eligibility rules apply
+  // uniformly — only the ORDER BY changes.
+  //
+  // Full "24hr exclusive community window" (fire community-only, wait, then
+  // fire district) needs a state column on pending_donor_alerts + is a task
+  // 77 companion piece. This priority sort covers the pragmatic 80% for
+  // Amravati pilot.
   const r = await client.query(
     `WITH recent_alerts AS (
        SELECT donor_id,
@@ -45,11 +54,20 @@ async function selectDonorPool(
          FROM donor_alerts
         WHERE created_at > NOW() - INTERVAL '7 days'
         GROUP BY donor_id
+     ),
+     community_leader AS (
+       -- The leader who owns the attributed community, if any.
+       SELECT owner_community_leader_id AS leader_id
+         FROM communities
+        WHERE id = $7
      )
      SELECT d.id, d.full_name, d.blood_group_verified, d.reliability_score,
             d.village_id, d.latitude, d.longitude, d.preferred_contact_channel,
             d.preferred_language, d.whatsapp_opted_in, d.sms_opted_in,
-            v.district_id AS donor_district_id
+            v.district_id AS donor_district_id,
+            (d.referred_by_community_leader_id IS NOT NULL
+             AND d.referred_by_community_leader_id
+                 = (SELECT leader_id FROM community_leader)) AS is_community_member
        FROM donors d
   LEFT JOIN villages v ON v.id = d.village_id
   LEFT JOIN recent_alerts ra ON ra.donor_id = d.id
@@ -61,20 +79,20 @@ async function selectDonorPool(
         AND (d.next_eligible_date IS NULL OR d.next_eligible_date <= CURRENT_DATE)
         AND d.is_active = TRUE
         AND (v.district_id = $1 OR v.district_id IS NULL)
-        -- Fatigue cap: below the weekly limit
         AND COALESCE(ra.alerts_7d, 0) < $4
-        -- Recency skip: if alerted recently AND didn't accept, skip
         AND (
              ra.last_alert_at IS NULL
           OR ra.last_alert_at < NOW() - ($6::int * INTERVAL '1 hour')
           OR ra.any_accepted_recently = TRUE
         )
-        -- Idempotency: never double-alert for the same request
         AND NOT EXISTS (
              SELECT 1 FROM donor_alerts da
               WHERE da.donor_id = d.id AND da.request_id = $5
         )
-   ORDER BY d.reliability_score DESC, d.created_at ASC
+   ORDER BY (d.referred_by_community_leader_id IS NOT NULL
+             AND d.referred_by_community_leader_id
+                 = (SELECT leader_id FROM community_leader)) DESC,
+            d.reliability_score DESC, d.created_at ASC
       LIMIT $3`,
     [
       districtId,
@@ -83,6 +101,7 @@ async function selectDonorPool(
       fatigueCap,
       excludeDonorsAlertedForRequest,
       recencySkipHr,
+      attributedCommunityId || null,
     ],
   );
   return r.rows;

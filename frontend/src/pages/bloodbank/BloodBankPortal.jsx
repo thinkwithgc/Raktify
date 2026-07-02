@@ -551,10 +551,13 @@ function DeclineModal({ r, onClose, onDone }) {
 function OfferModal({ r, onClose, onDone }) {
   const max = r.units_i_can_offer ?? 0;
   const [units, setUnits] = useState(Math.min(max, r.units_still_needed ?? max));
+  const [needsReplacement, setNeedsReplacement] = useState(false);
+  const [deadlineDays, setDeadlineDays] = useState(14);
   const [err, setErr] = useState(null);
 
   const m = useMutation({
-    mutationFn: (n) => apiRequest('POST', `/inventory/open-requests/${r.id}/offer`, { units: n }),
+    mutationFn: (body) =>
+      apiRequest('POST', `/inventory/open-requests/${r.id}/offer`, body),
     onSuccess: onDone,
     onError: (e) => setErr(e?.response?.data?.error || 'offer_failed'),
   });
@@ -566,7 +569,11 @@ function OfferModal({ r, onClose, onDone }) {
       setErr('choose_a_valid_number');
       return;
     }
-    m.mutate(n);
+    m.mutate({
+      units: n,
+      needs_replacement: needsReplacement,
+      replacement_deadline_days: needsReplacement ? Number(deadlineDays) : undefined,
+    });
   };
 
   return (
@@ -600,6 +607,44 @@ function OfferModal({ r, onClose, onDone }) {
           Same-group first, then compatible fallback. Bags are reserved (status RE) and remain in
           your control until issued or released.
         </p>
+
+        {/* Replacement obligation — V2 spec §7 (Option B: support with friction) */}
+        <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={needsReplacement}
+              onChange={(e) => setNeedsReplacement(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-semibold text-slate-800">
+                This BB will need replacement donor(s) for these units
+              </span>
+              <span className="mt-1 block text-xs text-slate-500">
+                Raktify will invite <em>nearby eligible volunteers</em> to help replenish the
+                blood bank. This is an invitation to strangers, not a demand on the
+                patient&apos;s family.
+              </span>
+            </span>
+          </label>
+          {needsReplacement ? (
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <label className="font-semibold text-slate-600">Deadline:</label>
+              <select
+                value={deadlineDays}
+                onChange={(e) => setDeadlineDays(e.target.value)}
+                className="rounded border border-slate-300 bg-white px-2 py-1"
+              >
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={21}>21 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </div>
+          ) : null}
+        </div>
+
         {err ? <p className="mt-2 text-xs text-rk-700">Error: {err}</p> : null}
 
         <div className="mt-5 flex gap-2">

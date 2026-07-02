@@ -410,6 +410,11 @@ router.get('/open-requests', verifyJWT, requireRole('blood_bank'), async (req, r
 // gated OFF until Raktify earns BB trust — see services/matching/index.js.
 const offerSchema = z.object({
   units: z.number().int().min(1).max(50),
+  // V2 §7: BB may declare a replacement obligation on this offer. If true,
+  // a replacement_obligations row is created + soft donor alerts fire later
+  // (task 77 notification path). Off by default; deliberate ethical friction.
+  needs_replacement: z.boolean().optional(),
+  replacement_deadline_days: z.number().int().min(1).max(60).optional(),
 });
 
 router.post(
@@ -523,11 +528,34 @@ router.post(
           [requestId, nowFullyCommitted, bbId],
         );
 
+        // Replacement obligation — if BB ticked the box, log an obligation
+        // for the units offered. Notification path for the softer donor
+        // invitation lands with task 77 templates.
+        let replacementObligationId = null;
+        if (parsed.data.needs_replacement) {
+          const days = parsed.data.replacement_deadline_days ?? 14;
+          const row = (
+            await c.query(
+              `INSERT INTO replacement_obligations
+                 (request_id, blood_bank_id, units_target, deadline_date, created_by)
+               VALUES ($1, $2, $3, CURRENT_DATE + $4, $5)
+               ON CONFLICT (request_id, blood_bank_id) DO UPDATE
+                 SET units_target = replacement_obligations.units_target + EXCLUDED.units_target,
+                     deadline_date = LEAST(replacement_obligations.deadline_date,
+                                           EXCLUDED.deadline_date)
+             RETURNING id`,
+              [requestId, bbId, reservedCount, days, req.user.userId],
+            )
+          ).rows[0];
+          replacementObligationId = row.id;
+        }
+
         return {
           bags_reserved: reservedCount,
           new_units_committed: newCommitted,
           units_required: reqRow.units_required,
           fully_committed: nowFullyCommitted,
+          replacement_obligation_id: replacementObligationId,
         };
       },
       { change_reason: 'blood_bank offers units for open request' },

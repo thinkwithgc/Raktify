@@ -93,7 +93,8 @@ async function evaluateAndFire(client, requestId) {
     await client.query(
       `SELECT br.id, br.status, br.urgency_tier, br.units_required, br.units_fulfilled,
               br.donor_activation_required, br.requesting_hospital_district_id,
-              br.component_id, br.patient_blood_group_id
+              br.component_id, br.patient_blood_group_id,
+              br.attributed_community_id
          FROM blood_requests br
         WHERE br.id = $1`,
       [requestId],
@@ -139,12 +140,13 @@ async function evaluateAndFire(client, requestId) {
     return { fired: false, skip_reason: 'no_compatible_donor_groups' };
   }
 
-  // Select the donor pool (rate-limit-aware, reliability-first)
+  // Select the donor pool (rate-limit-aware, community-first, reliability-first)
   const pool = await selectDonorPool(client, {
     districtId: reqRow.requesting_hospital_district_id,
     compatibleGroupIds,
     limit: env.matching.donorAlertPoolSizeCap,
     excludeDonorsAlertedForRequest: requestId,
+    attributedCommunityId: reqRow.attributed_community_id,
   });
   if (pool.length === 0) {
     await markSkip(client, requestId, 'no_eligible_donors_in_pool');
