@@ -69,16 +69,16 @@ Everything below shipped **after** the 8-phase build and is deployed. Grouped by
 - **`OTP_ECHO` flag** (`env.otpEcho`, default `false`) — when `true`, the OTP is
   echoed in the API response body so a live staging site can be demoed without a
   working SMS/WhatsApp send. **Never enable in production.**
-- Approved Meta templates as of 2026-05-26: `donor_otp` (auth, MR/HI/EN),
-  `donor_alert_critical` (utility, MR/EN), `camp_reminder`, `camp_organizer_link`,
-  `mou_esign_link` (utility, EN). Template copy lives in `docs/Raktify_WhatsApp_Templates.md`.
-- **Live blockers (Meta-side, not code):** (1) a **payment method** must be on the
-  WABA before any business-initiated template delivers — the Graph API returns
-  `accepted` + a `wamid` but Meta silently drops delivery until billing is set;
-  (2) until Business Verification + 30-day maturity, sends only reach **allow-listed
-  test recipients** (≤5). Business Verification itself is **done** (21 May 2026);
-  the green-tick / Official Business Account request stays greyed until WABA
-  maturity + brand notability accrue (4–12 months, gated on press coverage).
+- Approved Meta templates: `donor_otp` (auth, MR/HI/EN), `donor_alert_critical`
+  (utility, MR/EN), `camp_reminder`, `camp_organizer_link`, `mou_esign_link`
+  (utility, EN), `institution_activation_link` (utility, EN),
+  `community_leader_signin` (utility, EN). All send + deliver end-to-end;
+  Business Verification is done and **WABA payment method is on file** — no
+  silent-drop of live sends. V2 batch (`donor_alert_bb_routed`,
+  `donor_alert_replacement`, `donor_alert_community_first`, `bb_donor_incoming`,
+  `coord_prefire_warning`, `coord_critical_new`, `community_leader_mobilise`)
+  submitted via `scripts/submit_whatsapp_templates_v2.js`. Template copy is
+  the source of truth in `docs/Raktify_WhatsApp_Templates.md`.
 - **Webhook**: `POST /webhooks/whatsapp/incoming` verifies Meta's
   `X-Hub-Signature-256` HMAC against `WHATSAPP_APP_SECRET`; `POST /webhooks/msg91/delivery`
   remains for the MSG91 path.

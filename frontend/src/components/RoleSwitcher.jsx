@@ -28,10 +28,10 @@ const ROLE_META = {
 
 export function RoleSwitcher({ from }) {
   const nav = useNavigate();
-  const { setSession } = useAuth();
+  const { setSession, role: currentRole } = useAuth();
 
   const q = useQuery({
-    queryKey: ['auth', 'available-roles'],
+    queryKey: ['auth', 'available-roles', currentRole],
     queryFn: () => apiRequest('GET', '/auth/available-roles'),
     staleTime: 5 * 60_000,
     retry: false,
@@ -48,7 +48,10 @@ export function RoleSwitcher({ from }) {
     },
   });
 
-  const roles = q.data?.roles || [];
+  // Defensive filter: never render a card for the role we're already in.
+  // The API also filters, but if a stale cache or historical data anomaly
+  // leaks through, don't offer a "switch to X" that goes nowhere.
+  const roles = (q.data?.roles || []).filter((r) => r.role !== currentRole);
   if (roles.length === 0) return null;
 
   return (

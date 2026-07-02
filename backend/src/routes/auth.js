@@ -547,13 +547,18 @@ router.get('/available-roles', verifyJWT, async (req, res) => {
   if (me.rowCount === 0 || !me.rows[0].mobile) {
     return res.json({ roles: [] });
   }
+  // Filter out same-role rows defensively — historical data anomalies
+  // (rows created before migration 274 enforced per-role uniqueness) could
+  // otherwise surface as "Switch to your community leader dashboard" while
+  // you're already ON the leader dashboard.
   const r = await pool.query(
     `SELECT id, role FROM platform_users
       WHERE mobile = $1
         AND role IN ('donor', 'community_leader')
+        AND role <> $3
         AND id <> $2
         AND is_locked = FALSE`,
-    [me.rows[0].mobile, req.user.userId],
+    [me.rows[0].mobile, req.user.userId, req.user.role],
   );
   res.json({
     roles: r.rows.map((row) => ({ user_id: row.id, role: row.role })),

@@ -70,9 +70,8 @@ export function CommunityLeaderDashboard() {
                 Welcome, {profile.display_name}
               </h1>
               <p className="mt-1 text-sm text-stone-600">
-                Your communities + referral tools + impact stats will land here as we ship the
-                next phases. For now, this is just your profile + a confirmation that the
-                platform recognises you as a community leader.
+                Open a community below to see your donor roster, grab the referral link + QR,
+                and host camps. Impact stats at the top update as donors join and donate.
               </p>
               {profile.suspended_at ? (
                 <div className="mt-3 rounded border border-rk-200 bg-rk-50 p-3 text-sm text-rk-900">
@@ -179,16 +178,13 @@ export function CommunityLeaderDashboard() {
 
             <section className="rk-card bg-sand/40">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                Coming next
+                How Raktify works with you
               </h2>
-              <ul className="mt-2 space-y-1.5 text-sm text-stone-700">
-                <li>• <strong>Phase 3:</strong> See your donors, get referral links + QR codes to bring more in, host camps.</li>
-              </ul>
-              <p className="mt-3 text-xs text-stone-500">
-                <strong>Reminder:</strong> Raktify is your operations layer. Your WhatsApp group
-                remains your communication channel — we don&apos;t send messages to your community
-                members on your behalf, and we don&apos;t show you their mobile numbers (you already
-                have them in WhatsApp anyway).
+              <p className="mt-2 text-sm text-stone-700">
+                Raktify is your <strong>operations layer</strong>. Your WhatsApp group stays your
+                communication channel — we don&apos;t message your community members on your behalf,
+                and we don&apos;t show you their mobile numbers (you already have them in WhatsApp
+                anyway). Open a community to see roster, share the referral link/QR, and host camps.
               </p>
             </section>
           </>
