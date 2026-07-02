@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
 import { apiRequest } from '../../lib/api.js';
+import { CommunityLeaderHelpDrawer } from '../help/CommunityLeaderHelpDrawer.jsx';
 
 /**
  * Community-leader dashboard (Phase 1 — placeholder).
@@ -35,11 +37,24 @@ export function CommunityLeaderDashboard() {
 
   const profile = meQ.data?.profile;
   const communities = commQ.data?.communities || [];
+  const [helpOpen, setHelpOpen] = useState(false);
 
   return (
     <div className="flex min-h-full flex-col bg-cream font-sans">
       <Header subtitle="Community leader" />
       <main className="mx-auto w-full max-w-3xl px-4 py-6 space-y-5">
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50"
+            aria-label="Open help"
+          >
+            <span aria-hidden="true">?</span>
+            <span>Help</span>
+          </button>
+        </div>
+        <CommunityLeaderHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
         {meQ.isLoading ? (
           <p className="text-slate-500">Loading…</p>
         ) : meQ.error ? (
