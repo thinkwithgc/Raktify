@@ -125,15 +125,19 @@ async function insertRequest(client, opts) {
 
 async function autoAssignCoordinator(client, request) {
   // Pick the on-duty district lead for this district, or any on-duty coordinator.
+  // Pull mobile so we can WhatsApp them for CRITICAL requests below.
   const r = await client.query(
-    `SELECT id FROM coordinators
-      WHERE district_id = $1 AND is_active = TRUE AND on_duty = TRUE
-   ORDER BY is_district_lead DESC, reliability_score DESC, joined_at ASC
+    `SELECT c.id, u.mobile
+       FROM coordinators c
+       JOIN platform_users u ON u.id = c.platform_user_id
+      WHERE c.district_id = $1 AND c.is_active = TRUE AND c.on_duty = TRUE
+   ORDER BY c.is_district_lead DESC, c.reliability_score DESC, c.joined_at ASC
       LIMIT 1`,
     [request.requesting_hospital_district_id],
   );
   if (r.rowCount === 0) return null;
   const coordinatorId = r.rows[0].id;
+  const coordinatorMobile = r.rows[0].mobile;
 
   // Auto-assignment is a system side effect of request creation, not a
   // hospital/donor action. Elevate to 'system' actor for this INSERT so
@@ -154,7 +158,77 @@ async function autoAssignCoordinator(client, request) {
       prior.rows[0].r || '',
     ]);
   }
+
+  // For CRITICAL-urgency requests, WhatsApp the assigned coordinator so they
+  // can hand-place inventory or override the matcher before it fires alerts.
+  // Fire-and-forget — a failed WA send doesn't roll back the assignment.
+  if (request.urgency_tier === 'CR' && coordinatorMobile) {
+    fireCoordCriticalNew({ client, request, coordinatorId, coordinatorMobile }).catch((err) => {
+       
+      require('../config/logger').error(
+        { err: err.message, request_id: request.id, coordinator_id: coordinatorId },
+        'coord_critical_new dispatch failed',
+      );
+    });
+  }
   return ins.rows[0];
+}
+
+// WhatsApp the assigned coordinator when a new CRITICAL request lands in their
+// district. Runs after the request_assignments INSERT commits. Uses the
+// `system` actor for the notification-log insert (already elevated inside the
+// chokepoint), and the request context passed in avoids a re-query.
+async function fireCoordCriticalNew({
+  client,
+  request,
+  coordinatorId: _coordId,
+  coordinatorMobile,
+}) {
+  // Enrich the request with human-readable context — district name, blood
+  // group, component, requesting facility.
+  const ctx = (
+    await client.query(
+      `SELECT br.request_number, br.units_required,
+              bg.code AS blood_group, bc.code AS component,
+              d.name AS district_name,
+              COALESCE(rh.name, br.guest_hospital_name) AS facility_name,
+              br.needed_by
+         FROM blood_requests br
+         JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+         JOIN blood_components bc ON bc.id = br.component_id
+    LEFT JOIN districts d ON d.id = br.requesting_hospital_district_id
+    LEFT JOIN institutions rh ON rh.id = br.requesting_institution_id
+        WHERE br.id = $1`,
+      [request.id],
+    )
+  ).rows[0];
+  if (!ctx) return;
+
+  const requestSummary = `${ctx.units_required} unit${ctx.units_required === 1 ? '' : 's'} ${ctx.blood_group} ${ctx.component}`;
+  const neededBy = ctx.needed_by
+    ? new Date(ctx.needed_by).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'as soon as possible';
+
+  const { sendNotification } = require('../services/notifications');
+  await sendNotification({
+    recipientId: coordinatorMobile,
+    templateType: 'COORD_CRITICAL_NEW',
+    variables: {
+      district: ctx.district_name || '',
+      request_summary: requestSummary,
+      needed_by: neededBy,
+      facility_name: ctx.facility_name || 'requesting facility',
+      request_id: request.id,
+    },
+    channel: 'WA',
+    language: 'en',
+    relatedRequestId: request.id,
+  });
 }
 
 // ── POST /requests (Tier 1 OH) ───────────────────────────────────────────
