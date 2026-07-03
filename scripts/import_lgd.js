@@ -418,6 +418,49 @@ async function importVillages(client, state) {
        is_pesa = villages.is_pesa OR EXCLUDED.is_pesa`,
   );
   console.log(`  upserted ${n}`);
+  await collapseBhagVariants(client, state);
+}
+
+// Villages whose name ends in " Bhag N" (Marathi "Part N") are revenue
+// sub-divisions of the same physical village. Residents don't know which
+// Bhag they live in; the picker showing two options is friction with zero
+// routing value. Post-import cleanup: within each (district, taluka)
+// group, keep only the lowest-numbered Bhag row and rename it to the base
+// name. Idempotent — re-running the importer re-collapses new arrivals.
+async function collapseBhagVariants(client, state) {
+  const del = await client.query(
+    `WITH families AS (
+       SELECT REGEXP_REPLACE(v.name, ' Bhag [0-9]+$', '') AS base_name,
+              SUBSTRING(v.name FROM 'Bhag ([0-9]+)$')::INT AS bhag_num,
+              v.id, v.district_id, v.taluka_id
+         FROM villages v
+        WHERE v.state_id = $1
+          AND v.name ~ ' Bhag [0-9]+$'
+     ),
+     ranked AS (
+       SELECT *,
+              ROW_NUMBER() OVER (PARTITION BY district_id, taluka_id, base_name
+                                 ORDER BY bhag_num) AS rn
+         FROM families
+     )
+     DELETE FROM villages
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+     RETURNING id`,
+    [state.code],
+  );
+  const rn = await client.query(
+    `UPDATE villages
+        SET name = REGEXP_REPLACE(name, ' Bhag [0-9]+$', '')
+      WHERE state_id = $1
+        AND name ~ ' Bhag [0-9]+$'
+     RETURNING id`,
+    [state.code],
+  );
+  if (del.rowCount || rn.rowCount) {
+    console.log(
+      `  Bhag collapse: deleted ${del.rowCount}, renamed ${rn.rowCount} to base name`,
+    );
+  }
 }
 
 async function importULBs(client, state) {
