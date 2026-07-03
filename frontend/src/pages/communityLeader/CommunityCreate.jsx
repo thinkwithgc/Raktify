@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
+import { LocalityPicker } from '../../components/LocalityPicker.jsx';
 import { apiRequest } from '../../lib/api.js';
 
 /**
@@ -26,9 +27,7 @@ export function CommunityCreate() {
     name: '',
     slug: '',
     description: '',
-    state_id: '',
-    district_id: '',
-    taluka_id: '',
+    locality: null, // { id, name, taluka_id, taluka_name, district_id, district_name, state_id, state_name, ... }
     co_leader_id: '',
     co_leader_label: '', // display string for the picked leader (UX only)
   });
@@ -50,38 +49,20 @@ export function CommunityCreate() {
     });
   }
 
-  // Geo cascade — load states once, districts on state change.
-  const statesQ = useQuery({
-    queryKey: ['geo', 'states'],
-    queryFn: () => apiRequest('GET', '/geography/states'),
-    staleTime: 24 * 3600_000,
-  });
-  const districtsQ = useQuery({
-    queryKey: ['geo', 'districts', form.state_id],
-    queryFn: () => apiRequest('GET', `/geography/districts?state_id=${form.state_id}`),
-    enabled: !!form.state_id,
-    staleTime: 24 * 3600_000,
-  });
-  const talukasQ = useQuery({
-    queryKey: ['geo', 'talukas', form.district_id],
-    queryFn: () => apiRequest('GET', `/geography/talukas?district_id=${form.district_id}`),
-    enabled: !!form.district_id,
-    staleTime: 24 * 3600_000,
-  });
-
   const submit = useMutation({
     mutationFn: () => {
+      const loc = form.locality;
       const body = {
         name: form.name.trim(),
         slug: form.slug.trim(),
-        state_id: Number(form.state_id),
-        district_id: Number(form.district_id),
+        state_id: loc.state_id,
+        district_id: loc.district_id,
         co_leader_id: form.co_leader_id,
         // is_public always true — DB default handles it; no toggle in the
         // form because all communities are publicly discoverable for v1.
       };
       if (form.description.trim()) body.description = form.description.trim();
-      if (form.taluka_id) body.taluka_id = Number(form.taluka_id);
+      if (loc.taluka_id) body.taluka_id = loc.taluka_id;
       return apiRequest('POST', '/community-leader/communities', body);
     },
     onSuccess: (data) => {
@@ -97,8 +78,7 @@ export function CommunityCreate() {
   const canSubmit =
     form.name.trim().length >= 2 &&
     /^[a-z][a-z0-9-]{2,63}$/.test(form.slug) &&
-    !!form.state_id &&
-    !!form.district_id &&
+    !!form.locality?.district_id &&
     !!form.co_leader_id;
 
   return (
@@ -165,48 +145,19 @@ export function CommunityCreate() {
             />
           </Field>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="State" required>
-              <select
-                className="rk-input w-full"
-                value={form.state_id}
-                onChange={(e) => setForm((p) => ({ ...p, state_id: e.target.value, district_id: '', taluka_id: '' }))}
-                required
-              >
-                <option value="">—</option>
-                {(statesQ.data?.states || []).map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="District" required>
-              <select
-                className="rk-input w-full"
-                value={form.district_id}
-                onChange={(e) => setForm((p) => ({ ...p, district_id: e.target.value, taluka_id: '' }))}
-                required
-                disabled={!form.state_id}
-              >
-                <option value="">—</option>
-                {(districtsQ.data?.districts || []).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Taluka (optional)">
-              <select
-                className="rk-input w-full"
-                value={form.taluka_id}
-                onChange={(e) => update('taluka_id', e.target.value)}
-                disabled={!form.district_id}
-              >
-                <option value="">—</option>
-                {(talukasQ.data?.talukas || []).map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          <LocalityPicker
+            id="community-locality"
+            label="Where is this community anchored?"
+            placeholder="Type your village, city, or Municipal Corp ward…"
+            value={form.locality}
+            onChange={(loc) => update('locality', loc)}
+            required
+          />
+          <p className="-mt-2 text-xs text-slate-500">
+            Pick any locality inside the community&apos;s core area. State + district
+            + taluka are inferred from your pick — you don&apos;t need to enter them
+            separately.
+          </p>
 
           <Field label="Co-leader (required)" required>
             <CoLeaderPicker

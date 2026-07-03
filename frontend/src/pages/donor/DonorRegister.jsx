@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
+import { LocalityPicker } from '../../components/LocalityPicker.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useT } from '../../i18n/useT.js';
@@ -35,12 +36,7 @@ const personalSchema = z.object({
   date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'invalid_date'),
   gender: z.enum(['M', 'F', 'O']),
   blood_group_self_reported: z.number().int().min(1).max(8).optional(),
-  pincode: z
-    .string()
-    .regex(/^[1-9]\d{5}$/, 'invalid_pincode')
-    .optional()
-    .or(z.literal('')),
-  address_line: z.string().max(240).optional().or(z.literal('')),
+  village_id: z.number().int().positive().optional(),
   max_travel_km: z.number().int().min(1).max(100),
   preferred_contact_channel: z.enum(['WA', 'SM', 'CA']),
   whatsapp_opted_in: z.boolean(),
@@ -53,8 +49,7 @@ const initialDetails = {
   date_of_birth: '',
   gender: 'M',
   blood_group_self_reported: '',
-  pincode: '',
-  address_line: '',
+  locality: null, // the full { id, name, name_hi, taluka_name, ... } object from LocalityPicker
   max_travel_km: 10,
   preferred_contact_channel: 'WA',
   whatsapp_opted_in: true,
@@ -165,6 +160,9 @@ export function DonorRegister() {
           ? undefined
           : Number(details.blood_group_self_reported),
       max_travel_km: Number(details.max_travel_km),
+      village_id: details.locality?.id,
+      // schema doesn't know about the `locality` UI-only object
+      locality: undefined,
     });
     if (!parsed.success) {
       setError('invalid_details');
@@ -179,9 +177,6 @@ export function DonorRegister() {
         preferred_language: lang,
         registration_source: 'WEB',
         prescreening_answers: permanentAnswers,
-        // strip empties the backend treats as undefined
-        ...(parsed.data.pincode === '' ? { pincode: undefined } : {}),
-        ...(parsed.data.address_line === '' ? { address_line: undefined } : {}),
         // Phase 3 attribution: if the user came from /community/<slug>,
         // tag the donor to that community. The backend defaults
         // referred_by_community_leader_id to the community's current owner
@@ -331,6 +326,8 @@ export function DonorRegister() {
                         ? undefined
                         : Number(details.blood_group_self_reported),
                     max_travel_km: Number(details.max_travel_km),
+                    village_id: details.locality?.id,
+                    locality: undefined,
                   });
                   if (!parsed.success) {
                     setError('invalid_details');
@@ -483,27 +480,17 @@ function Step2Details({ details, update, onBack, onContinue, error }) {
             ))}
           </select>
         </Field>
-        <Field label="Pincode" htmlFor="r-pin">
-          <input
-            id="r-pin"
-            inputMode="numeric"
-            maxLength={6}
-            className="rk-input"
-            value={details.pincode}
-            onChange={(e) => update('pincode', e.target.value.replace(/\D/g, ''))}
-          />
-        </Field>
-
         <div className="sm:col-span-2">
-          <Field label="Address (optional)" htmlFor="r-addr">
-            <input
-              id="r-addr"
-              className="rk-input"
-              value={details.address_line}
-              onChange={(e) => update('address_line', e.target.value)}
-              maxLength={240}
-            />
-          </Field>
+          <LocalityPicker
+            id="r-locality"
+            label="Where do you live? (optional)"
+            placeholder="Type your village, city, or Municipal Corp ward…"
+            value={details.locality}
+            onChange={(loc) => update('locality', loc)}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Only your locality is used to route alerts. We never ask for your street address.
+          </p>
         </div>
 
         <Field label="Max travel (km)" htmlFor="r-km">
