@@ -145,13 +145,15 @@ export function PublicCampPage() {
 
   const ctaState = rsvp.isSuccess
     ? 'done'
-    : rsvp.error
-      ? 'error'
-      : isAuthenticated && role === 'donor'
-        ? 'rsvp'
-        : isAuthenticated
-          ? 'wrong-role'
-          : 'signup-or-login';
+    : camp?.is_current_donor_registered
+      ? 'already-registered'
+      : rsvp.error
+        ? 'error'
+        : isAuthenticated && role === 'donor'
+          ? 'rsvp'
+          : isAuthenticated
+            ? 'wrong-role'
+            : 'signup-or-login';
 
   return (
     <Shell>
@@ -183,11 +185,15 @@ export function PublicCampPage() {
 
       {/* CTA card */}
       <article className="rk-card space-y-3">
-        {ctaState === 'done' ? (
+        {ctaState === 'done' || ctaState === 'already-registered' ? (
           <div className="text-center">
-            <h2 className="text-lg font-semibold text-green-800">You&apos;re on the list</h2>
+            <h2 className="text-lg font-semibold text-green-800">
+              {ctaState === 'done' ? 'You’re on the list' : 'You’re already registered'}
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
-              We&apos;ll send you a reminder a day before the camp. See you at {camp.venue}.
+              {ctaState === 'done'
+                ? `We’ll send you a reminder a day before the camp. See you at ${camp.venue}.`
+                : `Thanks — your RSVP for ${camp.name} is confirmed. We’ll message you a day before with the venue details.`}
             </p>
             <Link to="/donor" className="rk-button-secondary mt-3 inline-block">
               Open my donor profile
@@ -208,8 +214,8 @@ export function PublicCampPage() {
             <h2 className="text-base font-semibold text-slate-900">Register for this camp</h2>
             <p className="text-sm text-slate-600">
               {ctaState === 'rsvp'
-                ? 'One tap and you&rsquo;re on the roster — we won&rsquo;t share your phone with the organiser.'
-                : 'New to Raktify? Quick mobile-OTP signup, then you&rsquo;ll be added to the camp.'}
+                ? 'One tap and you’re on the roster — we won’t share your phone with the organiser.'
+                : 'New to Raktify? Quick mobile-OTP signup, then you’ll be added to the camp.'}
             </p>
             <button
               type="button"

@@ -22,6 +22,7 @@ const { z } = require('zod');
 
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { verify: verifyJwtToken } = require('../utils/jwt');
 const logger = require('../config/logger');
 const env = require('../config/env');
 const { normaliseIndianMobile } = require('../utils/phone');
@@ -255,6 +256,11 @@ router.post('/apply', async (req, res) => {
 // camp data — no submitter PII, no internal review state. Only published
 // (status PL or LV) camps are visible; PE/DC/CA/CO return 404.
 //
+// Optional auth: if the caller passes a Bearer token AND the JWT decodes
+// to a donor, we enrich the response with `is_current_donor_registered` so
+// the frontend can render "You're on the list" instead of the RSVP button
+// on a repeat visit. Anonymous callers just don't get that field.
+//
 // Declared BEFORE GET /:id so 'public' doesn't bind to :id.
 router.get('/public/:slug', async (req, res) => {
   const r = await withRlsContextRaw({ actor_role: 'system' }, (c) =>
@@ -279,7 +285,33 @@ router.get('/public/:slug', async (req, res) => {
     ),
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'camp_not_found' });
-  res.json(r.rows[0]);
+  const camp = r.rows[0];
+
+  // Optional auth check: is the current donor already on the roster?
+  const auth = req.headers.authorization || '';
+  const bearer = auth.match(/^Bearer\s+(.+)$/);
+  let isRegistered = false;
+  if (bearer) {
+    try {
+      const payload = verifyJwtToken(bearer[1]);
+      if (payload?.role === 'donor' && payload?.sub) {
+        const reg = await withRlsContextRaw({ actor_role: 'system' }, (c) =>
+          c.query(
+            `SELECT 1
+               FROM camp_registrations cr
+               JOIN donors d ON d.id = cr.donor_id
+              WHERE cr.camp_id = $1 AND d.platform_user_id = $2
+              LIMIT 1`,
+            [camp.id, payload.sub],
+          ),
+        );
+        isRegistered = reg.rowCount > 0;
+      }
+    } catch {
+      // Invalid / expired token — treat as anonymous.
+    }
+  }
+  res.json({ ...camp, is_current_donor_registered: isRegistered });
 });
 
 // ── GET /camps/:id ───────────────────────────────────────────────────────
