@@ -104,6 +104,25 @@ router.get('/', verifyJWT, async (req, res) => {
         for (const k of REDACT_KEYS) delete safe[k];
         return safe;
       });
+
+  // For donors, mark each camp with whether they've already RSVP'd. This lets
+  // the dashboard render "Already registered" instead of the RSVP button on
+  // return visits (state was previously session-local, so a page refresh
+  // would show the button again for camps the donor had RSVP'd to).
+  if (req.user.role === 'donor' && camps.length > 0) {
+    const mine = await withRlsContext(req, (c) =>
+      c.query(
+        `SELECT cr.camp_id
+           FROM camp_registrations cr
+           JOIN donors d ON d.id = cr.donor_id
+          WHERE d.platform_user_id = $1
+            AND cr.camp_id = ANY($2::uuid[])`,
+        [req.user.userId, camps.map((c) => c.id)],
+      ),
+    );
+    const registered = new Set(mine.rows.map((row) => row.camp_id));
+    for (const c of camps) c.is_current_donor_registered = registered.has(c.id);
+  }
   res.json({ camps, count: r.rowCount });
 });
 

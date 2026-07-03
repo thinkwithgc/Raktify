@@ -220,8 +220,11 @@ function UpcomingCampsSection({ donorDistrictId }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['donor', 'camps'] }),
   });
 
-  // Note: until we wire a /camps/mine endpoint, RSVP state is local-optimistic.
-  const [registered, setRegistered] = useState({});
+  // `is_current_donor_registered` is populated by the backend on GET /camps
+  // for the donor role, so return visits show the correct state. `dirty`
+  // holds session-local optimistic overrides (so the click responds
+  // immediately without waiting for the invalidateQueries roundtrip).
+  const [dirty, setDirty] = useState({});
 
   const camps = (q.data?.camps || []).slice(0, 5);
 
@@ -240,7 +243,8 @@ function UpcomingCampsSection({ donorDistrictId }) {
           </div>
         ) : (
           camps.map((c) => {
-            const isRegistered = registered[c.id];
+            const isRegistered =
+              dirty[c.id] !== undefined ? dirty[c.id] : Boolean(c.is_current_donor_registered);
             return (
               <article key={c.id} className="rk-card space-y-1">
                 <div className="flex items-center justify-between gap-3">
@@ -261,27 +265,32 @@ function UpcomingCampsSection({ donorDistrictId }) {
                     </div>
                   </div>
                   {isRegistered ? (
-                    <button
-                      type="button"
-                      className="rk-button-secondary text-xs"
-                      onClick={() => {
-                        cancel.mutate(c.id);
-                        setRegistered((r) => ({ ...r, [c.id]: false }));
-                      }}
-                    >
-                      Cancel RSVP
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+                        ✓ Registered
+                      </span>
+                      <button
+                        type="button"
+                        className="text-[11px] text-slate-500 hover:text-rk-700 hover:underline"
+                        onClick={() => {
+                          cancel.mutate(c.id);
+                          setDirty((r) => ({ ...r, [c.id]: false }));
+                        }}
+                      >
+                        Cancel RSVP
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
                       className="rk-button-primary text-xs"
                       onClick={() => {
                         rsvp.mutate(c.id);
-                        setRegistered((r) => ({ ...r, [c.id]: true }));
+                        setDirty((r) => ({ ...r, [c.id]: true }));
                       }}
                       disabled={rsvp.isPending}
                     >
-                      I&apos;ll be there
+                      I’ll be there
                     </button>
                   )}
                 </div>
