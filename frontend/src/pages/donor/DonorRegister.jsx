@@ -234,12 +234,6 @@ export function DonorRegister() {
           </div>
         ) : null}
 
-        {eligibilityQ.data?.draft ? (
-          <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800 ring-1 ring-amber-200">
-            DRAFT: clinical questions are pending medical-advisor sign-off.
-          </div>
-        ) : null}
-
         {registered && otpStage !== 'idle' ? (
           <div className="rk-card space-y-4">
             <h2 className="text-lg font-semibold text-rk-700">Verify mobile</h2>
