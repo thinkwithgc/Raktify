@@ -19,34 +19,54 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 | 6 — Notifications + WhatsApp + Lookback | ✅ core (19/19) | `node scripts/smoke_test_phase6.js` | See **Phase 6 status** below |
 | 7 — Frontend (React PWA) | ✅ core | `npm run smoke:frontend` (vite build) | See **Phase 7 status** below |
 | 8 — Admin + reporting + deploy | ✅ core (code-complete) | `npm run lint && npm run smoke:frontend` | See **Phase 8 status** below |
-| Post-8 — Live deploy + feature gap-close | ✅ live on Azure staging | `npm run lint && npm run smoke:frontend` | See **Post-Phase-8 status** below |
+| Post-8 — Live deploy + feature gap-close | ✅ live on Azure (single-env `raktify` RG) | `npm run lint && npm run smoke:frontend` | See **Post-Phase-8 status** below |
 
 > **Current totals (2026-05-26):** 46 migrations (latest `266_staff_constraint_allow_dho`),
 > 104 route handlers across 17 resource routers, 6 frontend role-portals + public
 > surfaces, 3 notification providers (console / MSG91 / WhatsApp Cloud). Phases 0–8
-> **and** all post-Phase-8 additions are code-complete and live on Azure staging
-> (`raktify.choudhari.ngo` + `raktify-api-staging` App Service).
+> **and** all post-Phase-8 additions are code-complete and live on Azure
+> (`raktify.choudhari.ngo` + `raktify-api` App Service). Single environment
+> — the old staging tier was deleted 2026-06-28 (commit `610a5c7`) to save
+> free-tier credit; there is no separate prod/staging split today.
 
-## Post-Phase-8 status (live on Azure staging — May 2026)
+## Post-Phase-8 status (live on Azure — May 2026, single-env since Jun 2026)
 
 Everything below shipped **after** the 8-phase build and is deployed. Grouped by area.
 
-### Deployment is real (Azure)
-- **Frontend** → Azure Static Web Apps (`raktify.choudhari.ngo`), workflow
-  `.github/workflows/azure-static-web-apps-jolly-bay-08008c700.yml`. `VITE_API_URL`
+### Deployment is real (Azure) — single environment
+
+The staging tier was deleted **2026-06-28** (commit `610a5c7`) to save
+free-tier credit. Live Azure infra today (RG `raktify`, Central India):
+
+- **Frontend** → Azure Static Web App `raktify-web`
+  (`zealous-plant-0981aed00.7.azurestaticapps.net`) serving `raktify.choudhari.ngo`,
+  workflow `.github/workflows/azure-static-web-apps-raktify-web.yml`. `VITE_API_URL`
   is baked into the Vite build at deploy time so the SPA calls the live API origin.
-- **Backend** → Azure App Service Linux (`raktify-api-staging`, Central India),
-  workflow `.github/workflows/main_raktify-api-staging.yml`.
+- **Backend** → Azure App Service Linux `raktify-api`
+  (`raktify-api.azurewebsites.net`), workflow `.github/workflows/main_raktify-api.yml`.
 - **Both workflows trigger only on push to `main`.** The working pattern in this
   worktree is `git push origin <local-branch>:main` (fast-forward) — that single
-  push fans out to both deploys. DB migrations + seed are **not** in the workflow;
-  they are run manually against the staging `DATABASE_URL` (`npm run migrate`,
-  `node scripts/seed_demo.js`).
-- **DB** → still Neon for staging (Azure DB for PostgreSQL Flexible Server is the
-  production target per `docs/DEPLOYMENT.md`, not yet provisioned).
+  push fans out to both deploys. DB migrations run automatically on backend deploy
+  (see commit `e80ef50`); seeds are run manually against the live `DATABASE_URL`
+  (`node scripts/seed_demo.js`).
+- **DB (prod)** → `raktify-db` — Azure Database for PostgreSQL Flexible Server
+  (Standard_B1ms Burstable, PG 16), host
+  `raktify-db.postgres.database.azure.com`, in the `raktify` RG. App Service
+  reads `DATABASE_URL` as a `@Microsoft.KeyVault(...)` reference.
+- **DB (dev)** → Neon Postgres (external, free tier) — used for local dev + the
+  demo seed script, **not** the live prod DB.
+- **Key Vault** `raktify-kv` holds all `WHATSAPP_*`, `JWT_SECRET`, `LEEGALITY_*`,
+  `DATABASE_URL`, and encryption keys. App Service reads them via
+  `@Microsoft.KeyVault(...)` references + managed identity.
 - Azure free-trial credit (~₹18,900) expires **17 Jun 2026**; subscription
-  auto-deletes **17 Jul 2026** unless upgraded to Pay-As-You-Go. Cheapest steady
-  state: PAYG + App Service F1/Static Web Apps free + DB on Neon free tier = ~₹0/mo.
+  auto-deletes **17 Jul 2026** unless upgraded to Pay-As-You-Go. Steady-state cost:
+  PAYG + App Service B1 + Static Web Apps free + Flexible Server Standard_B1ms
+  Burstable. Neon free tier stays for dev only, no ongoing cost.
+
+**Do NOT reference** (deleted, gone): `raktify-api-staging`,
+`raktify-api-staging-hsdxfzhrg`, `jolly-bay-08008c700` SWA, workflow files
+`main_raktify-api-staging.yml` / `azure-static-web-apps-jolly-bay-08008c700.yml`.
+If you see those anywhere, the doc is stale.
 
 ### WhatsApp Business Cloud API — now the primary notification channel
 - **New provider** `backend/src/services/notifications/whatsappCloudProvider.js`
@@ -67,8 +87,8 @@ Everything below shipped **after** the 8-phase build and is deployed. Grouped by
 - `provider.isConfigured()` returns a clean failure (not a throw) when the WABA /
   token / templates aren't set, so dev + CI keep working on the console provider.
 - **`OTP_ECHO` flag** (`env.otpEcho`, default `false`) — when `true`, the OTP is
-  echoed in the API response body so a live staging site can be demoed without a
-  working SMS/WhatsApp send. **Never enable in production.**
+  echoed in the API response body so the site can be demoed without a working
+  SMS/WhatsApp send. **Never enable when real users are on the platform.**
 - Approved Meta templates: `donor_otp` (auth, MR/HI/EN), `donor_alert_critical`
   (utility, MR/EN), `camp_reminder`, `camp_organizer_link`, `mou_esign_link`
   (utility, EN), `institution_activation_link` (utility, EN),
@@ -145,12 +165,12 @@ always present; the **API + UI** landed post-Phase-8.
   `Footer.jsx`, full OG / Twitter-Card meta. Public-facing email is `contact@choudhari.ngo`.
 
 ### Demo seed
-- `node scripts/seed_demo.js` (`--reset` to wipe + reseed) populates staging with
-  **6 months of realistic activity** so every dashboard renders with data: donors
-  across blood groups + districts, donations + TTI, inventory with varied expiry,
-  blood requests across all 4 tiers + statuses, camps with rosters/attendance,
-  notifications, lookback cases, registries. Run manually against the staging
-  `DATABASE_URL` — it is **not** part of any deploy workflow.
+- `node scripts/seed_demo.js` (`--reset` to wipe + reseed) populates the live
+  DB with **6 months of realistic activity** so every dashboard renders with
+  data: donors across blood groups + districts, donations + TTI, inventory
+  with varied expiry, blood requests across all 4 tiers + statuses, camps with
+  rosters/attendance, notifications, lookback cases, registries. Run manually
+  against `DATABASE_URL` — it is **not** part of any deploy workflow.
 
 ### Post-Phase-8 deferred items (still open)
 1. **MSG91 SMS path** — DLT registration still pending; SMS fallback (WA→SM→CA on
@@ -388,14 +408,14 @@ have data to widen. Existing HMAC-signature enforcement is unchanged.
 - **Azure App Service Linux** backend with Always-On + `/health` probe; **Azure Static Web Apps** frontend with custom domain + free managed TLS.
 - **Azure Key Vault** for all secrets; managed identity on App Service references `@Microsoft.KeyVault(...)` values.
 - Production `.env` template covering current provider switches (`ENCRYPTION_PROVIDER=local`, `STORAGE_PROVIDER=local`, `NOTIFICATIONS_PROVIDER=whatsapp_cloud`, `MAIL_PROVIDER=console`) plus the full `WHATSAPP_*` env block + `OTP_ECHO`.
-- New **§2.1 "Staging deployment (current reality)"** documenting the live workflow: Neon DB, the two GitHub Actions, `git push origin <branch>:main` fast-forward pattern, Azure free-trial expiry, cost guidance.
+- New **§2.1 "Live deployment (current reality)"** documenting the workflow: `raktify-db` Flexible Server (prod) with Neon reserved for dev, the two GitHub Actions, `git push origin <branch>:main` fast-forward pattern, Azure free-trial expiry, cost guidance.
 - Monitoring matrix (Application Insights, Azure Monitor alerts, Sentry).
 - Security-hardening verification checklist matching the spec §10 items.
 - Excerpted go-live checklist; full version stays in the Master Prompt.
 - (The original spec called for AWS RDS Mumbai / EC2+ALB+ACM / S3+CloudFront / `ENCRYPTION_PROVIDER=kms` / `STORAGE_PROVIDER=s3` — superseded by the May 2026 Azure pivot.)
 
 **What's deferred (out of scope for code work):**
-1. **Azure DB cutover** — Azure Database for PostgreSQL Flexible Server is the production target; staging continues on Neon free tier until the cutover. Provisioning + `pg_dump`/restore is pure infra work. (The original spec required AWS RDS / EC2 / S3 — those line items are obsolete post-Azure pivot. Azure Key Vault + App Service + Static Web Apps + the WhatsApp Cloud setup are all done.)
+1. ~~**Azure DB cutover**~~ — ✅ done. Prod runs on `raktify-db` (Azure Database for PostgreSQL Flexible Server, PG 16). Neon is dev-only now. (The original spec required AWS RDS / EC2 / S3 — those line items are obsolete post-Azure pivot. Azure Key Vault + App Service + Static Web Apps + Flexible Server + the WhatsApp Cloud setup are all done.)
 2. **External accounts + keys** — Meta WABA payment-method on file (live blocker for delivery), MSG91 DLT templates (only needed for the SMS fallback channel), LeegAlly e-sign, Google Workspace admin, Sentry, Better Uptime / UptimeRobot. Each is a vendor signup with KYC.
 3. **PDF generation** for DHO submission — `routes/reports.js` returns CSV; PDF needs Puppeteer or wkhtmltopdf wired into the storage abstraction. CSV is acceptable for hemovigilance interim filings.
 4. **`audit_reader` SELECT grant on `audit_log`** for the integrity check — currently the role only has SELECT on `audit_log_safe` (which masks `row_hash` / `previous_row_hash`). One-line migration: `GRANT SELECT (id, event_time, table_name, record_id, row_hash, previous_row_hash) ON audit_log TO audit_reader;`. Endpoint already returns a clear diagnostic 500 in the meantime.
@@ -558,7 +578,7 @@ Hospital role NEVER sees donor mobile in API responses, even though it's plainte
 
 Each phase has explicit acceptance criteria in the Master Prompt. A phase is complete when:
 - Every acceptance criterion ticks
-- All migrations apply cleanly to a fresh Neon DB
+- All migrations apply cleanly to a fresh Postgres 16 instance (dev: Neon; prod: `raktify-db` Flexible Server)
 - Lint + format checks pass
 - The relevant integration test or smoke test (per phase) passes
 - The phase's RLS policies have been exercised by `scripts/test_rls.sql`
