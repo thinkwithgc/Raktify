@@ -143,9 +143,15 @@ router.post('/register', registerLimiter, async (req, res) => {
       async (c) => {
         // Resolve / create the platform_users auth row
         const userR = await c.query(
+          // ON CONFLICT target matches the partial unique index defined by
+          // migration 274: `(mobile) WHERE mobile IS NOT NULL AND role = 'donor'`.
+          // The DO UPDATE is a no-op (we always insert role='donor'), but it's
+          // required so the RETURNING clause emits the existing row's id when
+          // a donor with this mobile already exists.
           `INSERT INTO platform_users (role, mobile)
            VALUES ('donor', $1)
-           ON CONFLICT (mobile) DO UPDATE SET role = EXCLUDED.role
+           ON CONFLICT (mobile) WHERE mobile IS NOT NULL AND role = 'donor'
+             DO UPDATE SET role = EXCLUDED.role
            RETURNING id`,
           [mobile],
         );
@@ -558,9 +564,11 @@ router.post(
 
             // Insert platform_users row first (auto-upsert mobile, donor role).
             const userR = await c.query(
+              // Same partial-index-aware upsert as the web /register path.
               `INSERT INTO platform_users (role, mobile)
                VALUES ('donor', $1)
-               ON CONFLICT (mobile) DO UPDATE SET role = platform_users.role
+               ON CONFLICT (mobile) WHERE mobile IS NOT NULL AND role = 'donor'
+                 DO UPDATE SET role = platform_users.role
                RETURNING id`,
               [mobile],
             );
