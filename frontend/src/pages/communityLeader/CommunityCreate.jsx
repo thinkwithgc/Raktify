@@ -147,8 +147,7 @@ export function CommunityCreate() {
 
           <LocalityPicker
             id="community-locality"
-            label="Where is this community anchored?"
-            placeholder="Type your village, city, or Municipal Corp ward…"
+            label="Community's home village or area"
             value={form.locality}
             onChange={(loc) => update('locality', loc)}
             required

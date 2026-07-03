@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
@@ -9,11 +8,18 @@ import { apiRequest } from '../../lib/api.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useT } from '../../i18n/useT.js';
 
-// Spec §5: 4-step donor registration.
-//   1 = pre-screening (permanent exclusions)  — ANY YES → soft decline
-//   2 = personal details → POST /donors/register
-//   3 = temporary deferrals (informational)
-//   4 = consent + finalisation: send OTP, verify, POST /donors/:id/consent
+// 2-step donor registration (simplified 2026-07-03):
+//   1 = personal details  → POST /donors/register
+//   2 = consent + OTP finalisation
+//
+// The earlier pre-screening (Step 1 Health) and temporary-deferral (Step 3
+// Recent) tabs were dropped because:
+//   - The blood bank performs the authoritative TTI + interview at donation
+//     time. Self-report has no clinical value we don't already re-collect
+//     when the donor sits in the chair.
+//   - Fewer questions = higher completion rate = larger donor pool.
+//   - The DB-level age gate (18–65 via CHECK on date_of_birth) stays in
+//     place regardless.
 
 // blood_groups seed (migration 002): id 1..8 → A+ A- B+ B- AB+ AB- O+ O-
 const SELF_BLOOD_GROUPS = [
@@ -63,8 +69,6 @@ export function DonorRegister() {
 
   const [step, setStep] = useState(1);
   const [details, setDetails] = useState(initialDetails);
-  const [permanentAnswers, setPermanentAnswers] = useState({});
-  const [temporaryAnswers, setTemporaryAnswers] = useState({});
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -109,34 +113,6 @@ export function DonorRegister() {
     };
   }, []);
 
-  // Load DRAFT eligibility bank from backend so question copy stays in sync
-  // with whatever the medical advisor signs off on.
-  const eligibilityQ = useQuery({
-    queryKey: ['eligibility', 'questions'],
-    queryFn: () => apiRequest('GET', '/donors/eligibility/questions'),
-    staleTime: 60 * 60 * 1000,
-  });
-
-  const permanentQs = eligibilityQ.data?.permanent || [];
-  const temporaryQs = eligibilityQ.data?.temporary || [];
-
-  // Step 1 evaluation: any YES on permanent = soft decline.
-  const softDecline = useMemo(
-    () => permanentQs.some((q) => permanentAnswers[q.id] === 'YES'),
-    [permanentQs, permanentAnswers],
-  );
-
-  // Step 3 evaluation: longest temporary deferral.
-  const longestDeferralDays = useMemo(
-    () =>
-      temporaryQs.reduce(
-        (max, q) =>
-          temporaryAnswers[q.id] === 'YES' ? Math.max(max, q.deferral_days || 0) : max,
-        0,
-      ),
-    [temporaryQs, temporaryAnswers],
-  );
-
   function update(k, v) {
     setDetails((prev) => ({ ...prev, [k]: v }));
   }
@@ -146,7 +122,7 @@ export function DonorRegister() {
     setStep(s);
   }
 
-  // ── Step 4: submit ────────────────────────────────────────────────────
+  // ── Step 2: submit ────────────────────────────────────────────────────
   async function submitRegistration() {
     setError('');
     if (!consent) {
@@ -166,7 +142,7 @@ export function DonorRegister() {
     });
     if (!parsed.success) {
       setError('invalid_details');
-      setStep(2);
+      setStep(1);
       return;
     }
 
@@ -176,7 +152,6 @@ export function DonorRegister() {
         ...parsed.data,
         preferred_language: lang,
         registration_source: 'WEB',
-        prescreening_answers: permanentAnswers,
         // Phase 3 attribution: if the user came from /community/<slug>,
         // tag the donor to that community. The backend defaults
         // referred_by_community_leader_id to the community's current owner
@@ -184,12 +159,6 @@ export function DonorRegister() {
         ...(communityId ? { community_id: communityId } : {}),
       };
       const r = await apiRequest('POST', '/donors/register', payload);
-
-      if (r.status === 'soft_decline') {
-        setError(r.reason || 'soft_decline');
-        setStep(1);
-        return;
-      }
       // Successful registration. We still need to (a) verify the mobile
       // via OTP and (b) POST consent. Both require a session — kick OTP.
       setRegistered(r);
@@ -254,7 +223,7 @@ export function DonorRegister() {
       <main className="mx-auto max-w-2xl px-4 py-6">
         <Stepper
           current={step}
-          labels={['Health', 'You', 'Recent', 'Consent']}
+          labels={['Your details', 'Consent']}
           onJump={(s) => (s < step ? backTo(s) : null)}
         />
 
@@ -302,21 +271,9 @@ export function DonorRegister() {
         ) : (
           <>
             {step === 1 ? (
-              <Step1Permanent
-                questions={permanentQs}
-                answers={permanentAnswers}
-                setAnswers={setPermanentAnswers}
-                softDecline={softDecline}
-                loading={eligibilityQ.isLoading}
-                onContinue={() => setStep(2)}
-              />
-            ) : null}
-
-            {step === 2 ? (
-              <Step2Details
+              <StepDetails
                 details={details}
                 update={update}
-                onBack={() => backTo(1)}
                 onContinue={() => {
                   // Validate before allowing forward step.
                   const parsed = personalSchema.safeParse({
@@ -334,32 +291,18 @@ export function DonorRegister() {
                     return;
                   }
                   setError('');
-                  setStep(3);
+                  setStep(2);
                 }}
                 error={error}
               />
             ) : null}
 
-            {step === 3 ? (
-              <Step3Temporary
-                questions={temporaryQs}
-                answers={temporaryAnswers}
-                setAnswers={setTemporaryAnswers}
-                longestDays={longestDeferralDays}
-                onBack={() => backTo(2)}
-                onContinue={() => {
-                  setError('');
-                  setStep(4);
-                }}
-              />
-            ) : null}
-
-            {step === 4 ? (
-              <Step4Consent
+            {step === 2 ? (
+              <StepConsent
                 consent={consent}
                 setConsent={setConsent}
                 pending={pending}
-                onBack={() => backTo(3)}
+                onBack={() => backTo(1)}
                 onSubmit={submitRegistration}
                 error={error}
               />
@@ -371,53 +314,11 @@ export function DonorRegister() {
   );
 }
 
-// ─── Step 1 ────────────────────────────────────────────────────────────────
-function Step1Permanent({ questions, answers, setAnswers, softDecline, loading, onContinue }) {
-  const allAnswered = questions.length > 0 && questions.every((q) => answers[q.id]);
+// ─── Step 1: personal details ─────────────────────────────────────────────
+function StepDetails({ details, update, onContinue, error }) {
   return (
     <section className="rk-card space-y-4">
-      <h2 className="text-lg font-semibold text-rk-700">Step 1 — Health screening</h2>
-      <p className="text-sm text-slate-600">
-        Please answer honestly. Your answers help us protect both you and the patient who will
-        receive your blood.
-      </p>
-      {loading ? <p className="text-sm text-slate-500">Loading questions…</p> : null}
-      <ul className="space-y-2">
-        {questions.map((q) => (
-          <li key={q.id} className="rounded-lg border border-slate-200 p-3">
-            <div className="text-sm text-slate-800">{q.en}</div>
-            <YesNoPills
-              value={answers[q.id]}
-              onChange={(v) => setAnswers({ ...answers, [q.id]: v })}
-            />
-          </li>
-        ))}
-      </ul>
-      {softDecline ? (
-        <div className="rounded-md bg-rk-50 p-3 text-sm text-rk-900 ring-1 ring-rk-100">
-          Based on your answers we cannot register you as a donor today. Please consult a doctor
-          for guidance — you can still come back if your situation changes.
-        </div>
-      ) : null}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!allAnswered || softDecline}
-          className="rk-button-primary"
-        >
-          Continue
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// ─── Step 2 ────────────────────────────────────────────────────────────────
-function Step2Details({ details, update, onBack, onContinue, error }) {
-  return (
-    <section className="rk-card space-y-4">
-      <h2 className="text-lg font-semibold text-rk-700">Step 2 — Your details</h2>
+      <h2 className="text-lg font-semibold text-rk-700">Step 1 — Your details</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Mobile" htmlFor="r-mobile">
@@ -483,13 +384,13 @@ function Step2Details({ details, update, onBack, onContinue, error }) {
         <div className="sm:col-span-2">
           <LocalityPicker
             id="r-locality"
-            label="Where do you live? (optional)"
-            placeholder="Type your village, city, or Municipal Corp ward…"
+            label="Your village or area (optional)"
             value={details.locality}
             onChange={(loc) => update('locality', loc)}
           />
           <p className="mt-1 text-xs text-slate-500">
-            Only your locality is used to route alerts. We never ask for your street address.
+            Type the name of your village, city, or (in Amravati City) your ward.
+            We use this only to route alerts — we never ask for your street address.
           </p>
         </div>
 
@@ -539,10 +440,7 @@ function Step2Details({ details, update, onBack, onContinue, error }) {
 
       {error ? <p className="text-sm text-rk-700">{error}</p> : null}
 
-      <div className="flex justify-between">
-        <button type="button" className="rk-button-secondary" onClick={onBack}>
-          Back
-        </button>
+      <div className="flex justify-end">
         <button type="button" className="rk-button-primary" onClick={onContinue}>
           Continue
         </button>
@@ -551,55 +449,11 @@ function Step2Details({ details, update, onBack, onContinue, error }) {
   );
 }
 
-// ─── Step 3 ────────────────────────────────────────────────────────────────
-function Step3Temporary({ questions, answers, setAnswers, longestDays, onBack, onContinue }) {
-  const allAnswered = questions.length > 0 && questions.every((q) => answers[q.id]);
+// ─── Step 2: consent ──────────────────────────────────────────────────────
+function StepConsent({ consent, setConsent, pending, onBack, onSubmit, error }) {
   return (
     <section className="rk-card space-y-4">
-      <h2 className="text-lg font-semibold text-rk-700">Step 3 — Recent activity</h2>
-      <p className="text-sm text-slate-600">
-        These don't disqualify you from registering. They only tell us when you can next safely
-        donate.
-      </p>
-      <ul className="space-y-2">
-        {questions.map((q) => (
-          <li key={q.id} className="rounded-lg border border-slate-200 p-3">
-            <div className="text-sm text-slate-800">{q.en}</div>
-            <YesNoPills
-              value={answers[q.id]}
-              onChange={(v) => setAnswers({ ...answers, [q.id]: v })}
-            />
-          </li>
-        ))}
-      </ul>
-      {longestDays > 0 ? (
-        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
-          Based on your answers, you'll be eligible to donate in approximately{' '}
-          <strong>{longestDays} days</strong>. You can still register today.
-        </div>
-      ) : null}
-      <div className="flex justify-between">
-        <button type="button" className="rk-button-secondary" onClick={onBack}>
-          Back
-        </button>
-        <button
-          type="button"
-          className="rk-button-primary"
-          onClick={onContinue}
-          disabled={!allAnswered}
-        >
-          Continue
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// ─── Step 4 ────────────────────────────────────────────────────────────────
-function Step4Consent({ consent, setConsent, pending, onBack, onSubmit, error }) {
-  return (
-    <section className="rk-card space-y-4">
-      <h2 className="text-lg font-semibold text-rk-700">Step 4 — Consent</h2>
+      <h2 className="text-lg font-semibold text-rk-700">Step 2 — Consent</h2>
       <div className="space-y-2 text-sm text-slate-700">
         <p>
           Raktify uses your contact details and donation history only to match you with
@@ -640,34 +494,6 @@ function Step4Consent({ consent, setConsent, pending, onBack, onSubmit, error })
 }
 
 // ─── Shared bits ───────────────────────────────────────────────────────────
-function YesNoPills({ value, onChange }) {
-  return (
-    <div className="mt-2 inline-flex gap-2">
-      {['NO', 'YES'].map((v) => {
-        const on = value === v;
-        const isYes = v === 'YES';
-        return (
-          <button
-            type="button"
-            key={v}
-            onClick={() => onChange(v)}
-            className={
-              'rounded-full border px-4 py-1 text-sm font-medium transition-colors ' +
-              (on
-                ? isYes
-                  ? 'border-rk-700 bg-rk-700 text-white'
-                  : 'border-green-600 bg-green-600 text-white'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50')
-            }
-          >
-            {v}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function Field({ label, htmlFor, hint, children }) {
   return (
     <div>

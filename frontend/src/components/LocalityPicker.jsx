@@ -26,8 +26,8 @@ export function LocalityPicker({
   value,
   onChange,
   districtId,
-  placeholder = 'Type your village, city or ward…',
-  label = 'Where do you live?',
+  placeholder = 'Type your village, city, or Municipal Corp ward…',
+  label = 'Your village or area',
   required = false,
   id = 'locality',
 }) {
