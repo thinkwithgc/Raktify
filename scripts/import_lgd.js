@@ -488,14 +488,21 @@ async function importWards(client, state) {
   const rows = loadWardsSheet(state.files.wards);
   console.log(`▸ [${state.rtoPrefix}] wards: ${rows.length} rows in xlsx`);
   // ULB lookup — we imported ULBs into villages already. Match by LGD id.
+  // Ward policy (per user, 2026-07-03): only Municipal Corporation wards are
+  // useful for donor routing — city populations justify sub-city granularity
+  // there; smaller Municipal Councils / Nagar Panchayats are compact enough
+  // that the ULB catch-all row is sufficient. Filter parent ULBs by name
+  // suffix which was assigned at ULB import.
   const ulbs = await client.query(
     `SELECT id, name, taluka_id, district_id, state_id
        FROM villages
       WHERE is_urban = TRUE
-        AND state_id = $1`,
+        AND state_id = $1
+        AND name LIKE '%(Municipal Corporation)'`,
     [state.code],
   );
   const ulbById = new Map(ulbs.rows.map((r) => [r.id, r]));
+  console.log(`  parent M Corp ULBs in DB: ${ulbById.size}`);
   const parsed = [];
   const skipped = [];
   for (const r of rows) {
