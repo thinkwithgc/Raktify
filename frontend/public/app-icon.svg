@@ -45,17 +45,4 @@
     <!-- Subtle inner highlight to give the droplet form, not just a flat shape -->
     <ellipse cx="-88" cy="400" rx="40" ry="72" fill="#ffffff" opacity="0.28" />
   </g>
-
-  <!-- Tiny "R" mark inset on the droplet to make the icon recognisable at 32×32. -->
-  <text
-    x="512"
-    y="660"
-    text-anchor="middle"
-    font-family="Inter, 'Helvetica Neue', Arial, sans-serif"
-    font-size="240"
-    font-weight="900"
-    letter-spacing="-8"
-    fill="#b8231a"
-    opacity="0.92"
-  >R</text>
 </svg>
