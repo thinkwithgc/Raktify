@@ -475,6 +475,19 @@ export function Landing() {
               </article>
             ))}
           </div>
+          {/* Deep-dive link for first-time visitors landing via search — the
+              full story lives on a static page (/how-raktify-works.html) so
+              it is crawlable + shareable + printable outside the SPA. */}
+          <div className="mt-10 text-center">
+            <a
+              href="/how-raktify-works.html"
+              className="inline-flex items-center gap-2 rounded-full border border-rk-200 bg-rk-50 px-6 py-3 text-sm font-semibold text-rk-700 transition-colors hover:border-rk-700 hover:bg-white"
+            >
+              <span aria-hidden="true">🗺️</span>
+              {t('lp_how_full_link')}
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
         </div>
       </section>
 

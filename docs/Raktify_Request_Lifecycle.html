@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How Raktify Works — explained from zero</title>
+<style>
+  :root {
+    --rk: #b8231a;
+    --hospital: #1d4ed8;
+    --coord: #7c3aed;
+    --system: #475569;
+    --bb: #b8231a;
+    --donor: #047857;
+    --camp: #b45309;
+    --ink: #1a1a1a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --cream: #faf7f2;
+    --peace: #f0fdf4;
+    --emergency: #fef2f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--ink); margin: 0; background: #fff; line-height: 1.55;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h1 .accent { color: var(--rk); }
+  .sub { color: var(--muted); margin: 0 0 8px; font-size: 15px; }
+  .oneliner {
+    background: var(--cream); border-left: 5px solid var(--rk); border-radius: 8px;
+    padding: 14px 18px; font-size: 17px; margin: 20px 0; font-weight: 600;
+  }
+  h2 {
+    font-size: 21px; margin: 52px 0 4px; padding: 10px 14px;
+    background: var(--ink); color: #fff; border-radius: 8px;
+  }
+  h2 .q { color: #fbbf24; font-weight: 400; font-size: 15px; display: block; margin-top: 2px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+  p { font-size: 14.5px; }
+  .story { font-size: 15px; margin: 12px 0; }
+  .fixed-points { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 22px 0; }
+  .fp { border: 2.5px solid var(--ink); border-radius: 10px; padding: 14px; background: var(--cream); text-align: center; }
+  .fp .n { font-size: 24px; }
+  .fp .t { font-weight: 700; font-size: 13.5px; margin-top: 4px; }
+  .fp .d { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .cast { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin: 14px 0; }
+  .actor { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .actor .e { font-size: 26px; line-height: 1; }
+  .actor b { font-size: 14px; display: block; }
+  .actor span { font-size: 12.5px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 13.5px; }
+  th { background: var(--cream); text-align: left; padding: 8px 10px; border: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td { padding: 8px 10px; border: 1px solid var(--line); vertical-align: top; }
+  code { font-family: Consolas, monospace; font-size: 12.5px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+  .remember {
+    background: #fefce8; border: 1.5px solid #eab308; border-radius: 10px;
+    padding: 10px 16px; margin: 14px 0 6px; font-size: 14.5px;
+  }
+  .remember b { color: #a16207; }
+  .note { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 14px; font-size: 13.5px; margin: 12px 0; }
+  .svgwrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fdfdfc; }
+  svg text { font-family: 'Segoe UI', system-ui, sans-serif; }
+  .howto { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; margin: 10px 0 4px; color: var(--muted); }
+  .howto span { display: inline-flex; align-items: center; gap: 6px; }
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+  @media print {
+    .page { max-width: none; padding: 0; }
+    h2 { page-break-before: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h2:first-of-type { page-break-before: avoid; }
+    .svgwrap { border: none; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>How Rakt<span class="accent">ify</span> works</h1>
+<p class="sub">Explained from zero — for someone who has never heard of a platform like this. · 4 July 2026 · matches live production behaviour.</p>
+
+<div class="oneliner">When a hospital needs blood, Raktify finds it — first from blood-bank fridges, then from living donors — automatically, in minutes instead of hours.</div>
+
+<h3>The problem today (without Raktify)</h3>
+<p class="story">A patient needs blood. The hospital's blood bank doesn't have that group. The family starts running — calling relatives, posting in WhatsApp groups, begging strangers outside blood banks. Nobody knows which fridge in the city actually has the blood, or which healthy donor is 2&nbsp;km away and willing. Hours pass. Sometimes the patient doesn't have hours.</p>
+<p class="story">Raktify replaces that panic with a system. Everything below explains how.</p>
+
+<h2>The cast <span class="q">Who is in this story?</span></h2>
+<div class="cast">
+  <div class="actor"><div class="e">🤒</div><div><b>The patient</b><span>In a hospital bed. Needs blood. Never uses Raktify directly — everything happens around them.</span></div></div>
+  <div class="actor"><div class="e">🏥</div><div><b>The hospital</b><span style="color:var(--hospital)">Blue in diagrams.</span><span> Asks for blood. The only one who can start a request.</span></div></div>
+  <div class="actor"><div class="e">🧊</div><div><b>The blood bank</b><span style="color:var(--bb)">Red in diagrams.</span><span> Has fridges with blood bags and a lab that tests blood. The only one who can make a donor "real".</span></div></div>
+  <div class="actor"><div class="e">💪</div><div><b>The donor</b><span style="color:var(--donor)">Green in diagrams.</span><span> An ordinary person willing to give blood. Contacted on WhatsApp only when truly needed.</span></div></div>
+  <div class="actor"><div class="e">🧑‍💼</div><div><b>The coordinator</b><span style="color:var(--coord)">Purple in diagrams.</span><span> Raktify's human in each district. Watches every request, can override the machine.</span></div></div>
+  <div class="actor"><div class="e">🤝</div><div><b>The community leader</b><span style="color:var(--camp)">Amber in diagrams.</span><span> A trusted local person (village head, temple committee, alumni group) who brings donors in and hosts camps.</span></div></div>
+  <div class="actor"><div class="e">⚙️</div><div><b>Raktify itself</b><span style="color:var(--system)">Grey in diagrams.</span><span> The software. Searches, matches, messages, keeps time, and never sleeps.</span></div></div>
+</div>
+
+<h2>Three fixed doors <span class="q">The whole platform has exactly one way in, one gate, and one way out</span></h2>
+<div class="fixed-points">
+  <div class="fp"><div class="n">🏥 ①</div><div class="t">THE ONLY ENTRY</div><div class="d">A hospital raises a blood request. Nothing starts any other way.</div></div>
+  <div class="fp"><div class="n">🧪 ②</div><div class="t">THE ONLY DONOR GATE</div><div class="d">A donor becomes "real" only when a blood bank uploads their tested blood report. Signing up alone means nothing.</div></div>
+  <div class="fp"><div class="n">🩸 ③</div><div class="t">THE ONLY EXIT</div><div class="d">Blood transfused into the patient. That is the only success. Everything else is a step or a safety net.</div></div>
+</div>
+<p>Keep these three symbols in mind — they appear in the diagrams below with thick black borders.</p>
+
+<h2>The big picture <span class="q">Two worlds: peace time and emergency time</span></h2>
+<p class="story">The secret of Raktify is that it runs <strong>two separate machines</strong>:</p>
+<p class="story"><strong>🌱 Peace time</strong> — quietly, every day: people sign up as donors, camps collect blood, fridges get stocked. Nothing urgent. This is preparation.</p>
+<p class="story"><strong>🚨 Emergency time</strong> — when a hospital asks: check the fridges first, wake donors only if fridges can't cover it, deliver.</p>
+<p class="story">Emergency time is fast <em>only because</em> peace time already did the hard work. That is the whole idea of the platform in one sentence.</p>
+
+<div class="howto">
+  <span>▢ rounded box = an action</span>
+  <span>◇ diamond = a question</span>
+  <span>▣ thick black border = one of the 3 fixed doors</span>
+  <span>- - → dashed arrow = "feeds into"</span>
+</div>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 600" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#047857"/></marker>
+  </defs>
+
+  <!-- PEACE LANE -->
+  <rect x="8" y="8" width="924" height="252" rx="14" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="24" y="34" font-size="15" font-weight="700" fill="#047857">🌱 PEACE TIME — runs every day, no urgency</text>
+
+  <rect x="24" y="56" width="168" height="64" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="108" y="82" text-anchor="middle" font-size="13" font-weight="600" fill="#b45309">🎪 Camps held</text>
+  <text x="108" y="101" text-anchor="middle" font-size="10.5" fill="#334155">(Flow 6)</text>
+
+  <rect x="238" y="56" width="190" height="64" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="333" y="80" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">💪 People sign up</text>
+  <text x="333" y="99" text-anchor="middle" font-size="10.5" fill="#334155">= hand raised, not yet real</text>
+
+  <rect x="474" y="56" width="210" height="64" rx="10" fill="#fef2f2" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="579" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#b8231a">🧪 ② First donation is tested</text>
+  <text x="579" y="99" text-anchor="middle" font-size="10.5" fill="#334155">blood bank uploads the report</text>
+
+  <rect x="730" y="56" width="186" height="64" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="823" y="80" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">✅ Verified donor pool</text>
+  <text x="823" y="99" text-anchor="middle" font-size="10.5" fill="#334155">can now be called on</text>
+
+  <rect x="474" y="160" width="210" height="64" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="579" y="184" text-anchor="middle" font-size="13" font-weight="600" fill="#b8231a">🧊 Fridges get stocked</text>
+  <text x="579" y="203" text-anchor="middle" font-size="10.5" fill="#334155">tested bags wait for a patient</text>
+
+  <line x1="192" y1="88" x2="232" y2="88" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="428" y1="88" x2="468" y2="88" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="684" y1="88" x2="724" y2="88" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <path d="M 579 120 V 154" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <text x="592" y="142" font-size="10.5" fill="#64748b">the tested bag itself</text>
+  <path d="M 108 120 V 192 H 468" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+  <text x="150" y="212" font-size="10.5" fill="#b45309">camps collect many bags at once</text>
+
+  <!-- CROSS ARROWS -->
+  <path d="M 823 120 V 396 H 640" fill="none" stroke="#047857" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#a2)"/>
+  <text x="836" y="280" font-size="11" fill="#047857" font-weight="600">only verified</text>
+  <text x="836" y="295" font-size="11" fill="#047857" font-weight="600">donors are</text>
+  <text x="836" y="310" font-size="11" fill="#047857" font-weight="600">ever called</text>
+  <path d="M 474 200 H 300 V 330" fill="none" stroke="#b8231a" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#a1)"/>
+  <text x="200" y="250" font-size="11" fill="#b8231a" font-weight="600">stocked fridges = fast answers</text>
+
+  <!-- EMERGENCY LANE -->
+  <rect x="8" y="290" width="924" height="300" rx="14" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="24" y="316" font-size="15" font-weight="700" fill="#b8231a">🚨 EMERGENCY TIME — when a hospital asks</text>
+
+  <rect x="24" y="336" width="170" height="64" rx="10" fill="#eff6ff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="109" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">🏥 ① Hospital asks</text>
+  <text x="109" y="379" text-anchor="middle" font-size="10.5" fill="#334155">group · units · by when</text>
+
+  <rect x="240" y="336" width="180" height="64" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="330" y="360" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">⚙️ Fridges checked</text>
+  <text x="330" y="379" text-anchor="middle" font-size="10.5" fill="#334155">asks the banks — never takes</text>
+
+  <polygon points="530,336 620,368 530,400 440,368" fill="#fff" stroke="#475569" stroke-width="2"/>
+  <text x="530" y="364" text-anchor="middle" font-size="12" font-weight="600">Enough blood</text>
+  <text x="530" y="380" text-anchor="middle" font-size="12" font-weight="600">promised?</text>
+
+  <rect x="700" y="336" width="216" height="64" rx="10" fill="#eff6ff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="808" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">🩸 ③ Delivered &amp; transfused</text>
+  <text x="808" y="379" text-anchor="middle" font-size="10.5" fill="#334155">request closed · donor thanked</text>
+
+  <rect x="360" y="480" width="200" height="64" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="460" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">📱 Matching donors woken</text>
+  <text x="460" y="523" text-anchor="middle" font-size="10.5" fill="#334155">shortlist only, never broadcast</text>
+
+  <rect x="620" y="480" width="220" height="64" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="730" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="#b8231a">💪→🧪 Donor gives, blood tested</text>
+  <text x="730" y="523" text-anchor="middle" font-size="10.5" fill="#334155">same gate ② as peace time</text>
+
+  <line x1="194" y1="368" x2="234" y2="368" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="420" y1="368" x2="434" y2="368" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="620" y1="368" x2="694" y2="368" stroke="#047857" stroke-width="2.5" marker-end="url(#a2)"/>
+  <text x="632" y="358" font-size="11" fill="#047857" font-weight="700">YES</text>
+  <path d="M 530 400 V 440 H 460 V 474" fill="none" stroke="#b8231a" stroke-width="2" marker-end="url(#a1)"/>
+  <text x="540" y="432" font-size="11" fill="#b8231a" font-weight="700">NO / partly</text>
+  <line x1="560" y1="512" x2="614" y2="512" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+  <path d="M 840 512 H 880 V 404" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+</svg>
+</div>
+
+<div class="remember"><b>One line to remember:</b> peace time fills the tank; emergency time empties it carefully. Six small flows below explain each piece — with the flow number they hand over to.</div>
+
+<!-- ==================== FLOW 1 ==================== -->
+<h2>Flow 1 — Becoming a donor <span class="q">How does an ordinary person enter the system?</span></h2>
+<p class="story">Anyone can raise their hand through four doors. But raising your hand does <strong>not</strong> make you a donor — it only means "I'm willing". Raktify will never call an unverified person for an emergency, because nobody has proof of their blood group or health yet.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 250" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs><marker id="b1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker></defs>
+  <rect x="16" y="20" width="200" height="36" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="1.5"/>
+  <text x="116" y="43" text-anchor="middle" font-size="12">🌐 Website form</text>
+  <rect x="16" y="66" width="200" height="36" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="1.5"/>
+  <text x="116" y="89" text-anchor="middle" font-size="12">📷 QR code at a camp</text>
+  <rect x="16" y="112" width="200" height="36" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="1.5"/>
+  <text x="116" y="135" text-anchor="middle" font-size="12">🤝 Community leader's link</text>
+  <rect x="16" y="158" width="200" height="36" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="116" y="181" text-anchor="middle" font-size="12" fill="#64748b">💬 WhatsApp bot (coming)</text>
+
+  <path d="M 216 38 H 260 V 108 H 286" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#b1)"/>
+  <path d="M 216 84 H 260 V 108 H 286" fill="none" stroke="#475569" stroke-width="1.5"/>
+  <path d="M 216 130 H 260 V 108 H 286" fill="none" stroke="#475569" stroke-width="1.5"/>
+  <path d="M 216 176 H 260 V 108 H 286" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+  <rect x="288" y="76" width="200" height="68" rx="10" fill="#fff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="388" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#475569">✋ Signed up (unverified)</text>
+  <text x="388" y="118" text-anchor="middle" font-size="10.5" fill="#64748b">name · mobile (OTP-checked) ·</text>
+  <text x="388" y="132" text-anchor="middle" font-size="10.5" fill="#64748b">village/area · consent — that's all</text>
+
+  <line x1="488" y1="110" x2="530" y2="110" stroke="#475569" stroke-width="2" marker-end="url(#b1)"/>
+  <text x="509" y="98" text-anchor="middle" font-size="10" fill="#64748b">first</text>
+  <text x="509" y="126" text-anchor="middle" font-size="10" fill="#64748b">donation</text>
+
+  <rect x="532" y="76" width="180" height="68" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="622" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#b8231a">🧊 Blood bank tests</text>
+  <text x="622" y="118" text-anchor="middle" font-size="10.5" fill="#334155">the donated blood in its lab</text>
+  <text x="622" y="132" text-anchor="middle" font-size="10.5" fill="#334155">(details in Flow 5)</text>
+
+  <line x1="712" y1="110" x2="754" y2="110" stroke="#475569" stroke-width="2" marker-end="url(#b1)"/>
+
+  <rect x="756" y="70" width="170" height="80" rx="10" fill="#ecfdf5" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="841" y="94" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">✅ ② VERIFIED</text>
+  <text x="841" y="112" text-anchor="middle" font-size="10.5" fill="#334155">report uploaded against</text>
+  <text x="841" y="126" text-anchor="middle" font-size="10.5" fill="#334155">their mobile number —</text>
+  <text x="841" y="140" text-anchor="middle" font-size="10.5" fill="#334155">now a real donor</text>
+
+  <text x="470" y="225" text-anchor="middle" font-size="12" fill="#64748b">Registration is deliberately tiny — 2 steps, under a minute. No health questionnaire: the blood bank's lab test is the real health check, so we don't make people fill forms the lab will re-verify anyway.</text>
+</svg>
+</div>
+
+<table>
+  <tr><th>Condition</th><th>What happens</th></tr>
+  <tr><td>Person claims a blood group at sign-up</td><td>Stored as "self-reported", shown with an <em>Unverified</em> badge. <strong>Never used for matching.</strong> Only the lab-verified group counts.</td></tr>
+  <tr><td>Same mobile signs up twice</td><td>Blocked — one donor account per mobile number.</td></tr>
+  <tr><td>Suspected duplicate (same name + birth date)</td><td>Flagged for the admin to review; registration still goes through.</td></tr>
+  <tr><td>Came via a camp QR or community link</td><td>The camp / community leader gets credit for bringing them in — that's how we measure grassroots impact.</td></tr>
+</table>
+<div class="remember"><b>One line to remember:</b> signing up = raising your hand. Only the blood bank's lab report (②) makes you a donor. <b>Hands over to:</b> Flow 5 (the testing gate) and Flow 3 (the pool of people who can be called).</div>
+
+<!-- ==================== FLOW 2 ==================== -->
+<h2>Flow 2 — The hospital asks <span class="q">What happens the moment a patient needs blood?</span></h2>
+<p class="story">A doctor decides the patient needs blood. Hospital staff fill <strong>one form</strong> on Raktify: blood group, how many units, needed by when, and how urgent. The moment they press submit, three things happen in the same second — automatically, before any human moves.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 240" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs><marker id="c1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker></defs>
+  <rect x="20" y="80" width="200" height="80" rx="10" fill="#eff6ff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="120" y="106" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1d4ed8">🏥 ① Request submitted</text>
+  <text x="120" y="126" text-anchor="middle" font-size="11" fill="#334155">group · units · needed-by</text>
+  <text x="120" y="142" text-anchor="middle" font-size="11" fill="#334155">urgency: Planned / Urgent / Critical</text>
+
+  <line x1="220" y1="120" x2="270" y2="120" stroke="#475569" stroke-width="2.5" marker-end="url(#c1)"/>
+  <text x="245" y="108" text-anchor="middle" font-size="10.5" fill="#64748b">same</text>
+  <text x="245" y="138" text-anchor="middle" font-size="10.5" fill="#64748b">second</text>
+
+  <rect x="272" y="20" width="240" height="56" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="392" y="43" text-anchor="middle" font-size="12.5" font-weight="600" fill="#7c3aed">🧑‍💼 District coordinator assigned</text>
+  <text x="392" y="62" text-anchor="middle" font-size="10.5" fill="#334155">Critical → instant WhatsApp to their phone</text>
+
+  <rect x="272" y="92" width="240" height="56" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="392" y="115" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">⚙️ Fridge search starts</text>
+  <text x="392" y="134" text-anchor="middle" font-size="10.5" fill="#334155">every blood bank in the district → Flow 3</text>
+
+  <rect x="272" y="164" width="240" height="56" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="392" y="187" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">⏱️ A clock starts ticking</text>
+  <text x="392" y="206" text-anchor="middle" font-size="10.5" fill="#334155">how long banks get before donors are woken → Flow 4</text>
+
+  <path d="M 270 120 V 48 H 266" fill="none" stroke="#475569" stroke-width="2"/>
+  <line x1="266" y1="48" x2="270" y2="48" stroke="#475569" stroke-width="2" marker-end="url(#c1)"/>
+  <path d="M 270 120 V 192 H 266" fill="none" stroke="#475569" stroke-width="2"/>
+  <line x1="266" y1="192" x2="270" y2="192" stroke="#475569" stroke-width="2" marker-end="url(#c1)"/>
+
+  <rect x="570" y="52" width="350" height="140" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="586" y="78" font-size="12.5" font-weight="700" fill="#334155">The urgency decides everything downstream:</text>
+  <text x="586" y="102" font-size="12">🟢 <tspan font-weight="600">Planned</tspan> — surgery next week. Fridges only,</text>
+  <text x="606" y="118" font-size="12">donors are never disturbed.</text>
+  <text x="586" y="140" font-size="12">🟡 <tspan font-weight="600">Urgent</tspan> — needed today. Banks get 30 min first.</text>
+  <text x="586" y="162" font-size="12">🔴 <tspan font-weight="600">Critical</tspan> — life at risk. Banks get only 3 min,</text>
+  <text x="606" y="178" font-size="12">coordinator is pinged instantly.</text>
+</svg>
+</div>
+
+<table>
+  <tr><th>Urgency</th><th>Meaning in plain words</th><th>Will donors be woken?</th><th>How long do banks get first?</th></tr>
+  <tr><td>🟢 Planned</td><td>"Operation is scheduled, we know in advance."</td><td>Never</td><td>No timer — fridges only. If the date comes close and it's still unfilled, Raktify automatically upgrades it to Urgent.</td></tr>
+  <tr><td>🟡 Urgent</td><td>"We need it today."</td><td>Yes, if fridges can't cover it</td><td>30 minutes</td></tr>
+  <tr><td>🔴 Critical</td><td>"The patient may not survive the wait."</td><td>Yes, if fridges can't cover it</td><td>3 minutes — and the coordinator's phone buzzes immediately so a human is watching from second one.</td></tr>
+</table>
+<div class="remember"><b>One line to remember:</b> one form, three automatic reactions, zero phone calls by the family. <b>Hands over to:</b> Flow 3 (fridges) with the clock from Flow 4 already running.</div>
+
+<!-- ==================== FLOW 3 ==================== -->
+<h2>Flow 3 — Fridges first <span class="q">Why disturb a donor if the blood already exists in a fridge?</span></h2>
+<p class="story">Raktify knows what every blood bank's fridge holds. But here is the platform's most important manner: <strong>it never takes blood from a fridge — it asks.</strong> Like asking a shopkeeper "do you have this?", never reaching behind the counter yourself. Each blood bank with matching stock sees the request on its screen and chooses its own answer.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 330" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="d1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="d2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#047857"/></marker>
+    <marker id="d3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#b8231a"/></marker>
+  </defs>
+  <rect x="20" y="120" width="210" height="70" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="125" y="146" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">⚙️ Request appears on the</text>
+  <text x="125" y="164" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">screen of every matching bank</text>
+  <text x="125" y="181" text-anchor="middle" font-size="10.5" fill="#64748b">same group first, compatible group next</text>
+
+  <line x1="230" y1="155" x2="280" y2="155" stroke="#475569" stroke-width="2.5" marker-end="url(#d1)"/>
+
+  <rect x="282" y="20" width="270" height="52" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="417" y="42" text-anchor="middle" font-size="12.5" font-weight="600" fill="#047857">✅ "Yes — take N units"</text>
+  <text x="417" y="60" text-anchor="middle" font-size="10.5" fill="#334155">those bags are set aside for this patient</text>
+
+  <rect x="282" y="86" width="270" height="52" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="417" y="108" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b45309">🔁 "Yes — but replace it later"</text>
+  <text x="417" y="126" text-anchor="middle" font-size="10.5" fill="#334155">bank gives now, asks for donated units back within ~14 days</text>
+
+  <rect x="282" y="152" width="270" height="52" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="417" y="174" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">❌ "No stock" (NS)</text>
+  <text x="417" y="192" text-anchor="middle" font-size="10.5" fill="#334155">can't give bags — but can still RECEIVE walk-in donors</text>
+
+  <rect x="282" y="218" width="270" height="52" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="417" y="240" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">❌ "Can't handle it" (NC/ND)</text>
+  <text x="417" y="258" text-anchor="middle" font-size="10.5" fill="#334155">out completely — also removed from donor routing</text>
+
+  <rect x="282" y="284" width="270" height="36" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="417" y="307" text-anchor="middle" font-size="12" fill="#64748b">😶 Silence — the clock keeps ticking</text>
+
+  <path d="M 280 155 V 46 H 276" fill="none" stroke="#475569" stroke-width="1.5"/><line x1="276" y1="46" x2="280" y2="46" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+  <path d="M 280 155 V 112 H 276" fill="none" stroke="#475569" stroke-width="1.5"/><line x1="276" y1="112" x2="280" y2="112" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+  <path d="M 280 155 V 178 H 276" fill="none" stroke="#475569" stroke-width="1.5"/><line x1="276" y1="178" x2="280" y2="178" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+  <path d="M 280 155 V 244 H 276" fill="none" stroke="#475569" stroke-width="1.5"/><line x1="276" y1="244" x2="280" y2="244" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+  <path d="M 280 155 V 302 H 276" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/><line x1="276" y1="302" x2="280" y2="302" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#d1)"/>
+
+  <polygon points="700,110 800,150 700,190 600,150" fill="#fff" stroke="#475569" stroke-width="2"/>
+  <text x="700" y="146" text-anchor="middle" font-size="12" font-weight="600">All units promised</text>
+  <text x="700" y="162" text-anchor="middle" font-size="12" font-weight="600">before clock ends?</text>
+  <line x1="552" y1="46" x2="660" y2="118" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+  <line x1="552" y1="112" x2="628" y2="136" stroke="#475569" stroke-width="1.5" marker-end="url(#d1)"/>
+
+  <line x1="800" y1="150" x2="850" y2="150" stroke="#047857" stroke-width="2.5" marker-end="url(#d2)"/>
+  <text x="812" y="140" font-size="11" fill="#047857" font-weight="700">YES</text>
+  <rect x="852" y="122" width="76" height="56" rx="10" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="890" y="146" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1d4ed8">skip to</text>
+  <text x="890" y="163" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1d4ed8">Flow 7 🚚</text>
+
+  <path d="M 700 190 V 240" stroke="#b8231a" stroke-width="2.5" marker-end="url(#d3)"/>
+  <text x="712" y="222" font-size="11" fill="#b8231a" font-weight="700">NO / partly</text>
+  <rect x="620" y="242" width="160" height="52" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="700" y="264" text-anchor="middle" font-size="12" font-weight="600" fill="#047857">go to Flow 4 📱</text>
+  <text x="700" y="282" text-anchor="middle" font-size="10.5" fill="#334155">wake the donors</text>
+
+  <text x="700" y="318" text-anchor="middle" font-size="10.5" fill="#b8231a">special case: if EVERY bank says no — don't wait for the clock, wake donors immediately</text>
+</svg>
+</div>
+
+<table>
+  <tr><th>Bank's answer</th><th>Effect on this request</th><th>Effect on donor routing (Flow 5)</th></tr>
+  <tr><td>✅ Yes — full amount</td><td>All bags set aside. Donors never woken. → Flow 7.</td><td>—</td></tr>
+  <tr><td>✅ Yes — part of it</td><td>Those bags set aside; the missing part continues to Flow 4.</td><td>Bank stays available for donors.</td></tr>
+  <tr><td>🔁 Yes with replacement</td><td>Same as yes, plus a "units owed back" record with a deadline (~14 days). Later, donors get a <em>softer</em> invitation to fill the debt — it is not an emergency message.</td><td>Bank stays available.</td></tr>
+  <tr><td>❌ No stock (NS)</td><td>Out of fulfilment.</td><td><strong>Still listed</strong> — an empty fridge can still take a fresh donation from a walk-in donor.</td></tr>
+  <tr><td>❌ No capacity (NC/ND)</td><td>Out of fulfilment.</td><td>Removed — no staff/machine to receive donors either.</td></tr>
+  <tr><td>😶 No answer</td><td>Clock decides (3 or 30 min), then Flow 4.</td><td>Stays listed.</td></tr>
+  <tr><td>❌ <strong>Every</strong> bank declines</td><td>The wait is pointless — donor alerts fire <strong>immediately</strong>.</td><td>NS banks stay listed.</td></tr>
+</table>
+<div class="remember"><b>One line to remember:</b> Raktify asks, never takes. The banks stay in control of their own fridges — that is why they trust the platform. <b>Hands over to:</b> Flow 7 if covered, Flow 4 if not.</div>
+
+<!-- ==================== FLOW 4 ==================== -->
+<h2>Flow 4 — Waking the donors <span class="q">Who gets the message, and why not everyone?</span></h2>
+<p class="story">Donors are the platform's most precious resource. Message them too often and they mute you — then nobody comes when it truly matters. So Raktify never broadcasts. It builds a <strong>shortlist of at most 20 people</strong>, chosen by six checks, and messages only them. If they don't respond, the next 20. And before anything fires, the coordinator gets a heads-up with the power to pause.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 300" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs><marker id="e1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker></defs>
+  <rect x="20" y="40" width="190" height="70" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="115" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">⏱️ Clock ends with a</text>
+  <text x="115" y="82" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">shortfall remaining</text>
+  <text x="115" y="99" text-anchor="middle" font-size="10.5" fill="#64748b">(or all banks said no)</text>
+
+  <line x1="210" y1="75" x2="252" y2="75" stroke="#475569" stroke-width="2" marker-end="url(#e1)"/>
+
+  <rect x="254" y="30" width="200" height="90" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="354" y="54" text-anchor="middle" font-size="12.5" font-weight="600" fill="#7c3aed">🧑‍💼 Coordinator check</text>
+  <text x="354" y="72" text-anchor="middle" font-size="10.5" fill="#334155">gets a pre-fire WhatsApp:</text>
+  <text x="354" y="87" text-anchor="middle" font-size="10.5" fill="#334155">HOLD (a bank promised offline)</text>
+  <text x="354" y="102" text-anchor="middle" font-size="10.5" fill="#334155">or FIRE NOW · or let it run</text>
+
+  <line x1="454" y1="75" x2="496" y2="75" stroke="#475569" stroke-width="2" marker-end="url(#e1)"/>
+
+  <rect x="498" y="30" width="200" height="90" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="598" y="54" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">⚙️ Last-second re-check</text>
+  <text x="598" y="72" text-anchor="middle" font-size="10.5" fill="#334155">did a bank cover it meanwhile?</text>
+  <text x="598" y="87" text-anchor="middle" font-size="10.5" fill="#047857">covered → cancel silently,</text>
+  <text x="598" y="102" text-anchor="middle" font-size="10.5" fill="#047857">no donor ever knows</text>
+
+  <line x1="698" y1="75" x2="740" y2="75" stroke="#475569" stroke-width="2" marker-end="url(#e1)"/>
+
+  <rect x="742" y="40" width="180" height="70" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="832" y="66" text-anchor="middle" font-size="12.5" font-weight="600" fill="#047857">📱 Shortlist messaged</text>
+  <text x="832" y="84" text-anchor="middle" font-size="10.5" fill="#334155">max 20 people · WhatsApp</text>
+  <text x="832" y="99" text-anchor="middle" font-size="10.5" fill="#334155">one-tap link · → Flow 5</text>
+
+  <rect x="20" y="150" width="902" height="130" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="36" y="176" font-size="13" font-weight="700" fill="#334155">The six checks — who makes the shortlist:</text>
+  <text x="36" y="200" font-size="12.5">✓ Blood group fits — the <tspan font-weight="700">lab-verified</tspan> group, never what someone typed at sign-up</text>
+  <text x="36" y="220" font-size="12.5">✓ Switched their toggle to "available" &nbsp;&nbsp; ✓ Healthy: not paused, last donation ≥ 90 days ago</text>
+  <text x="36" y="240" font-size="12.5">✓ Lives in the same district (circle widens later if needed — Flow 8) &nbsp;&nbsp; ✓ Not bothered too often this week, and got a cool-off if recently ignored an alert</text>
+  <text x="36" y="260" font-size="12.5">✓ Never asked twice for the same request &nbsp;&nbsp; ⭐ <tspan font-weight="700" fill="#b45309">And: donors brought in by the request's community leader are asked FIRST</tspan></text>
+</svg>
+</div>
+
+<div class="remember"><b>One line to remember:</b> spend donors like money — carefully, and only on real needs. <b>Hands over to:</b> Flow 5 (the message and the yes). <b>Falls back to:</b> Flow 8 if the shortlist is empty.</div>
+
+<!-- ==================== FLOW 5 ==================== -->
+<h2>Flow 5 — The donor says yes <span class="q">What does the donor actually see, and what happens next?</span></h2>
+<p class="story">The donor gets one WhatsApp message: which blood is needed, at which blood bank, and how far that is from where they are standing. One tap opens a page — <strong>no app, no password, no OTP</strong>. They pick the blood bank they'll visit, and that bank's screen immediately shows "a donor is on the way".</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 330" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="f1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="f2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#047857"/></marker>
+  </defs>
+  <rect x="20" y="60" width="190" height="80" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="115" y="84" text-anchor="middle" font-size="12.5" font-weight="600" fill="#047857">📱 WhatsApp arrives</text>
+  <text x="115" y="102" text-anchor="middle" font-size="10.5" fill="#334155">"B− needed at XYZ Blood Bank,</text>
+  <text x="115" y="117" text-anchor="middle" font-size="10.5" fill="#334155">4 km from you. Can you come?"</text>
+  <text x="115" y="132" text-anchor="middle" font-size="10.5" fill="#64748b">one-tap button, no login</text>
+
+  <line x1="210" y1="100" x2="255" y2="100" stroke="#475569" stroke-width="2" marker-end="url(#f1)"/>
+
+  <polygon points="360,55 465,100 360,145 255,100" fill="#fff" stroke="#047857" stroke-width="2"/>
+  <text x="360" y="96" text-anchor="middle" font-size="12" font-weight="600">Donor's</text>
+  <text x="360" y="112" text-anchor="middle" font-size="12" font-weight="600">answer?</text>
+
+  <line x1="465" y1="100" x2="512" y2="100" stroke="#047857" stroke-width="2.5" marker-end="url(#f2)"/>
+  <text x="478" y="90" font-size="11" fill="#047857" font-weight="700">YES</text>
+
+  <rect x="514" y="55" width="200" height="90" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="614" y="79" text-anchor="middle" font-size="12.5" font-weight="600" fill="#047857">🗺️ Picks a blood bank</text>
+  <text x="614" y="97" text-anchor="middle" font-size="10.5" fill="#334155">list sorted by distance from</text>
+  <text x="614" y="112" text-anchor="middle" font-size="10.5" fill="#334155">their location — no distance limit,</text>
+  <text x="614" y="127" text-anchor="middle" font-size="10.5" fill="#334155">the donor decides how far</text>
+
+  <line x1="714" y1="100" x2="758" y2="100" stroke="#475569" stroke-width="2" marker-end="url(#f1)"/>
+
+  <rect x="760" y="55" width="164" height="90" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="842" y="79" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🧊 Bank is told</text>
+  <text x="842" y="97" text-anchor="middle" font-size="10.5" fill="#334155">"incoming donor" on screen</text>
+  <text x="842" y="112" text-anchor="middle" font-size="10.5" fill="#334155">+ WhatsApp · donor has</text>
+  <text x="842" y="127" text-anchor="middle" font-size="10.5" fill="#334155">48 h to arrive → Flow 6</text>
+
+  <path d="M 360 145 V 200" stroke="#94a3b8" stroke-width="2" marker-end="url(#f1)"/>
+  <text x="372" y="180" font-size="11" fill="#64748b" font-weight="600">"not this time" / no reply / changed mind / didn't arrive in 48 h</text>
+
+  <rect x="250" y="202" width="220" height="56" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="360" y="226" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Next shortlist is messaged</text>
+  <text x="360" y="244" text-anchor="middle" font-size="10.5" fill="#334155">back to Flow 4's checks, next 20 people</text>
+
+  <path d="M 470 230 H 560 V 285" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#f1)"/>
+  <text x="574" y="262" font-size="11" fill="#64748b" font-weight="600">still nobody?</text>
+  <rect x="480" y="287" width="240" height="36" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="600" y="310" text-anchor="middle" font-size="12" font-weight="600" fill="#7c3aed">widen the circle → Flow 8</text>
+</svg>
+</div>
+
+<table>
+  <tr><th>Detail</th><th>Why it's designed this way</th></tr>
+  <tr><td>No login on the alert page</td><td>A 45-year-old farmer at a bus stop will not remember a password. The link itself is the key — personal, time-limited, single-purpose.</td></tr>
+  <tr><td>Distance from <em>current</em> location, not home village</td><td>People travel. What matters is how far they are right now.</td></tr>
+  <tr><td>"No stock" banks still appear in the list</td><td>An empty fridge is exactly where a fresh donation helps most.</td></tr>
+  <tr><td>48-hour arrival window</td><td>Enough for a working person to plan; short enough that the patient isn't left waiting on a promise nobody will keep. After 48&nbsp;h it's marked no-show and the next donors are called.</td></tr>
+  <tr><td>The patient's name is never shown</td><td>Privacy both ways: donors never see patient details; hospitals never see donor phone numbers.</td></tr>
+</table>
+<div class="remember"><b>One line to remember:</b> one tap for the donor, full visibility for the bank. <b>Hands over to:</b> Flow 6 (arm to bag) — or loops back to Flow 4 / escalates to Flow 8.</div>
+
+<!-- ==================== FLOW 6 ==================== -->
+<h2>Flow 6 — From arm to usable bag <span class="q">Why can't donated blood be used immediately?</span></h2>
+<p class="story">Blood from an arm is <strong>never</strong> given straight to a patient. Every single bag — whether from an alert donor, a camp, or a walk-in — passes the same gate: quarantine, then five disease tests, then a second person's sign-off if anything looks wrong. This gate is also the exact moment an unverified person becomes a real donor (door&nbsp;②). The rules live inside the database itself, so no software bug and no rushed staff member can skip them.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 380" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="g1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="g2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#b8231a"/></marker>
+  </defs>
+  <rect x="20" y="40" width="200" height="80" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="120" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🧊 Donor arrives at the bank</text>
+  <text x="120" y="82" text-anchor="middle" font-size="10.5" fill="#334155">looked up by mobile number ·</text>
+  <text x="120" y="97" text-anchor="middle" font-size="10.5" fill="#334155">checks: 90-day gap, health pause,</text>
+  <text x="120" y="112" text-anchor="middle" font-size="10.5" fill="#334155">haemoglobin, age</text>
+
+  <line x1="220" y1="80" x2="264" y2="80" stroke="#475569" stroke-width="2" marker-end="url(#g1)"/>
+
+  <rect x="266" y="40" width="190" height="80" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="361" y="66" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🩸 Unit collected</text>
+  <text x="361" y="84" text-anchor="middle" font-size="10.5" fill="#334155">bag goes into QUARANTINE —</text>
+  <text x="361" y="99" text-anchor="middle" font-size="10.5" fill="#334155">a locked state; it cannot be</text>
+  <text x="361" y="113" text-anchor="middle" font-size="10.5" fill="#334155">issued to anyone yet</text>
+
+  <line x1="456" y1="80" x2="500" y2="80" stroke="#475569" stroke-width="2" marker-end="url(#g1)"/>
+
+  <rect x="502" y="40" width="180" height="80" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="592" y="66" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🔬 Five tests in the lab</text>
+  <text x="592" y="84" text-anchor="middle" font-size="10.5" fill="#334155">HIV · Hepatitis B · Hepatitis C</text>
+  <text x="592" y="99" text-anchor="middle" font-size="10.5" fill="#334155">Syphilis · Malaria</text>
+
+  <line x1="682" y1="80" x2="726" y2="80" stroke="#475569" stroke-width="2" marker-end="url(#g1)"/>
+
+  <polygon points="820,35 915,80 820,125 725,80" fill="#fff" stroke="#b8231a" stroke-width="2"/>
+  <text x="820" y="76" text-anchor="middle" font-size="12" font-weight="600">All five</text>
+  <text x="820" y="92" text-anchor="middle" font-size="12" font-weight="600">clear?</text>
+
+  <path d="M 820 125 V 170" stroke="#047857" stroke-width="2.5" marker-end="url(#g1)"/>
+  <text x="832" y="152" font-size="11" fill="#047857" font-weight="700">ALL CLEAR</text>
+
+  <rect x="620" y="172" width="300" height="92" rx="10" fill="#ecfdf5" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="770" y="196" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">✅ ② THE GATE OPENS — two things at once</text>
+  <text x="770" y="216" text-anchor="middle" font-size="11" fill="#334155">1. The bag is unlocked → AVAILABLE in the fridge</text>
+  <text x="770" y="233" text-anchor="middle" font-size="11" fill="#334155">2. Report uploaded on the donor's number →</text>
+  <text x="770" y="249" text-anchor="middle" font-size="11" fill="#334155">verified blood group → they are now a REAL donor</text>
+
+  <path d="M 725 80 H 560 V 170" fill="none" stroke="#b8231a" stroke-width="2.5" marker-end="url(#g2)"/>
+  <text x="600" y="150" font-size="11" fill="#b8231a" font-weight="700">ANY TEST POSITIVE</text>
+
+  <rect x="330" y="172" width="260" height="140" rx="10" fill="#fff" stroke="#b8231a" stroke-width="2"/>
+  <text x="460" y="196" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b8231a">🚫 The protection path</text>
+  <text x="344" y="218" font-size="11">1. A <tspan font-weight="600">second staff member</tspan> must confirm —</text>
+  <text x="358" y="233" font-size="11">the one who entered results cannot approve them</text>
+  <text x="344" y="252" font-size="11">2. Confirmed → the bag is <tspan font-weight="600">destroyed</tspan>, never used</text>
+  <text x="344" y="270" font-size="11">3. Donor is paused (temporarily or permanently)</text>
+  <text x="344" y="288" font-size="11">4. Their <tspan font-weight="600">past donations are re-examined</tspan> (lookback)</text>
+  <text x="344" y="305" font-size="11">5. HIV / Hepatitis B → District Health Officer informed</text>
+
+  <text x="470" y="355" text-anchor="middle" font-size="11.5" fill="#64748b">Also from this point: the donation is automatically credited — to the alert the donor accepted, or to a bank's "replace it later" debt (Flow 3). Nobody has to remember.</text>
+</svg>
+</div>
+
+<div class="remember"><b>One line to remember:</b> no test, no blood — no exceptions, not even in an emergency. <b>Hands over to:</b> Flow 7 (the bag travels) and back to Flow 1 (a newly verified donor joins the pool).</div>
+
+<!-- ==================== FLOW 7 ==================== -->
+<h2>Flow 7 — Reaching the patient <span class="q">The last kilometre — and the only real finish line</span></h2>
+<p class="story">A cleared bag is set aside for this specific patient, sent to the hospital, and checked <strong>one final time at the bedside</strong> — a crossmatch, mixing a drop of the patient's blood with the bag to prove they agree. Only then is it transfused. That transfusion is the platform's only definition of success.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 240" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="h1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="h2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#047857"/></marker>
+  </defs>
+  <rect x="20" y="50" width="180" height="70" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="110" y="76" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">📦 Bag reserved</text>
+  <text x="110" y="94" text-anchor="middle" font-size="10.5" fill="#334155">for this patient only —</text>
+  <text x="110" y="109" text-anchor="middle" font-size="10.5" fill="#334155">no one else can take it</text>
+
+  <line x1="200" y1="85" x2="244" y2="85" stroke="#475569" stroke-width="2" marker-end="url(#h1)"/>
+
+  <rect x="246" y="50" width="170" height="70" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="331" y="76" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">🚚 Issued &amp; sent</text>
+  <text x="331" y="94" text-anchor="middle" font-size="10.5" fill="#334155">bank hands over, transport</text>
+  <text x="331" y="109" text-anchor="middle" font-size="10.5" fill="#334155">to the hospital</text>
+
+  <line x1="416" y1="85" x2="460" y2="85" stroke="#475569" stroke-width="2" marker-end="url(#h1)"/>
+
+  <polygon points="560,40 660,85 560,130 460,85" fill="#fff" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="560" y="78" text-anchor="middle" font-size="12" font-weight="600">Bedside crossmatch</text>
+  <text x="560" y="94" text-anchor="middle" font-size="12" font-weight="600">compatible?</text>
+
+  <line x1="660" y1="85" x2="706" y2="85" stroke="#047857" stroke-width="2.5" marker-end="url(#h2)"/>
+  <text x="672" y="74" font-size="11" fill="#047857" font-weight="700">YES</text>
+
+  <rect x="708" y="40" width="216" height="90" rx="10" fill="#eff6ff" stroke="#1a1a1a" stroke-width="3"/>
+  <text x="816" y="66" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1d4ed8">🩸 ③ TRANSFUSED</text>
+  <text x="816" y="86" text-anchor="middle" font-size="10.5" fill="#334155">request closed · donor thanked on</text>
+  <text x="816" y="101" text-anchor="middle" font-size="10.5" fill="#334155">WhatsApp · their 90-day rest starts ·</text>
+  <text x="816" y="116" text-anchor="middle" font-size="10.5" fill="#334155">reliability score goes up</text>
+
+  <path d="M 560 130 V 180 H 240 V 124" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#h1)"/>
+  <text x="400" y="172" font-size="11" fill="#64748b" font-weight="600">incompatible → coordinator finds another bag (back to Flow 3)</text>
+</svg>
+</div>
+
+<div class="remember"><b>One line to remember:</b> the request is not "done" when blood is found — only when it is inside the patient. <b>Ends the journey</b> that began in Flow 2.</div>
+
+<!-- ==================== FLOW 8 ==================== -->
+<h2>Flow 8 — When things don't go smoothly <span class="q">What if nobody responds? What if plans change?</span></h2>
+<p class="story">Real life is messy: donors don't show up, requests get cancelled, bags expire. Raktify has a safety net for each. Two kinds: <strong>the widening circle</strong> (find help further away) and <strong>the janitors</strong> (automatic clean-up jobs that run day and night).</p>
+
+<h3>The widening circle — when the district isn't enough</h3>
+<div class="svgwrap">
+<svg viewBox="0 0 940 210" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs><marker id="i1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#7c3aed"/></marker></defs>
+  <rect x="20" y="60" width="150" height="66" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="95" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">Ring 1</text>
+  <text x="95" y="104" text-anchor="middle" font-size="10.5" fill="#334155">own district</text>
+  <text x="95" y="118" text-anchor="middle" font-size="10.5" fill="#64748b">(automatic, instant)</text>
+  <line x1="170" y1="93" x2="208" y2="93" stroke="#7c3aed" stroke-width="2" marker-end="url(#i1)"/>
+  <rect x="210" y="60" width="150" height="66" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="285" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">Ring 2</text>
+  <text x="285" y="104" text-anchor="middle" font-size="10.5" fill="#334155">whole state,</text>
+  <text x="285" y="118" text-anchor="middle" font-size="10.5" fill="#334155">150 km around</text>
+  <line x1="360" y1="93" x2="398" y2="93" stroke="#7c3aed" stroke-width="2" marker-end="url(#i1)"/>
+  <rect x="400" y="60" width="160" height="66" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="480" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">Ring 3</text>
+  <text x="480" y="104" text-anchor="middle" font-size="10.5" fill="#334155">neighbouring states</text>
+  <text x="480" y="118" text-anchor="middle" font-size="10.5" fill="#334155">(rare groups → all India)</text>
+  <line x1="560" y1="93" x2="598" y2="93" stroke="#7c3aed" stroke-width="2" marker-end="url(#i1)"/>
+  <rect x="600" y="60" width="150" height="66" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="675" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">Ring 4</text>
+  <text x="675" y="104" text-anchor="middle" font-size="10.5" fill="#334155">District Health Officer</text>
+  <text x="675" y="118" text-anchor="middle" font-size="10.5" fill="#334155">personally contacted</text>
+  <line x1="750" y1="93" x2="788" y2="93" stroke="#7c3aed" stroke-width="2" marker-end="url(#i1)"/>
+  <rect x="790" y="60" width="134" height="66" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="857" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">Ring 5</text>
+  <text x="857" y="104" text-anchor="middle" font-size="10.5" fill="#334155">NGO head gets a</text>
+  <text x="857" y="118" text-anchor="middle" font-size="10.5" fill="#334155">phone call (critical)</text>
+  <text x="470" y="170" text-anchor="middle" font-size="11.5" fill="#64748b">Each ring re-runs Flow 4's shortlist over a bigger map. The machine escalates to humans — never the other way round.</text>
+</svg>
+</div>
+
+<h3>The janitors — automatic clean-up, day and night</h3>
+<table>
+  <tr><th>Situation</th><th>Automatic response</th></tr>
+  <tr><td>Hospital cancels (any time before the bag is issued)</td><td>Every reserved bag instantly released for other patients · pending alerts stop · request marked cancelled.</td></tr>
+  <tr><td>A reserved bag isn't collected in time</td><td>Reservation released — the bag goes back to AVAILABLE for others.</td></tr>
+  <tr><td>A bag crosses its expiry date</td><td>Marked EXPIRED. The system physically cannot issue it — the block is in the database, not just in the app.</td></tr>
+  <tr><td>A Planned request comes close to its needed-by date unfilled</td><td>Automatically upgraded to Urgent — the donor machinery (Flow 4) switches on.</td></tr>
+  <tr><td>A donor's 90-day rest completes</td><td>Friendly WhatsApp: "you're eligible to donate again."</td></tr>
+  <tr><td>A request sits unfulfilled too long at any ring</td><td>Escalated to the next ring automatically.</td></tr>
+</table>
+<div class="remember"><b>One line to remember:</b> no request is ever forgotten and no bag is ever wasted silently — something is always watching. <b>Wraps around:</b> Flows 3–7.</div>
+
+<!-- ==================== FLOW 9 (camps) ==================== -->
+<h2>Flow 9 — Camps <span class="q">Filling the tank before the emergency</span></h2>
+<p class="story">Everything above is demand-side: a patient needs blood <em>now</em>. Camps are the supply-side: collect many units on a good day, so that on a bad day the answer is already sitting in a fridge. Camps also bring in new donors — someone who donates at a camp walks out as a verified donor without ever visiting a website first.</p>
+
+<div class="svgwrap">
+<svg viewBox="0 0 940 420" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs><marker id="j1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#b45309"/></marker></defs>
+  <rect x="20" y="30" width="200" height="70" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="120" y="54" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b45309">🎪 Someone proposes a camp</text>
+  <text x="120" y="72" text-anchor="middle" font-size="10.5" fill="#334155">public "host a camp" form, or a</text>
+  <text x="120" y="87" text-anchor="middle" font-size="10.5" fill="#334155">community leader's dashboard</text>
+  <line x1="220" y1="65" x2="262" y2="65" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+
+  <polygon points="350,25 440,65 350,105 260,65" fill="#fff" stroke="#b45309" stroke-width="2"/>
+  <text x="350" y="61" text-anchor="middle" font-size="11.5" font-weight="600">NGO reviews</text>
+  <text x="350" y="77" text-anchor="middle" font-size="10.5" fill="#64748b">approve / decline</text>
+  <line x1="440" y1="65" x2="482" y2="65" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+  <text x="450" y="55" font-size="10" fill="#047857" font-weight="600">approved</text>
+
+  <rect x="484" y="30" width="210" height="70" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="589" y="52" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b45309">📣 Camp goes public</text>
+  <text x="589" y="70" text-anchor="middle" font-size="10.5" fill="#334155">its own web page · QR poster ·</text>
+  <text x="589" y="85" text-anchor="middle" font-size="10.5" fill="#334155">share links · organiser dashboard</text>
+  <line x1="694" y1="65" x2="736" y2="65" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+
+  <rect x="738" y="30" width="186" height="70" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="831" y="52" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b45309">✋ People RSVP</text>
+  <text x="831" y="70" text-anchor="middle" font-size="10.5" fill="#334155">existing donors: one tap ·</text>
+  <text x="831" y="85" text-anchor="middle" font-size="10.5" fill="#334155">new people: 1-minute sign-up</text>
+
+  <path d="M 831 100 V 160" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+  <text x="845" y="135" font-size="10.5" fill="#64748b">reminder WhatsApp the day before</text>
+
+  <rect x="620" y="162" width="304" height="70" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="772" y="186" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b45309">🩸 Camp day</text>
+  <text x="772" y="204" text-anchor="middle" font-size="10.5" fill="#334155">attendance marked · a partner blood bank's team</text>
+  <text x="772" y="219" text-anchor="middle" font-size="10.5" fill="#334155">collects units · each unit tagged to its donor + camp</text>
+
+  <path d="M 618 197 H 480" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+  <text x="548" y="188" font-size="10.5" fill="#64748b">cold-chain to the lab</text>
+
+  <rect x="220" y="162" width="258" height="70" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="349" y="186" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🔬 Same gate as always — Flow 6</text>
+  <text x="349" y="204" text-anchor="middle" font-size="10.5" fill="#334155">every camp bag is quarantined + tested;</text>
+  <text x="349" y="219" text-anchor="middle" font-size="10.5" fill="#334155">every camp donor gets verified here (②)</text>
+
+  <path d="M 300 232 V 292" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+  <path d="M 420 232 V 292" stroke="#b45309" stroke-width="2" marker-end="url(#j1)"/>
+
+  <rect x="140" y="294" width="290" height="64" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="285" y="318" text-anchor="middle" font-size="12.5" font-weight="600" fill="#047857">💪 New verified donors join the pool</text>
+  <text x="285" y="338" text-anchor="middle" font-size="10.5" fill="#334155">reachable in future emergencies (→ Flow 4)</text>
+
+  <rect x="460" y="294" width="290" height="64" rx="10" fill="#fef2f2" stroke="#b8231a" stroke-width="2"/>
+  <text x="605" y="318" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b8231a">🧊 Cleared units stock the fridges</text>
+  <text x="605" y="338" text-anchor="middle" font-size="10.5" fill="#334155">ready before anyone needs them (→ Flow 3)</text>
+
+  <text x="470" y="398" text-anchor="middle" font-size="12" fill="#b45309" font-weight="600">Both arrows land back in "peace time" of the big picture — camps are how the tank gets filled.</text>
+</svg>
+</div>
+
+<div class="note"><strong>Operations note:</strong> today, the blood bank's team + cold-chain availability for a camp date is confirmed offline before approval. Routing that confirmation through the platform itself is a planned next-phase feature.</div>
+<div class="remember"><b>One line to remember:</b> camps are savings; emergencies are withdrawals. <b>Feeds:</b> Flow 1 (new donors) and Flow 3 (stocked fridges).</div>
+
+<!-- ==================== DEPENDENCY MAP ==================== -->
+<h2>How the nine flows connect <span class="q">The dependency map — one glance, whole platform</span></h2>
+<div class="svgwrap">
+<svg viewBox="0 0 940 360" xmlns="http://www.w3.org/2000/svg" width="940">
+  <defs>
+    <marker id="k1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#475569"/></marker>
+    <marker id="k2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#b45309"/></marker>
+  </defs>
+
+  <!-- supply row -->
+  <circle cx="120" cy="70" r="34" fill="#fffbeb" stroke="#b45309" stroke-width="2.5"/>
+  <text x="120" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">F9</text>
+  <text x="120" y="82" text-anchor="middle" font-size="9.5" fill="#334155">camps</text>
+
+  <circle cx="280" cy="70" r="34" fill="#ecfdf5" stroke="#047857" stroke-width="2.5"/>
+  <text x="280" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">F1</text>
+  <text x="280" y="82" text-anchor="middle" font-size="9.5" fill="#334155">become donor</text>
+
+  <line x1="154" y1="70" x2="240" y2="70" stroke="#b45309" stroke-width="2" marker-end="url(#k2)"/>
+  <text x="197" y="60" text-anchor="middle" font-size="9.5" fill="#b45309">brings people</text>
+
+  <!-- emergency row -->
+  <circle cx="120" cy="230" r="34" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2.5"/>
+  <text x="120" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">F2</text>
+  <text x="120" y="242" text-anchor="middle" font-size="9.5" fill="#334155">hospital asks ①</text>
+
+  <circle cx="280" cy="230" r="34" fill="#fef2f2" stroke="#b8231a" stroke-width="2.5"/>
+  <text x="280" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#b8231a">F3</text>
+  <text x="280" y="242" text-anchor="middle" font-size="9.5" fill="#334155">fridges first</text>
+
+  <circle cx="440" cy="230" r="34" fill="#ecfdf5" stroke="#047857" stroke-width="2.5"/>
+  <text x="440" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">F4</text>
+  <text x="440" y="242" text-anchor="middle" font-size="9.5" fill="#334155">wake donors</text>
+
+  <circle cx="600" cy="230" r="34" fill="#ecfdf5" stroke="#047857" stroke-width="2.5"/>
+  <text x="600" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">F5</text>
+  <text x="600" y="242" text-anchor="middle" font-size="9.5" fill="#334155">donor says yes</text>
+
+  <circle cx="760" cy="230" r="34" fill="#fef2f2" stroke="#b8231a" stroke-width="2.5"/>
+  <text x="760" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#b8231a">F6</text>
+  <text x="760" y="242" text-anchor="middle" font-size="9.5" fill="#334155">arm → bag ②</text>
+
+  <circle cx="880" cy="150" r="34" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2.5"/>
+  <text x="880" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">F7</text>
+  <text x="880" y="162" text-anchor="middle" font-size="9.5" fill="#334155">to patient ③</text>
+
+  <line x1="154" y1="230" x2="240" y2="230" stroke="#475569" stroke-width="2.5" marker-end="url(#k1)"/>
+  <line x1="314" y1="230" x2="400" y2="230" stroke="#475569" stroke-width="2.5" marker-end="url(#k1)"/>
+  <text x="357" y="220" text-anchor="middle" font-size="9.5" fill="#64748b">shortfall</text>
+  <line x1="474" y1="230" x2="560" y2="230" stroke="#475569" stroke-width="2.5" marker-end="url(#k1)"/>
+  <line x1="634" y1="230" x2="720" y2="230" stroke="#475569" stroke-width="2.5" marker-end="url(#k1)"/>
+  <path d="M 787 209 L 853 172" stroke="#475569" stroke-width="2.5" marker-end="url(#k1)"/>
+  <path d="M 305 205 Q 560 90 848 133" fill="none" stroke="#047857" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#k1)"/>
+  <text x="560" y="120" text-anchor="middle" font-size="10" fill="#047857" font-weight="600">fridges covered everything — skip straight to F7</text>
+
+  <!-- supply feeds -->
+  <path d="M 120 104 Q 120 170 240 210" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#k2)"/>
+  <text x="128" y="165" font-size="9.5" fill="#b45309">stocks fridges</text>
+  <path d="M 314 84 Q 400 130 428 192" fill="none" stroke="#047857" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#k1)"/>
+  <text x="404" y="140" font-size="9.5" fill="#047857">verified pool</text>
+  <path d="M 760 196 Q 700 60 316 62" fill="none" stroke="#047857" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#k1)"/>
+  <text x="620" y="88" font-size="9.5" fill="#047857">every new donation verifies a donor → pool grows</text>
+
+  <!-- F8 wrap -->
+  <rect x="220" y="300" width="600" height="40" rx="20" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="520" y="325" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7c3aed">F8 — safety nets: watches over F3 → F7 the whole time (widening circle + janitors)</text>
+</svg>
+</div>
+
+<!-- ==================== APPENDIX ==================== -->
+<h2>Appendix — for the technical team <span class="q">Exact values behind the story above</span></h2>
+<table>
+  <tr><th>Story phrase</th><th>Exact system value</th></tr>
+  <tr><td>"banks get 3 / 30 minutes first"</td><td><code>DONOR_ALERT_WINDOW_CR_MIN=3</code> · <code>DONOR_ALERT_WINDOW_UR_MIN=30</code> (tunable per env)</td></tr>
+  <tr><td>"max 20 people per shortlist"</td><td><code>DONOR_ALERT_POOL_SIZE_CAP=20</code></td></tr>
+  <tr><td>"not bothered too often"</td><td>fatigue cap over trailing 7 days + cool-off after an ignored alert</td></tr>
+  <tr><td>"90-day rest"</td><td><code>next_eligible_date</code> = last donation + 90 days; enforced in pool query AND at BB donation entry</td></tr>
+  <tr><td>"48 hours to arrive"</td><td><code>donor_alert_choices.deadline_at</code> = accept + 48 h → NS on expiry</td></tr>
+  <tr><td>"replace it later, ~14 days"</td><td><code>replacement_obligations</code>, default deadline 14 days, per BB per request</td></tr>
+  <tr><td>"the widening circle"</td><td>escalation rings 1–5: district → state 150 km → adjacent states (rare → national) → DHO → NGO-admin voice call (critical, 30 min unresolved)</td></tr>
+  <tr><td>"the janitors"</td><td>jobs: <code>donor_alert_gate</code> (1 min), <code>escalate_overdue</code>, <code>stale_reservation_release</code>, <code>auto_expire</code>, <code>planned_request_upgrade</code>, <code>eligibility_reminder</code></td></tr>
+  <tr><td>"rules live inside the database"</td><td>CHECK constraints, triggers, row-level security — clinical rules are not application code</td></tr>
+</table>
+
+<h3>WhatsApp messages by moment (all Meta-approved)</h3>
+<table>
+  <tr><th>Flow</th><th>Moment</th><th>Template</th><th>Recipient</th></tr>
+  <tr><td>F1</td><td>Sign-up / login code</td><td><code>donor_otp</code></td><td>Donor / leader</td></tr>
+  <tr><td>F2</td><td>Critical request lands</td><td><code>coord_critical_new</code></td><td>Coordinator</td></tr>
+  <tr><td>F4</td><td>Just before alerts fire</td><td><code>coord_prefire_warning</code></td><td>Coordinator</td></tr>
+  <tr><td>F4</td><td>Donor alert (standard)</td><td><code>donor_alert_bb_routed_v2</code></td><td>Shortlisted donors (EN/MR/HI)</td></tr>
+  <tr><td>F4</td><td>Donor alert (community-first)</td><td><code>donor_alert_community_first_v2</code></td><td>Community-referred donors</td></tr>
+  <tr><td>F3</td><td>Replacement invitation (softer)</td><td><code>donor_alert_replacement</code></td><td>Donors</td></tr>
+  <tr><td>F5</td><td>Donor accepted</td><td><code>bb_donor_incoming</code></td><td>Chosen blood bank</td></tr>
+  <tr><td>F4</td><td>Leader mobilisation ask</td><td><code>community_leader_mobilise_v2</code></td><td>Community leader</td></tr>
+  <tr><td>F9</td><td>Camp reminder (day before)</td><td><code>camp_reminder</code></td><td>RSVP'd donors</td></tr>
+  <tr><td>F9</td><td>Organizer access link</td><td><code>camp_organizer_link_v2</code></td><td>Camp organizer</td></tr>
+  <tr><td>F8</td><td>Donor eligible again (day 90)</td><td>eligibility reminder</td><td>Donor</td></tr>
+</table>
+
+<footer>
+  Raktify · Choudhari EduHealth India Foundation · raktify.choudhari.ngo · contact@choudhari.ngo · +91 98505 41412<br/>
+  Companion docs: Raktify_System_Overview.html · Raktify_WhatsApp_Templates.md · Raktify_Feature_Reference.md
+</footer>
+</div>
+</body>
+</html>

@@ -27,6 +27,11 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          // Static standalone pages must NOT be hijacked by the SPA-shell
+          // navigation fallback — without this, a repeat visitor (service
+          // worker installed) navigating to /how-raktify-works.html would be
+          // served index.html and React Router would render a blank page.
+          navigateFallbackDenylist: [/^\/how-raktify-works\.html/],
           // Network-first for API calls; precache the app shell.
           runtimeCaching: [
             {

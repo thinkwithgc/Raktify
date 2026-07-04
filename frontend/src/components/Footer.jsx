@@ -67,6 +67,12 @@ export function Footer({ variant = 'full' }) {
             </h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
+                {/* Static page (outside the SPA) — crawlable deep-dive for new visitors */}
+                <a href="/how-raktify-works.html" className="text-stone-700 hover:text-rk-700">
+                  How Raktify works
+                </a>
+              </li>
+              <li>
                 <Link to="/register" className="text-stone-700 hover:text-rk-700">
                   Become a donor
                 </Link>
