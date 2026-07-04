@@ -59,21 +59,24 @@ router.get('/talukas', async (req, res) => {
 // and Municipal Corporation wards — restricted to states + districts with
 // is_active = TRUE (currently only Amravati).
 //
-// Matching rules (deliberately strict to avoid noise):
+// Matching rules (word-prefix — strict enough to avoid noise, loose enough
+// to find compound names):
 //
-//   1. Prefix match on village / ULB / ward name (case-insensitive).
-//      "achal" matches "Achalpur", "Achalpur (Municipality)". It does NOT
-//      match "Malpur" or "Vitthalpur" the way a substring match would.
+//   1. Word-prefix match on village / ULB / ward name (case-insensitive).
+//      The typed text must match the START OF A WORD in the name — either the
+//      whole name or any word after a space. So "achal" matches "Achalpur",
+//      and — crucially — "sant gadgebaba" matches
+//      "Amravati · Ward 3 · Shri Sant Gadgebaba" (the ward name lives in the
+//      middle of the LGD label). It still does NOT match "Aajangaon" for a
+//      typed "anjangaon", because that's not a word-prefix.
 //
-//   2. If the typed text also prefix-matches a taluka name, ALL villages in
-//      that taluka surface too — so typing "anjangaon" shows every village
-//      in Anjangaon Surji taluka, not just those with "anjangaon" in the
-//      village name.
+//   2. If the typed text prefix-matches a taluka name, ALL villages in that
+//      taluka surface too — so typing "anjangaon" shows every village in
+//      Anjangaon Surji taluka, not just those with "anjangaon" in the name.
 //
-//   3. No trigram / similarity fallback. If there are zero hits, we return
-//      an empty list rather than surfacing "close-ish" villages that share a
-//      suffix like -alpur or -gaon. Users would rather see "no match" and
-//      retype than pick the wrong village.
+//   3. No trigram / similarity fallback. Zero hits returns an empty list
+//      rather than surfacing "close-ish" villages that merely share a suffix
+//      like -alpur or -gaon.
 //
 // Query params:
 //   q               required, 2+ chars
@@ -88,11 +91,16 @@ router.get('/locality-search', async (req, res) => {
     req.query.district_id && Number.isFinite(Number(req.query.district_id))
       ? Number(req.query.district_id)
       : null;
-  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
-  const prefix = `${q}%`;
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 25));
+  // Two ILIKE patterns: `startsWith` = name begins with q; `wordStart` = q
+  // begins a later word (appears right after a space). Together they mean
+  // "q is the prefix of some word in the name".
+  const startsWith = `${q}%`;
+  const wordStart = `% ${q}%`;
 
-  // Step 1 — does q prefix-match any taluka in an active district?
-  const talukaParams = [prefix];
+  // Step 1 — does q prefix-match any taluka in an active district? (taluka
+  // names are short + unambiguous, so prefix-only is fine here.)
+  const talukaParams = [startsWith];
   let talukaExtra = '';
   if (districtId) {
     talukaParams.push(districtId);
@@ -117,16 +125,17 @@ router.get('/locality-search', async (req, res) => {
   );
   const talukaIds = talukaMatches.rows.map((r) => r.id);
 
-  // Step 2 — search villages. Prefix match on the village name always.
-  //          If any taluka matched, additionally include all villages in
-  //          those talukas via an OR clause.
-  const params = [prefix];
+  // Step 2 — search villages. Word-prefix match on the village name always
+  //          ($1 = starts-with, $2 = starts a later word). If any taluka
+  //          matched, additionally include all villages in those talukas.
+  const params = [startsWith, wordStart];
+  const nameMatch = '(v.name ILIKE $1 OR v.name ILIKE $2)';
   const filters = ['s.is_active = TRUE', 'd.is_active = TRUE'];
   if (talukaIds.length > 0) {
     params.push(talukaIds);
-    filters.push(`(v.name ILIKE $1 OR v.taluka_id = ANY($${params.length}::int[]))`);
+    filters.push(`(${nameMatch} OR v.taluka_id = ANY($${params.length}::int[]))`);
   } else {
-    filters.push(`v.name ILIKE $1`);
+    filters.push(nameMatch);
   }
   if (districtId) {
     params.push(districtId);
