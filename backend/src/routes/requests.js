@@ -21,6 +21,7 @@ const { z } = require('zod');
 
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { seal } = require('../services/pii');
 const { runMatch } = require('../services/matching');
 
 const router = express.Router();
@@ -114,7 +115,7 @@ async function insertRequest(client, opts) {
       opts.units_required,
       opts.urgency_tier,
       opts.needed_by,
-      opts.clinical_indication || null,
+      seal(opts.clinical_indication || null), // patient health data (main key)
       opts.ward_or_bed || null,
       opts.requesting_hospital_district_id,
       opts.donor_activation_required,

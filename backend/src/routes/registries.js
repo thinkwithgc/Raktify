@@ -17,6 +17,7 @@ const { z } = require('zod');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { seal } = require('../services/pii');
 
 const router = express.Router();
 
@@ -130,7 +131,7 @@ router.post(
             d.full_name,
             d.date_of_birth,
             d.gender,
-            d.guardian_name || null,
+            seal(d.guardian_name || null), // paediatric guardian PII (main key)
             guardianMobile,
             d.blood_group_id,
             d.diagnosis_subtype || null,

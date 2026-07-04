@@ -24,6 +24,7 @@ const { z } = require('zod');
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { seal } = require('../services/pii');
 const { checkDuplicates } = require('../services/donors/duplicates');
 const { buildPassport } = require('../services/donors/passport');
 const eligibility = require('../services/donors/eligibility');
@@ -216,7 +217,7 @@ router.post('/register', registerLimiter, async (req, res) => {
             data.preferred_language,
             data.village_id || null,
             data.pincode || null,
-            data.address_line || null,
+            seal(data.address_line || null), // donor PII (main key)
             data.max_travel_km,
             data.blood_group_self_reported || null,
             data.preferred_contact_channel,
@@ -703,7 +704,9 @@ router.post(
             data.gender,
             data.blood_group_self_reported || null,
             data.pincode || '',
-            data.address_line || '',
+            // Seal only when present — keep '' so the SQL's NULLIF($5,'')
+            // "empty means don't overwrite" semantics still work.
+            data.address_line ? seal(data.address_line) : '',
             data.village_id || null,
             req.params.id,
           ],

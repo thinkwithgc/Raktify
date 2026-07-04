@@ -17,6 +17,7 @@ const { z } = require('zod');
 
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { seal } = require('../services/pii');
 const { validateDonation } = require('../services/donations/validate');
 const {
   lookupCandidates: lookupAttributionCandidates,
@@ -252,15 +253,19 @@ router.post('/:id/screening', verifyJWT, requireRole('blood_bank'), async (req, 
             s.syphilis_status,
             s.malaria_status,
             s.nat_status ?? null,
-            s.nat_target ?? null,
-            s.hiv_method ?? null,
-            s.hbsag_method ?? null,
-            s.hcv_method ?? null,
-            s.syphilis_method ?? null,
-            s.malaria_method ?? null,
-            s.nat_method ?? null,
+            // TTI free-text is health data — sealed with the SEPARATE
+            // screening key so a main-key compromise can't read it. Status
+            // codes (hiv_status etc.) stay plaintext: they must remain
+            // queryable for matching + lookback + the clearance trigger.
+            seal(s.nat_target ?? null, 'screening'),
+            seal(s.hiv_method ?? null, 'screening'),
+            seal(s.hbsag_method ?? null, 'screening'),
+            seal(s.hcv_method ?? null, 'screening'),
+            seal(s.syphilis_method ?? null, 'screening'),
+            seal(s.malaria_method ?? null, 'screening'),
+            seal(s.nat_method ?? null, 'screening'),
             req.user.userId,
-            s.notes ?? null,
+            seal(s.notes ?? null, 'screening'),
           ],
         );
         return r.rows[0];
