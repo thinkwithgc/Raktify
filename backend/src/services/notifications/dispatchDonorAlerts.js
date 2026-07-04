@@ -25,6 +25,7 @@
  */
 const logger = require('../../config/logger');
 const { mintDonorAlertToken } = require('../donor-alert-tokens');
+const { open } = require('../pii');
 const { sendNotification } = require('.');
 
 // Haversine — cheap enough to run inline for a pool of 20-50 alerts.
@@ -64,7 +65,9 @@ async function loadDonor(client, donorId) {
       WHERE d.id = $1`,
     [donorId],
   );
-  return r.rows[0] || null;
+  const donor = r.rows[0] || null;
+  if (donor) donor.full_name = open(donor.full_name); // decrypt for WA personalisation
+  return donor;
 }
 
 // Find the closest compatible BB in the request's district. Falls back to

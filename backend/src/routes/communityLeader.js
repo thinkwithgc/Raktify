@@ -25,6 +25,7 @@ const logger = require('../config/logger');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { openRows } = require('../services/pii');
 
 const router = express.Router();
 
@@ -440,6 +441,7 @@ router.get(
       return donors.rows;
     });
     if (r === null) return res.status(404).json({ error: 'not_found' });
+    openRows(r, ['display_name']); // donor name is column-encrypted at rest
     res.json({ donors: r, count: r.length });
   },
 );

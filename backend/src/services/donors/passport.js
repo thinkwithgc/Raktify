@@ -17,6 +17,8 @@
  *     overall_clearance string maps to PE/CL/IN
  */
 
+const { open } = require('../pii');
+
 async function buildPassport(client, donorId) {
   // Profile
   const profileR = await client.query(
@@ -69,7 +71,7 @@ async function buildPassport(client, donorId) {
   return {
     donor: {
       id: p.id,
-      full_name: p.full_name, // TODO Phase 2 review: wrap with encryption.decrypt() once column-encrypted PII columns exist
+      full_name: open(p.full_name), // column-encrypted at rest
       date_of_birth: p.date_of_birth,
       gender: p.gender,
       preferred_language: p.preferred_language,

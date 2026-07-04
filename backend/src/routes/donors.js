@@ -24,7 +24,7 @@ const { z } = require('zod');
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
-const { seal } = require('../services/pii');
+const { seal, open, blindIndex } = require('../services/pii');
 const { checkDuplicates } = require('../services/donors/duplicates');
 const { buildPassport } = require('../services/donors/passport');
 const eligibility = require('../services/donors/eligibility');
@@ -196,7 +196,7 @@ router.post('/register', registerLimiter, async (req, res) => {
               preferred_contact_channel, whatsapp_opted_in, sms_opted_in,
               community_id, referred_by_community_leader_id, platform_user_id,
               registration_source, registration_camp_id,
-              suspected_duplicate_of)
+              suspected_duplicate_of, full_name_bidx)
            VALUES (
               $1, FALSE, $2, $3, $4,
               $5, $6, $7,
@@ -205,11 +205,11 @@ router.post('/register', registerLimiter, async (req, res) => {
               $13, $14, $15,
               $16, $17, $18,
               $19, $20,
-              $21)
+              $21, $22)
            RETURNING id`,
           [
             mobile,
-            data.full_name, // TODO: encryption.encrypt() once column-encrypted
+            seal(data.full_name), // donor name — column-encrypted (main key)
             data.date_of_birth,
             data.gender,
             data.abha_id || null,
@@ -229,6 +229,7 @@ router.post('/register', registerLimiter, async (req, res) => {
             data.registration_source,
             data.registration_camp_id || null,
             dup.action === 'FLAG' ? dup.match_id : null,
+            blindIndex(data.full_name), // duplicate-lookup index for the sealed name
           ],
         );
 
@@ -304,7 +305,7 @@ router.get(
     const d = r.rows[0];
     res.json({
       donor_id: d.id,
-      full_name: d.full_name, // TODO encryption.decrypt() when col-encrypted
+      full_name: open(d.full_name), // column-encrypted at rest
       date_of_birth: d.date_of_birth,
       gender: d.gender,
       blood_group_verified_code: d.blood_group_verified_code,
@@ -585,12 +586,12 @@ router.post(
                  pincode, village_id,
                  blood_group_self_reported,
                  platform_user_id,
-                 registration_source)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 registration_source, full_name_bidx)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                RETURNING id`,
               [
                 mobile,
-                data.full_name,
+                seal(data.full_name), // donor name — column-encrypted (main key)
                 data.date_of_birth || null,
                 data.gender || null,
                 data.pincode || null,
@@ -598,6 +599,7 @@ router.post(
                 bloodGroupId,
                 platformUserId,
                 source,
+                blindIndex(data.full_name), // duplicate-lookup index for the sealed name
               ],
             );
             return { kind: 'imported', donor_id: donorR.rows[0].id };
@@ -716,7 +718,9 @@ router.post(
     if (r.rowCount === 0) {
       return res.status(409).json({ error: 'donor_already_consented_or_not_found' });
     }
-    res.json({ status: 'activated', donor: r.rows[0] });
+    const donor = r.rows[0];
+    donor.full_name = open(donor.full_name); // column-encrypted at rest
+    res.json({ status: 'activated', donor });
   },
 );
 

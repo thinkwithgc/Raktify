@@ -17,7 +17,7 @@ const { z } = require('zod');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
-const { seal } = require('../services/pii');
+const { seal, openRows } = require('../services/pii');
 
 const router = express.Router();
 
@@ -217,6 +217,8 @@ router.get(
         [onlyActive],
       ),
     );
+    // donor_name comes from the linked donors.full_name (column-encrypted).
+    openRows(r.rows, ['donor_name']);
     res.json({ registry: r.rows, count: r.rowCount });
   },
 );

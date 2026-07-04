@@ -15,6 +15,7 @@ const { z } = require('zod');
 
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
+const { openRows } = require('../services/pii');
 const { evaluateCascade } = require('../services/donor-alert-gate');
 
 const router = express.Router();
@@ -287,6 +288,7 @@ router.get('/dashboard', verifyJWT, requireRole('blood_bank'), async (req, res) 
         [bbId],
       )
     ).rows;
+    openRows(recent, ['donor_name']); // donor name is column-encrypted at rest
 
     return {
       kpis: { ...kpis, donations_today: donationsToday },
@@ -705,6 +707,7 @@ router.get('/incoming-donors', verifyJWT, requireRole('blood_bank'), async (req,
     );
     return r.rows;
   });
+  openRows(rows, ['donor_name']); // donor name is column-encrypted at rest
   res.json({ incoming: rows, count: rows.length });
 });
 

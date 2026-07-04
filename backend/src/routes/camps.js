@@ -26,6 +26,7 @@ const { verify: verifyJwtToken } = require('../utils/jwt');
 const logger = require('../config/logger');
 const env = require('../config/env');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { openRows } = require('../services/pii');
 const { sendNotification } = require('../services/notifications');
 
 // Behind Azure App Service / Front Door, req.ip can surface as a multi-hop
@@ -369,6 +370,7 @@ router.get(
         [req.params.id],
       ),
     );
+    openRows(r.rows, ['full_name']); // donor name is column-encrypted at rest
     res.json({ registrations: r.rows, count: r.rowCount });
   },
 );
@@ -645,6 +647,7 @@ router.get('/access/:token', async (req, res) => {
           [t.camp_id],
         )
       ).rows;
+      openRows(regs, ['full_name']); // donor name is column-encrypted at rest
 
       const channelMix = (
         await c.query(

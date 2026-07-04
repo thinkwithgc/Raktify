@@ -61,7 +61,7 @@ async function selectDonorPool(
          FROM communities
         WHERE id = $7
      )
-     SELECT d.id, d.full_name, d.blood_group_verified, d.reliability_score,
+     SELECT d.id, d.blood_group_verified, d.reliability_score,
             d.village_id, d.latitude, d.longitude, d.preferred_contact_channel,
             d.preferred_language, d.whatsapp_opted_in, d.sms_opted_in,
             v.district_id AS donor_district_id,

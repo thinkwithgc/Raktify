@@ -24,6 +24,7 @@ const { z } = require('zod');
 const { withRlsContext, withRlsContextRaw } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { mintDonorAlertToken, verifyDonorAlertToken } = require('../services/donor-alert-tokens');
+const { open, openRow } = require('../services/pii');
 
 const router = express.Router();
 
@@ -135,6 +136,7 @@ router.get('/public/:token', async (req, res) => {
         )
       ).rows;
 
+      openRow(alertRow, ['donor_name']); // donor name is column-encrypted at rest
       return { alert: alertRow, blood_bank_options: bbs };
     },
   );
@@ -276,6 +278,7 @@ async function notifyBBOfIncomingDonor({ bbId, donorId, requestId, alertId, expe
         )
       ).rows[0];
       if (!row || !row.bb_mobile) return;
+      row.donor_name = open(row.donor_name); // decrypt before it goes into the WA template
 
       const arrivalWindow = expectedArrivalAt
         ? new Date(expectedArrivalAt).toLocaleString('en-IN', {

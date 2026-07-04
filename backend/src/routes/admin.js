@@ -31,6 +31,7 @@ const { pool } = require('../config/db');
 const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { normaliseIndianMobile } = require('../utils/phone');
+const { openRows } = require('../services/pii');
 const scheduler = require('../services/scheduler');
 const { sendNotification } = require('../services/notifications');
 const logger = require('../config/logger');
@@ -339,6 +340,8 @@ router.get('/duplicates', verifyJWT, requireRole('ngo_admin', 'super_admin'), as
           LIMIT 200`,
     ),
   );
+  // full_name + canonical_name are column-encrypted at rest.
+  openRows(r.rows, ['full_name', 'canonical_name']);
   res.json({ pairs: r.rows, count: r.rowCount });
 });
 

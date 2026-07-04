@@ -21,6 +21,8 @@
  *   // candidate.suspected_duplicate_of = dup.match_id  (set on INSERT below)
  */
 
+const { blindIndex } = require('../pii');
+
 async function checkDuplicates(client, candidate) {
   // 1. ABHA — strict block (one identity per platform)
   if (candidate.abha_id) {
@@ -39,15 +41,17 @@ async function checkDuplicates(client, candidate) {
     }
   }
 
-  // 2. Name + DOB exact (case-insensitive)
+  // 2. Name + DOB exact (case-insensitive). full_name is column-encrypted,
+  //    so we can no longer LOWER()-compare it — match on the keyed blind
+  //    index instead (same normalisation as the write path).
   if (candidate.full_name && candidate.date_of_birth) {
     const r = await client.query(
       `SELECT id FROM donors
-        WHERE LOWER(full_name) = LOWER($1)
+        WHERE full_name_bidx = $1
           AND date_of_birth = $2
           AND is_active = TRUE
         LIMIT 1`,
-      [candidate.full_name, candidate.date_of_birth],
+      [blindIndex(candidate.full_name), candidate.date_of_birth],
     );
     if (r.rowCount > 0) {
       return {

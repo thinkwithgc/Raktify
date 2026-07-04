@@ -59,7 +59,9 @@ async function isRegisteredBloodBankStaff(client, mobile) {
 
 async function isRegisteredDonor(client, mobile) {
   const r = await client.query(
-    `SELECT id, full_name, blood_group_verified, deferral_status
+    // full_name intentionally not selected — it's column-encrypted and this
+    // path only needs id / blood group / deferral for STATUS replies.
+    `SELECT id, blood_group_verified, deferral_status
        FROM donors WHERE mobile = $1 LIMIT 1`,
     [mobile],
   );

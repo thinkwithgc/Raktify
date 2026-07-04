@@ -12,6 +12,10 @@
  *                   thalassemia_patients.guardian_name
  *   screening key : donor_screening.{notes, nat_target, *_method}
  *
+ * donors.full_name is handled separately (backfillDonorFullName): as well as
+ * sealing it we must compute its blind index from the PLAINTEXT — once sealed
+ * the name is gone, so the seal + index have to happen in the same pass.
+ *
  * Fixed-width identifier columns (mobile, abha_id, aadhaar_last4,
  * guardian_mobile) are intentionally NOT here — they stay plaintext (disk
  * encryption + RLS). See CLAUDE.md "Encryption policy".
@@ -28,7 +32,14 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const { Pool } = require('pg');
-const { seal } = require(path.join(__dirname, '..', 'backend', 'src', 'services', 'pii'));
+const { seal, blindIndex } = require(path.join(
+  __dirname,
+  '..',
+  'backend',
+  'src',
+  'services',
+  'pii',
+));
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -91,6 +102,39 @@ async function backfillTable(client, { table, columns, keyKind }) {
   return updated;
 }
 
+// donors.full_name — seal + populate the blind index in the same pass. The
+// blind index is computed from the PLAINTEXT (before sealing), so we can't
+// split this into "seal now, index later": once sealed the name is gone.
+async function backfillDonorFullName(client) {
+  const rows = (
+    await client.query(
+      `SELECT id, full_name FROM donors
+        WHERE full_name IS NOT NULL AND full_name NOT LIKE 'v1:%'`,
+    )
+  ).rows;
+
+  if (rows.length === 0) {
+    console.log('  donors.full_name: 0 rows to encrypt');
+    return 0;
+  }
+  if (DRY_RUN) {
+    console.log(`  donors.full_name: ${rows.length} row(s) would be sealed + indexed`);
+    return rows.length;
+  }
+
+  let updated = 0;
+  for (const row of rows) {
+    await client.query(`UPDATE donors SET full_name = $1, full_name_bidx = $2 WHERE id = $3`, [
+      seal(row.full_name),
+      blindIndex(row.full_name),
+      row.id,
+    ]);
+    updated += 1;
+  }
+  console.log(`  donors.full_name: sealed + indexed ${updated} row(s)`);
+  return updated;
+}
+
 (async () => {
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL not set');
@@ -109,6 +153,7 @@ async function backfillTable(client, { table, columns, keyKind }) {
     for (const t of TARGETS) {
       total += await backfillTable(client, t);
     }
+    total += await backfillDonorFullName(client);
   } finally {
     client.release();
     await pool.end();
