@@ -6,21 +6,10 @@ import { Footer } from '../../components/Footer.jsx';
 import { RoleSwitcher } from '../../components/RoleSwitcher.jsx';
 import { LocalityPicker } from '../../components/LocalityPicker.jsx';
 import { apiRequest } from '../../lib/api.js';
+import { SELF_BLOOD_GROUPS } from '../../lib/bloodGroups.js';
 import { useT } from '../../i18n/useT.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { isOfflineError, useOutbox } from '../../lib/useOutbox.js';
-
-// blood_groups seed (migration 002): id 1..8 → A+ A- B+ B- AB+ AB- O+ O-
-const SELF_BLOOD_GROUPS = [
-  { id: 1, code: 'A+' },
-  { id: 2, code: 'A-' },
-  { id: 3, code: 'B+' },
-  { id: 4, code: 'B-' },
-  { id: 5, code: 'AB+' },
-  { id: 6, code: 'AB-' },
-  { id: 7, code: 'O+' },
-  { id: 8, code: 'O-' },
-];
 
 function formatDate(s, lang) {
   if (!s) return '—';
@@ -247,37 +236,45 @@ function EditProfileCard({ donor }) {
     setOpen(true);
   }
 
+  // Collect only the fields the donor actually changed — untouched fields are
+  // left alone server-side via COALESCE.
+  function buildPayload() {
+    const payload = {};
+    const name = form.full_name.trim();
+    if (name && name !== initial.full_name) payload.full_name = name;
+    for (const k of ['gender', 'date_of_birth', 'preferred_language']) {
+      if (form[k] && form[k] !== initial[k]) payload[k] = form[k];
+    }
+    if (
+      form.blood_group_self_reported !== '' &&
+      String(form.blood_group_self_reported) !== String(initial.blood_group_self_reported)
+    ) {
+      payload.blood_group_self_reported = Number(form.blood_group_self_reported);
+    }
+    if (locality?.id) payload.village_id = locality.id; // only when a new area was picked
+    return payload;
+  }
+
   const save = useMutation({
-    mutationFn: () => {
-      const payload = {};
-      const name = form.full_name.trim();
-      if (name && name !== initial.full_name) payload.full_name = name;
-      if (form.gender !== initial.gender) payload.gender = form.gender;
-      if (form.date_of_birth && form.date_of_birth !== initial.date_of_birth)
-        payload.date_of_birth = form.date_of_birth;
-      if (
-        form.blood_group_self_reported !== '' &&
-        String(form.blood_group_self_reported) !== String(initial.blood_group_self_reported)
-      )
-        payload.blood_group_self_reported = Number(form.blood_group_self_reported);
-      if (form.preferred_language !== initial.preferred_language)
-        payload.preferred_language = form.preferred_language;
-      if (locality?.id) payload.village_id = locality.id;
-      if (Object.keys(payload).length === 0) return Promise.resolve({ __noop: true });
-      return apiRequest('POST', '/donors/me/profile', payload);
-    },
+    mutationFn: (payload) => apiRequest('POST', '/donors/me/profile', payload),
     onSuccess: (data) => {
-      if (data?.__noop) {
-        setMsg('Nothing to save — no changes.');
-        return;
-      }
-      qc.setQueryData(['donor', 'me'], data); // server returns the fresh passport
-      qc.invalidateQueries({ queryKey: ['donor', 'me'] });
+      // The endpoint returns the authoritative fresh passport — seed the cache
+      // with it directly; no invalidate (that would refetch what we just got).
+      qc.setQueryData(['donor', 'me'], data);
       setOpen(false);
       setMsg('');
     },
     onError: (err) => setMsg(err?.response?.data?.error || 'save_failed'),
   });
+
+  function onSave() {
+    const payload = buildPayload();
+    if (Object.keys(payload).length === 0) {
+      setMsg('Nothing to save — no changes.');
+      return;
+    }
+    save.mutate(payload);
+  }
 
   if (!open) {
     return (
@@ -396,7 +393,7 @@ function EditProfileCard({ donor }) {
         <button
           type="button"
           className="rk-button-primary"
-          onClick={() => save.mutate()}
+          onClick={onSave}
           disabled={save.isPending}
         >
           {save.isPending ? '…' : 'Save changes'}

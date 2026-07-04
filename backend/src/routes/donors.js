@@ -57,6 +57,16 @@ const regStatusLimiter = rateLimit({
   message: { error: 'rate_limit_registration_status' },
 });
 
+// Is there an active donor with this mobile? Shared by the register-status
+// probe and the register 409 guard so the existence check lives in one place.
+async function donorExistsByMobile(client, mobile) {
+  const r = await client.query(
+    `SELECT 1 FROM donors WHERE mobile = $1 AND is_active = TRUE LIMIT 1`,
+    [mobile],
+  );
+  return r.rowCount > 0;
+}
+
 // ── GET /donors/eligibility/questions (public) ───────────────────────────
 router.get('/eligibility/questions', (_req, res) => {
   res.json({
@@ -121,11 +131,11 @@ const registerSchema = z.object({
 router.get('/registration-status', regStatusLimiter, async (req, res) => {
   const mobile = normaliseIndianMobile(req.query.mobile);
   if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
-  const r = await withRlsContextRaw(
+  const registered = await withRlsContextRaw(
     { actor_role: 'registration', change_reason: 'donor register-form status check' },
-    (c) => c.query(`SELECT 1 FROM donors WHERE mobile = $1 AND is_active = TRUE LIMIT 1`, [mobile]),
+    (c) => donorExistsByMobile(c, mobile),
   );
-  res.json({ registered: r.rowCount > 0 });
+  res.json({ registered });
 });
 
 // ── POST /donors/register (public) ───────────────────────────────────────
@@ -195,11 +205,7 @@ router.post('/register', registerLimiter, async (req, res) => {
         // register form turns into "you're already registered — log in".
         // Without this the donors(mobile) partial unique index would raise a
         // raw 23505 that surfaced to the user as a generic 500.
-        const existingDonor = await c.query(
-          `SELECT 1 FROM donors WHERE mobile = $1 AND is_active = TRUE LIMIT 1`,
-          [mobile],
-        );
-        if (existingDonor.rowCount > 0) {
+        if (await donorExistsByMobile(c, mobile)) {
           throw Object.assign(
             new Error('This mobile number is already registered. Please log in instead.'),
             { status: 409, code: 'mobile_already_registered' },
@@ -421,10 +427,10 @@ router.post('/me/profile', verifyJWT, requireRole('donor'), async (req, res) => 
   const nameBidx = d.full_name != null ? blindIndex(d.full_name) : null;
 
   try {
-    const r = await withRlsContext(
+    const passport = await withRlsContext(
       req,
-      (c) =>
-        c.query(
+      async (c) => {
+        const r = await c.query(
           // updated_at is maintained by a BEFORE UPDATE trigger. Every SET
           // target is a fixed column name; all values are placeholders.
           `UPDATE donors SET
@@ -455,12 +461,15 @@ router.post('/me/profile', verifyJWT, requireRole('donor'), async (req, res) => 
             d.sms_opted_in ?? null,
             d.preferred_language ?? null,
           ],
-        ),
+        );
+        if (r.rowCount === 0) return null;
+        // Build the fresh passport on the SAME connection — no second pool
+        // acquire / transaction just to re-read what we wrote.
+        return buildPassport(c, r.rows[0].id);
+      },
       { change_reason: 'donor self profile update' },
     );
-    if (r.rowCount === 0) return res.status(404).json({ error: 'donor_profile_not_found' });
-    // Return the fresh passport so the client re-renders with the new values.
-    const passport = await withRlsContext(req, (c) => buildPassport(c, r.rows[0].id));
+    if (passport === null) return res.status(404).json({ error: 'donor_profile_not_found' });
     res.json(passport);
   } catch (err) {
     // DB guards: age CHECK (23514), village_id FK (23503), bad date (2200x).

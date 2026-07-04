@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { Header } from '../../components/Header.jsx';
 import { LocalityPicker } from '../../components/LocalityPicker.jsx';
 import { apiRequest } from '../../lib/api.js';
+import { indianMobileSchema } from '../../lib/schemas.js';
+import { SELF_BLOOD_GROUPS } from '../../lib/bloodGroups.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useT } from '../../i18n/useT.js';
 
@@ -21,23 +23,8 @@ import { useT } from '../../i18n/useT.js';
 //   - The DB-level age gate (18–65 via CHECK on date_of_birth) stays in
 //     place regardless.
 
-// blood_groups seed (migration 002): id 1..8 → A+ A- B+ B- AB+ AB- O+ O-
-const SELF_BLOOD_GROUPS = [
-  { id: 1, code: 'A+' },
-  { id: 2, code: 'A-' },
-  { id: 3, code: 'B+' },
-  { id: 4, code: 'B-' },
-  { id: 5, code: 'AB+' },
-  { id: 6, code: 'AB-' },
-  { id: 7, code: 'O+' },
-  { id: 8, code: 'O-' },
-];
-
 const personalSchema = z.object({
-  mobile: z
-    .string()
-    .trim()
-    .regex(/^(\+?91[-\s]?)?[6-9]\d{9}$/, 'invalid_mobile'),
+  mobile: indianMobileSchema,
   full_name: z.string().trim().min(2).max(120),
   date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'invalid_date'),
   gender: z.enum(['M', 'F', 'O']),
@@ -48,6 +35,21 @@ const personalSchema = z.object({
   whatsapp_opted_in: z.boolean(),
   sms_opted_in: z.boolean(),
 });
+
+// Coerce the UI-only `details` state into the shape personalSchema expects,
+// then validate. Used by both the Step-1 "Continue" gate and the final submit.
+function parseDetails(details) {
+  return personalSchema.safeParse({
+    ...details,
+    blood_group_self_reported:
+      details.blood_group_self_reported === ''
+        ? undefined
+        : Number(details.blood_group_self_reported),
+    max_travel_km: Number(details.max_travel_km),
+    village_id: details.locality?.id,
+    locality: undefined, // UI-only object the schema doesn't know about
+  });
+}
 
 const initialDetails = {
   mobile: '',
@@ -86,7 +88,7 @@ export function DonorRegister() {
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   useEffect(() => {
     const m = (details.mobile || '').trim();
-    if (!/^(\+?91[-\s]?)?[6-9]\d{9}$/.test(m)) {
+    if (!indianMobileSchema.safeParse(m).success) {
       setAlreadyRegistered(false);
       return;
     }
@@ -158,17 +160,7 @@ export function DonorRegister() {
       setError('consent_required');
       return;
     }
-    const parsed = personalSchema.safeParse({
-      ...details,
-      blood_group_self_reported:
-        details.blood_group_self_reported === ''
-          ? undefined
-          : Number(details.blood_group_self_reported),
-      max_travel_km: Number(details.max_travel_km),
-      village_id: details.locality?.id,
-      // schema doesn't know about the `locality` UI-only object
-      locality: undefined,
-    });
+    const parsed = parseDetails(details);
     if (!parsed.success) {
       setError('invalid_details');
       setStep(1);
@@ -324,16 +316,7 @@ export function DonorRegister() {
                 update={update}
                 onContinue={() => {
                   // Validate before allowing forward step.
-                  const parsed = personalSchema.safeParse({
-                    ...details,
-                    blood_group_self_reported:
-                      details.blood_group_self_reported === ''
-                        ? undefined
-                        : Number(details.blood_group_self_reported),
-                    max_travel_km: Number(details.max_travel_km),
-                    village_id: details.locality?.id,
-                    locality: undefined,
-                  });
+                  const parsed = parseDetails(details);
                   if (!parsed.success) {
                     setError('invalid_details');
                     return;
