@@ -6,6 +6,32 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 > `raktify.*` (e.g. `raktify.actor_role`); the Tailwind/CSS design-system prefix
 > is `rk-*` / `.rk-*`. Use these consistently — no other brand prefix exists.
 
+## Design system — LOCKED (read before touching any visual surface)
+
+Full reference: `docs/Raktify_Design_System.md`. Canonical code:
+`frontend/tailwind.config.js`, `frontend/src/index.css`,
+`frontend/src/components/Wordmark.jsx`, `frontend/public/icon.svg`.
+**Do not introduce new colours, fonts, icon variants, or wordmark
+treatments without the founder's explicit sign-off.** Pull tokens from
+those files; never invent a value. Repeated design churn = wasted
+commit/deploy cycles — get it right the first time by following these:
+
+- **Accent colour is `rk-700` = `#b8231a`** (warm red). Palette is the
+  single `rk-50…900` scale + `cream #fdf8f4` + `sand #f5ece4`. Text uses
+  warm `stone-*` on marketing surfaces. No blue/green/purple as brand
+  colours (those are status-only: green=ok, amber=warning, red=danger).
+- **Typography: Inter + Noto Sans Devanagari fallback, one family.** No
+  serif, no second display font. Weight/size make hierarchy.
+- **Wordmark: "Rakt" RED, "ify" BLACK — never reversed.** In HTML the red
+  span wraps "Rakt": `<span class="accent">Rakt</span>ify`. In React use
+  `<Wordmark/>`, never hand-typed.
+- **Icon: red rounded square + white droplet ONLY. No letters/monogram
+  ("R" was added once and removed — never re-add). Edit `app-icon.svg`
+  then `npm run og:build`; never hand-edit the PNG. Favicons point at
+  `/icon.svg`.**
+- Reuse `.rk-button*/.rk-card/.rk-input/.rk-label/.rk-legal` — don't
+  restyle from scratch. Shadows `shadow-soft`/`shadow-lift` (warm-tinted).
+
 ## Phase status
 
 | Phase | Status | Smoke test | Notes |
