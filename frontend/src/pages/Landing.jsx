@@ -133,10 +133,21 @@ export function Landing() {
         className="sticky top-0 z-30 border-b border-sand/80 bg-cream/85 backdrop-blur"
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
-          {/* Cluster 1 — brand */}
-          <Link to="/" className="flex items-center" aria-label="Raktify home">
-            <Wordmark className="text-2xl" />
-          </Link>
+          {/* Cluster 1 — brand + orientation link */}
+          <div className="flex items-center gap-4">
+            <Link to="/" className="flex items-center" aria-label="Raktify home">
+              <Wordmark className="text-2xl" />
+            </Link>
+            {/* First-time visitors (esp. via search) need "what is this?" up
+                front — a quiet, always-visible link into the full explainer.
+                Static page, so a plain <a>, not a router <Link>. */}
+            <a
+              href="/how-raktify-works.html"
+              className="hidden text-sm font-semibold text-stone-600 transition-colors hover:text-rk-700 md:inline"
+            >
+              {t('lp_nav_how')}
+            </a>
+          </div>
 
           {/* Cluster 2 — primary public CTAs (desktop only) */}
           <div className="hidden items-center gap-2 md:flex">
@@ -324,6 +335,16 @@ export function Landing() {
         {/* Mobile drawer — only visible when hamburger is open */}
         {mobileOpen && (
           <nav className="border-t border-sand bg-white px-2 py-2 md:hidden">
+            {/* Orientation link first + highlighted — first-time visitors
+                on mobile need "what is this?" before anything else. */}
+            <a
+              href="/how-raktify-works.html"
+              onClick={() => setMobileOpen(false)}
+              className="mb-1 flex items-center gap-2 rounded-lg bg-rk-50 px-3 py-3 text-sm font-semibold text-rk-700 transition-colors hover:bg-rk-100"
+            >
+              <span aria-hidden="true">🗺️</span>
+              {t('lp_nav_how')}
+            </a>
             <Link
               to="/camps/host"
               onClick={() => setMobileOpen(false)}
@@ -422,6 +443,19 @@ export function Landing() {
                 {t('lp_cta_login')}
               </Link>
             </div>
+
+            {/* Orientation link for first-time visitors — sits directly under
+                the CTAs where a confused reader's eye lands. Visible on all
+                screen sizes (mobile users don't scroll to the footer). */}
+            <a
+              href="/how-raktify-works.html"
+              className="mt-5 inline-flex animate-fade-up items-center gap-2 text-sm font-semibold text-rk-700 underline-offset-4 hover:underline"
+              style={{ animationDelay: '280ms' }}
+            >
+              <span aria-hidden="true">🗺️</span>
+              {t('lp_hero_how')}
+              <ArrowIcon className="h-4 w-4" />
+            </a>
 
             <p
               className="mt-4 animate-fade-up text-sm text-stone-500"

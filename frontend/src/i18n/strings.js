@@ -38,6 +38,8 @@ const dict = {
     lp_cta_login: 'लॉग इन करा',
     lp_cta_staff: 'रुग्णालय / रक्तपेढी प्रवेश',
     // Top-nav labels (new in May 2026 redesign)
+    lp_nav_how: 'हे कसे चालते',
+    lp_hero_how: 'नवीन आहात? Raktify कसे चालते ते पहा',
     lp_nav_host_camp: 'शिबिर आयोजित करा',
     lp_nav_institutions: 'रुग्णालये आणि रक्तपेढ्या',
     lp_nav_inst_signin: 'तुमच्या संस्थेत साइन इन करा',
@@ -165,6 +167,8 @@ const dict = {
     lp_cta_login: 'लॉग इन करें',
     lp_cta_staff: 'अस्पताल / ब्लड बैंक लॉगिन',
     // Top-nav labels (new in May 2026 redesign)
+    lp_nav_how: 'यह कैसे काम करता है',
+    lp_hero_how: 'नए हैं? देखें Raktify कैसे काम करता है',
     lp_nav_host_camp: 'शिविर आयोजित करें',
     lp_nav_institutions: 'अस्पताल और ब्लड बैंक',
     lp_nav_inst_signin: 'अपनी संस्था में साइन इन करें',
@@ -287,6 +291,8 @@ const dict = {
     lp_cta_login: 'Log in',
     lp_cta_staff: 'Hospital / blood bank sign-in',
     // Top-nav labels (new in May 2026 redesign)
+    lp_nav_how: 'How it works',
+    lp_hero_how: 'New here? See how Raktify works',
     lp_nav_host_camp: 'Host a camp',
     lp_nav_institutions: 'For hospitals & blood banks',
     lp_nav_inst_signin: 'Sign in to your institution',
