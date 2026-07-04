@@ -164,7 +164,6 @@ async function autoAssignCoordinator(client, request) {
   // Fire-and-forget — a failed WA send doesn't roll back the assignment.
   if (request.urgency_tier === 'CR' && coordinatorMobile) {
     fireCoordCriticalNew({ client, request, coordinatorId, coordinatorMobile }).catch((err) => {
-       
       require('../config/logger').error(
         { err: err.message, request_id: request.id, coordinator_id: coordinatorId },
         'coord_critical_new dispatch failed',
