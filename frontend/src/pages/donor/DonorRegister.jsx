@@ -79,6 +79,35 @@ export function DonorRegister() {
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState('');
 
+  // As soon as the mobile looks complete, probe whether it already belongs to
+  // a donor. If so we steer them to OTP login (where they can also correct
+  // their profile) instead of letting them fill the whole form only to hit a
+  // duplicate error at submit. Debounced; failures are silent (it's a hint).
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  useEffect(() => {
+    const m = (details.mobile || '').trim();
+    if (!/^(\+?91[-\s]?)?[6-9]\d{9}$/.test(m)) {
+      setAlreadyRegistered(false);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const r = await apiRequest(
+          'GET',
+          `/donors/registration-status?mobile=${encodeURIComponent(m)}`,
+        );
+        if (alive) setAlreadyRegistered(Boolean(r.registered));
+      } catch {
+        // Non-blocking hint — ignore probe failures.
+      }
+    }, 500);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [details.mobile]);
+
   // If the user arrived from a public camp link (/register?camp=<slug>),
   // persist that intent in sessionStorage so it survives a multi-step wizard
   // refresh and is honoured by the redirect-after-completion logic below.
@@ -169,7 +198,14 @@ export function DonorRegister() {
       setOtpStage('sent');
       if (sent.dev_otp) setDevOtp(sent.dev_otp);
     } catch (err) {
-      setError(err?.response?.data?.error || err?.response?.data?.message || 'submit_failed');
+      const code = err?.response?.data?.error;
+      if (code === 'mobile_already_registered') {
+        // Surface the "log in instead" banner rather than a raw error code.
+        setAlreadyRegistered(true);
+        setError('');
+      } else {
+        setError(code || err?.response?.data?.message || 'submit_failed');
+      }
     } finally {
       setPending(false);
     }
@@ -231,6 +267,24 @@ export function DonorRegister() {
           <div className="mb-3 rounded-md bg-rk-50 p-2 text-sm text-rk-900 ring-1 ring-rk-200">
             You&apos;re joining <strong>{communityName}</strong>. The community organisers will
             see your name + blood group only — never your mobile.
+          </div>
+        ) : null}
+
+        {alreadyRegistered && !registered ? (
+          <div className="mb-3 flex flex-col gap-2 rounded-md bg-rk-50 p-3 text-sm text-rk-900 ring-1 ring-rk-200 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              This number is <strong>already registered</strong>. No need to fill this again — log
+              in with a one-time password to see your dashboard and fix any details.
+            </span>
+            <button
+              type="button"
+              className="rk-button-primary shrink-0 whitespace-nowrap"
+              onClick={() =>
+                navigate(`/login?m=${encodeURIComponent((details.mobile || '').trim())}`)
+              }
+            >
+              Log in with OTP →
+            </button>
           </div>
         ) : null}
 

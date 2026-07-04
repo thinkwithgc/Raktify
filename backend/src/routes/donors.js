@@ -45,6 +45,18 @@ const registerLimiter = rateLimit({
   message: { error: 'rate_limit_donor_register' },
 });
 
+// Registration-status probe limiter. Keyed on the queried mobile (camp-safe,
+// like registerLimiter) so many donors behind one WiFi aren't throttled as a
+// group. The global per-IP limiter (app.js) still backstops bulk enumeration.
+const regStatusLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1h
+  limit: 30, // per mobile, per hour — the client debounces to ~1 per entry
+  keyGenerator: (req) => normaliseIndianMobile(req.query?.mobile) || req.ip,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'rate_limit_registration_status' },
+});
+
 // ── GET /donors/eligibility/questions (public) ───────────────────────────
 router.get('/eligibility/questions', (_req, res) => {
   res.json({
@@ -93,6 +105,27 @@ const registerSchema = z.object({
   // Pre-screening answers (Step 1) — accepted but NOT yet evaluated against
   // the DRAFT eligibility bank. See services/donors/eligibility.js.
   prescreening_answers: z.record(z.string(), z.enum(['YES', 'NO'])).optional(),
+});
+
+// ── GET /donors/registration-status?mobile= (public) ─────────────────────
+// UX helper for the register form: tells the client whether a mobile already
+// belongs to a donor profile, so a returning donor is steered to OTP login
+// (and can then correct their profile) instead of filling out the whole form
+// only to hit a duplicate error at submit.
+//
+// Returns ONLY a boolean — never any donor PII (no name, status, or count) —
+// so its enumeration value is limited to "is this number a Raktify donor",
+// which the register + login pages already reveal implicitly. Runs under the
+// same `registration` actor the register flow uses (it already SELECTs donors
+// for duplicate detection); the handler never returns the row.
+router.get('/registration-status', regStatusLimiter, async (req, res) => {
+  const mobile = normaliseIndianMobile(req.query.mobile);
+  if (!mobile) return res.status(400).json({ error: 'invalid_mobile_format' });
+  const r = await withRlsContextRaw(
+    { actor_role: 'registration', change_reason: 'donor register-form status check' },
+    (c) => c.query(`SELECT 1 FROM donors WHERE mobile = $1 AND is_active = TRUE LIMIT 1`, [mobile]),
+  );
+  res.json({ registered: r.rowCount > 0 });
 });
 
 // ── POST /donors/register (public) ───────────────────────────────────────
@@ -157,6 +190,21 @@ router.post('/register', registerLimiter, async (req, res) => {
           [mobile],
         );
         const platformUserId = userR.rows[0].id;
+
+        // Already a donor with this mobile? Return a clean 409 that the
+        // register form turns into "you're already registered — log in".
+        // Without this the donors(mobile) partial unique index would raise a
+        // raw 23505 that surfaced to the user as a generic 500.
+        const existingDonor = await c.query(
+          `SELECT 1 FROM donors WHERE mobile = $1 AND is_active = TRUE LIMIT 1`,
+          [mobile],
+        );
+        if (existingDonor.rowCount > 0) {
+          throw Object.assign(
+            new Error('This mobile number is already registered. Please log in instead.'),
+            { status: 409, code: 'mobile_already_registered' },
+          );
+        }
 
         // Duplicate detection (BLOCK on ABHA, FLAG on name+DOB / aadhaar+DOB)
         const dup = await checkDuplicates(c, {
@@ -334,6 +382,95 @@ router.get('/me', verifyJWT, requireRole('donor'), async (req, res) => {
   if (r.rowCount === 0) return res.status(404).json({ error: 'donor_profile_not_found' });
   const passport = await withRlsContext(req, (c) => buildPassport(c, r.rows[0].id));
   res.json(passport);
+});
+
+// ── POST /donors/me/profile ──────────────────────────────────────────────
+// Donor self-service profile correction. A returning donor who logs in can
+// fix details they mis-entered at registration. Whitelisted fields only —
+// mobile (identity / login handle), consent, and blood_group_verified
+// (lab-only) are deliberately NOT editable here. Partial update: any omitted
+// field is left unchanged (COALESCE). Declared before the `/:id/*` routes so
+// 'me' is never captured as an :id.
+const profileUpdateSchema = z.object({
+  full_name: z.string().trim().min(2).max(120).optional(),
+  gender: z.enum(['M', 'F', 'O']).optional(),
+  date_of_birth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  blood_group_self_reported: z.number().int().min(1).max(8).optional(),
+  village_id: z.number().int().positive().optional(),
+  max_travel_km: z.number().int().min(1).max(999).optional(),
+  preferred_contact_channel: z.enum(['WA', 'SM', 'CA']).optional(),
+  whatsapp_opted_in: z.boolean().optional(),
+  sms_opted_in: z.boolean().optional(),
+  preferred_language: z.enum(['mr', 'hi', 'en']).optional(),
+});
+
+router.post('/me/profile', verifyJWT, requireRole('donor'), async (req, res) => {
+  const parsed = profileUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_input', details: parsed.error.format() });
+  }
+  const d = parsed.data;
+  if (Object.keys(d).length === 0) return res.status(400).json({ error: 'no_fields_to_update' });
+
+  // full_name is column-encrypted: changing it means re-sealing AND
+  // recomputing the blind index in lockstep (duplicate detection queries it).
+  const nameSealed = d.full_name != null ? seal(d.full_name) : null;
+  const nameBidx = d.full_name != null ? blindIndex(d.full_name) : null;
+
+  try {
+    const r = await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          // updated_at is maintained by a BEFORE UPDATE trigger. Every SET
+          // target is a fixed column name; all values are placeholders.
+          `UPDATE donors SET
+              full_name                 = COALESCE($2, full_name),
+              full_name_bidx            = COALESCE($3, full_name_bidx),
+              gender                    = COALESCE($4, gender),
+              date_of_birth             = COALESCE($5::date, date_of_birth),
+              blood_group_self_reported = COALESCE($6::int, blood_group_self_reported),
+              village_id                = COALESCE($7::int, village_id),
+              max_travel_km             = COALESCE($8::int, max_travel_km),
+              preferred_contact_channel = COALESCE($9, preferred_contact_channel),
+              whatsapp_opted_in         = COALESCE($10::boolean, whatsapp_opted_in),
+              sms_opted_in              = COALESCE($11::boolean, sms_opted_in),
+              preferred_language        = COALESCE($12, preferred_language)
+            WHERE platform_user_id = $1
+        RETURNING id`,
+          [
+            req.user.userId,
+            nameSealed,
+            nameBidx,
+            d.gender ?? null,
+            d.date_of_birth ?? null,
+            d.blood_group_self_reported ?? null,
+            d.village_id ?? null,
+            d.max_travel_km ?? null,
+            d.preferred_contact_channel ?? null,
+            d.whatsapp_opted_in ?? null,
+            d.sms_opted_in ?? null,
+            d.preferred_language ?? null,
+          ],
+        ),
+      { change_reason: 'donor self profile update' },
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'donor_profile_not_found' });
+    // Return the fresh passport so the client re-renders with the new values.
+    const passport = await withRlsContext(req, (c) => buildPassport(c, r.rows[0].id));
+    res.json(passport);
+  } catch (err) {
+    // DB guards: age CHECK (23514), village_id FK (23503), bad date (2200x).
+    if (['23514', '23503', '22007', '22008'].includes(err.code)) {
+      return res
+        .status(400)
+        .json({ error: 'invalid_field_value', detail: err.detail || err.message });
+    }
+    throw err;
+  }
 });
 
 // ── GET /donors/:id/passport ─────────────────────────────────────────────

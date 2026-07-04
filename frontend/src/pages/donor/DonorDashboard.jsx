@@ -1,13 +1,26 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
 import { RoleSwitcher } from '../../components/RoleSwitcher.jsx';
+import { LocalityPicker } from '../../components/LocalityPicker.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { useT } from '../../i18n/useT.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { isOfflineError, useOutbox } from '../../lib/useOutbox.js';
+
+// blood_groups seed (migration 002): id 1..8 → A+ A- B+ B- AB+ AB- O+ O-
+const SELF_BLOOD_GROUPS = [
+  { id: 1, code: 'A+' },
+  { id: 2, code: 'A-' },
+  { id: 3, code: 'B+' },
+  { id: 4, code: 'B-' },
+  { id: 5, code: 'AB+' },
+  { id: 6, code: 'AB-' },
+  { id: 7, code: 'O+' },
+  { id: 8, code: 'O-' },
+];
 
 function formatDate(s, lang) {
   if (!s) return '—';
@@ -157,6 +170,8 @@ export function DonorDashboard() {
               />
             </section>
 
+            <EditProfileCard donor={donor} />
+
             <UpcomingCampsSection donorDistrictId={donor?.location?.district_id} />
 
             <section>
@@ -196,6 +211,198 @@ export function DonorDashboard() {
       </main>
       <Footer variant="compact" />
     </div>
+  );
+}
+
+// Donor self-service profile correction. Collapsed by default; on save it
+// posts ONLY the fields the donor actually changed (so untouched values are
+// preserved server-side via COALESCE). full_name re-seal + blind-index update
+// happen on the backend.
+function EditProfileCard({ donor }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const initial = useMemo(
+    () => ({
+      full_name: donor.full_name || '',
+      gender: donor.gender || 'M',
+      date_of_birth: (donor.date_of_birth || '').slice(0, 10),
+      blood_group_self_reported:
+        SELF_BLOOD_GROUPS.find((g) => g.code === donor.blood_group?.self_reported?.code)?.id || '',
+      preferred_language: donor.preferred_language || 'mr',
+    }),
+    [donor],
+  );
+  const [form, setForm] = useState(initial);
+  const [locality, setLocality] = useState(null);
+
+  function set(k, v) {
+    setForm((prev) => ({ ...prev, [k]: v }));
+  }
+  function start() {
+    setForm(initial);
+    setLocality(null);
+    setMsg('');
+    setOpen(true);
+  }
+
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = {};
+      const name = form.full_name.trim();
+      if (name && name !== initial.full_name) payload.full_name = name;
+      if (form.gender !== initial.gender) payload.gender = form.gender;
+      if (form.date_of_birth && form.date_of_birth !== initial.date_of_birth)
+        payload.date_of_birth = form.date_of_birth;
+      if (
+        form.blood_group_self_reported !== '' &&
+        String(form.blood_group_self_reported) !== String(initial.blood_group_self_reported)
+      )
+        payload.blood_group_self_reported = Number(form.blood_group_self_reported);
+      if (form.preferred_language !== initial.preferred_language)
+        payload.preferred_language = form.preferred_language;
+      if (locality?.id) payload.village_id = locality.id;
+      if (Object.keys(payload).length === 0) return Promise.resolve({ __noop: true });
+      return apiRequest('POST', '/donors/me/profile', payload);
+    },
+    onSuccess: (data) => {
+      if (data?.__noop) {
+        setMsg('Nothing to save — no changes.');
+        return;
+      }
+      qc.setQueryData(['donor', 'me'], data); // server returns the fresh passport
+      qc.invalidateQueries({ queryKey: ['donor', 'me'] });
+      setOpen(false);
+      setMsg('');
+    },
+    onError: (err) => setMsg(err?.response?.data?.error || 'save_failed'),
+  });
+
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between rounded-md bg-white p-3 text-sm ring-1 ring-slate-200">
+        <span className="text-slate-600">
+          Something wrong in your details? You can fix your name, area, or blood group.
+        </span>
+        <button type="button" className="rk-button-secondary shrink-0" onClick={start}>
+          Edit my details
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="rk-card space-y-4">
+      <h2 className="text-lg font-semibold text-rk-700">Edit my details</h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="rk-label" htmlFor="ep-name">
+            Full name
+          </label>
+          <input
+            id="ep-name"
+            className="rk-input"
+            maxLength={120}
+            value={form.full_name}
+            onChange={(e) => set('full_name', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="rk-label" htmlFor="ep-gender">
+            Gender
+          </label>
+          <select
+            id="ep-gender"
+            className="rk-input"
+            value={form.gender}
+            onChange={(e) => set('gender', e.target.value)}
+          >
+            <option value="M">Male</option>
+            <option value="F">Female</option>
+            <option value="O">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className="rk-label" htmlFor="ep-dob">
+            Date of birth
+          </label>
+          <input
+            id="ep-dob"
+            type="date"
+            className="rk-input"
+            value={form.date_of_birth}
+            onChange={(e) => set('date_of_birth', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="rk-label" htmlFor="ep-bg">
+            Blood group (if known)
+          </label>
+          <select
+            id="ep-bg"
+            className="rk-input"
+            value={form.blood_group_self_reported}
+            onChange={(e) => set('blood_group_self_reported', e.target.value)}
+          >
+            <option value="">I don&apos;t know</option>
+            {SELF_BLOOD_GROUPS.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.code}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Self-reported only — a blood bank verifies this at your donation.
+          </p>
+        </div>
+        <div>
+          <label className="rk-label" htmlFor="ep-lang">
+            Preferred language
+          </label>
+          <select
+            id="ep-lang"
+            className="rk-input"
+            value={form.preferred_language}
+            onChange={(e) => set('preferred_language', e.target.value)}
+          >
+            <option value="mr">मराठी</option>
+            <option value="hi">हिन्दी</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <LocalityPicker
+            id="ep-locality"
+            label="Change your village or area (optional)"
+            value={locality}
+            onChange={setLocality}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Leave blank to keep your current area. Search to pick a new one.
+          </p>
+        </div>
+      </div>
+      {msg ? <p className="text-sm text-rk-700">{msg}</p> : null}
+      <div className="flex justify-between">
+        <button
+          type="button"
+          className="rk-button-secondary"
+          onClick={() => setOpen(false)}
+          disabled={save.isPending}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="rk-button-primary"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
+          {save.isPending ? '…' : 'Save changes'}
+        </button>
+      </div>
+    </section>
   );
 }
 
