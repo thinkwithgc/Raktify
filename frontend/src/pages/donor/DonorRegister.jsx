@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
@@ -455,9 +455,35 @@ function StepConsent({ consent, setConsent, pending, onBack, onSubmit, error }) 
           donor↔hospital message goes through our coordinators.
         </p>
         <p>
-          You can change your availability or withdraw consent at any time from your dashboard.
+          Your name and address are <strong>encrypted at rest</strong>. You can change your
+          availability or withdraw consent at any time from your dashboard, and you can ask us
+          to delete your data whenever you like.
         </p>
       </div>
+      {/* DPDP Act 2023 §5 notice: point the donor at the full privacy notice
+          and their erasure rights BEFORE they consent. */}
+      <p className="text-sm text-slate-600">
+        Before you agree, please read our{' '}
+        <Link
+          to="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-rk-700 underline"
+        >
+          Privacy Policy
+        </Link>{' '}
+        — it explains what we collect, why, and your rights under India&apos;s DPDP Act 2023.
+        You can withdraw or{' '}
+        <Link
+          to="/data-deletion"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-rk-700 underline"
+        >
+          delete your data
+        </Link>{' '}
+        any time.
+      </p>
       <label className="flex items-start gap-3 rounded-md bg-rk-50 p-3 ring-1 ring-rk-100">
         <input
           type="checkbox"
@@ -466,7 +492,16 @@ function StepConsent({ consent, setConsent, pending, onBack, onSubmit, error }) 
           onChange={(e) => setConsent(e.target.checked)}
         />
         <span className="text-sm text-rk-900">
-          I consent to my details being used to match me with blood donation requests.
+          I have read the{' '}
+          <Link
+            to="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline"
+          >
+            Privacy Policy
+          </Link>{' '}
+          and consent to my details being used to match me with blood donation requests.
         </span>
       </label>
       {error ? <p className="text-sm text-rk-700">{error}</p> : null}

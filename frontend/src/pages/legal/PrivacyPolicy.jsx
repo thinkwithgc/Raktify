@@ -39,7 +39,6 @@ export function PrivacyPolicy() {
         <li>Email address (institutional users only).</li>
         <li>Address (village, taluka, district, pincode); GPS coordinates are not collected.</li>
         <li>Self-reported blood group (not used for matching — see § 5).</li>
-        <li>Pre-screening health declarations (e.g. recent illness, travel history) given during donor registration.</li>
         <li>Aadhaar last 4 digits or other government-ID last 4 digits for coordinator verification (full Aadhaar number is never collected).</li>
       </ul>
 
