@@ -32,12 +32,12 @@
     "eslint": "^9.39.4",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.10",
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "xlsx": "^0.18.5"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "pg": "^8.13.1",
-    "xlsx": "^0.18.5"
+    "pg": "^8.13.1"
   },
   "lint-staged": {
     "backend/src/**/*.js": [

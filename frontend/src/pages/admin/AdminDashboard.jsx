@@ -16,6 +16,7 @@ import { RareBloodTab } from './RareBloodTab.jsx';
 import { LookbackTab } from './LookbackTab.jsx';
 import { AuditTab } from './AuditTab.jsx';
 import { JobsTab } from './JobsTab.jsx';
+import { StaffSecurityTab } from './StaffSecurityTab.jsx';
 
 // Phase 8 NGO admin dashboard. Each tab maps to a distinct admin endpoint
 // added in routes/admin.js (or routes/lookback.js for the lookback queue
@@ -35,6 +36,7 @@ const TABS = [
   { id: 'lookback', label: 'Lookback' },
   { id: 'audit', label: 'Audit' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'staff-2fa', label: 'Staff 2FA' },
 ];
 
 export function AdminDashboard() {
@@ -81,6 +83,7 @@ export function AdminDashboard() {
         {tab === 'lookback' ? <LookbackTab /> : null}
         {tab === 'audit' ? <AuditTab /> : null}
         {tab === 'jobs' ? <JobsTab /> : null}
+        {tab === 'staff-2fa' ? <StaffSecurityTab /> : null}
       </main>
       <Footer variant="compact" />
     </div>

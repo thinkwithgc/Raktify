@@ -5,6 +5,7 @@ import { DonorLogin } from './pages/donor/DonorLogin.jsx';
 import { DonorRegister } from './pages/donor/DonorRegister.jsx';
 import { DonorDashboard } from './pages/donor/DonorDashboard.jsx';
 import { StaffLogin } from './pages/staff/StaffLogin.jsx';
+import { StaffSetup2FA } from './pages/staff/StaffSetup2FA.jsx';
 import { CoordinatorPortal } from './pages/coordinator/CoordinatorPortal.jsx';
 import { RequestDetail } from './pages/coordinator/RequestDetail.jsx';
 import { HospitalPortal } from './pages/hospital/HospitalPortal.jsx';
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/login" element={<DonorLogin />} />
       <Route path="/register" element={<DonorRegister />} />
       <Route path="/staff/login" element={<StaffLogin />} />
+      <Route path="/staff/setup-2fa" element={<StaffSetup2FA />} />
       <Route path="/onboarding/apply" element={<InstitutionApply />} />
       <Route path="/setup/:token" element={<SetupPassword />} />
       {/* /activate/:token — Meta-approved WhatsApp button URL points here.

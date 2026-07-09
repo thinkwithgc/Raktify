@@ -341,7 +341,7 @@ router.post('/requests/:id/noshow', verifyJWT, requireRole('coordinator'), async
 // ── POST /coordinator/requests/:id/close ─────────────────────────────────
 router.post('/requests/:id/close', verifyJWT, requireRole('coordinator'), async (req, res) => {
   const schema = z.object({
-    bag_ids: z.array(z.string().uuid()).min(1),
+    bag_ids: z.array(z.string().uuid()).min(1).max(50),
     crossmatch_confirmed: z.boolean().default(true),
   });
   const parsed = schema.safeParse(req.body);

@@ -90,9 +90,14 @@ export function DonorLogin() {
       // the generic /donor home. PublicCampPage auto-RSVPs from sessionStorage.
       const returnTo = new URLSearchParams(window.location.search).get('return');
       const pendingCamp = window.sessionStorage.getItem('rk.pendingCampRsvp');
+      // Only allow same-site relative paths. Reject protocol-relative (`//host`)
+      // and backslash variants, which browsers/react-router treat as absolute
+      // and would enable an open redirect off-site.
+      const safeReturn =
+        returnTo && returnTo.startsWith('/') && !/^[/\\]{2,}/.test(returnTo) ? returnTo : null;
       const dest =
-        returnTo && returnTo.startsWith('/')
-          ? returnTo
+        safeReturn
+          ? safeReturn
           : pendingCamp && r.role === 'donor'
             ? `/c/${encodeURIComponent(pendingCamp)}`
             : r.role === 'coordinator'

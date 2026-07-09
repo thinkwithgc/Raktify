@@ -47,6 +47,12 @@ export function StaffLogin() {
     try {
       const r = await apiRequest('POST', '/auth/institutional/login', parsed.data);
       setSession(r);
+      // No authenticator yet → the token we just stored is a restricted
+      // enrolment token; send them to mandatory 2FA setup.
+      if (r.totp_setup_required) {
+        navigate('/staff/setup-2fa', { replace: true });
+        return;
+      }
       const dest =
         r.role === 'hospital'
           ? '/hospital'

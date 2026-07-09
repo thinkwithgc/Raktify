@@ -255,7 +255,7 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
 
   const r = await pool.query(
     `SELECT pu.id, pu.role, pu.institution_id, pu.district_id, pu.password_hash,
-            pu.totp_secret, pu.totp_enabled,
+            pu.totp_secret, pu.totp_enabled, pu.failed_login_attempts,
             pu.is_locked, pu.locked_until, pu.force_password_change,
             i.onboarding_status
        FROM platform_users pu
@@ -266,14 +266,44 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
   if (r.rowCount === 0) return res.status(401).json({ error: 'invalid_credentials' });
   const u = r.rows[0];
 
-  if (u.is_locked && !shouldUnlock(u)) {
-    return res.status(429).json({ error: 'account_locked' });
+  // Auto-unlock once the lock window has elapsed.
+  if (u.is_locked && shouldUnlock(u)) {
+    await pool.query(
+      `UPDATE platform_users
+          SET is_locked = FALSE, locked_until = NULL, failed_login_attempts = 0
+        WHERE id = $1`,
+      [u.id],
+    );
+    u.is_locked = false;
+  }
+  if (u.is_locked) {
+    return res.status(429).json({ error: 'account_locked', locked_until: u.locked_until });
   }
   if (!u.password_hash) return res.status(401).json({ error: 'invalid_credentials' });
 
   const ok = await bcrypt.compare(parsed.data.password, u.password_hash);
   if (!ok) {
-    return res.status(401).json({ error: 'invalid_credentials' });
+    // Per-account lockout (audit hardening) — mirrors the OTP-verify path so a
+    // slow, IP-rotating password brute force trips the same 5-attempt lock.
+    const attempts = (u.failed_login_attempts || 0) + 1;
+    const locking = attempts >= otp.MAX_ATTEMPTS;
+    await pool.query(
+      `UPDATE platform_users
+          SET failed_login_attempts = $1,
+              is_locked = $2,
+              locked_until = CASE WHEN $2 THEN NOW() + make_interval(mins => $4)
+                                  ELSE locked_until END
+        WHERE id = $3`,
+      [attempts, locking, u.id, otp.LOCK_DURATION_MIN],
+    );
+    return res.status(401).json({
+      error: locking ? 'account_locked_too_many_attempts' : 'invalid_credentials',
+      attempts_remaining: Math.max(0, otp.MAX_ATTEMPTS - attempts),
+    });
+  }
+  // Password correct — clear the failure counter.
+  if (u.failed_login_attempts > 0) {
+    await pool.query(`UPDATE platform_users SET failed_login_attempts = 0 WHERE id = $1`, [u.id]);
   }
 
   // For staff roles, ensure their institution is ACTIVE. DHOs have no
@@ -282,36 +312,47 @@ router.post('/institutional/login', institutionalLoginLimiter, async (req, res) 
     return res.status(403).json({ error: 'institution_not_active' });
   }
 
+  const sessionId = newSessionId();
+
+  // 2FA is mandatory (audit hardening — no more grace mode).
   if (u.totp_enabled) {
     if (!parsed.data.totp_code) return res.status(401).json({ error: 'totp_required' });
     const secret = encryption.decrypt(u.totp_secret);
-    const valid = await totp.verifyCode(secret, parsed.data.totp_code);
-    if (!valid) return res.status(401).json({ error: 'invalid_totp' });
-  } else {
-    // First login still allowed without TOTP, but we flag for setup
-    logger.warn({ user_id: u.id }, 'Institutional login without TOTP — setup required');
+    if (!(await totp.verifyCode(secret, parsed.data.totp_code))) {
+      return res.status(401).json({ error: 'invalid_totp' });
+    }
+    await pool.query(`UPDATE platform_users SET last_login_at = clock_timestamp() WHERE id = $1`, [
+      u.id,
+    ]);
+    const token = sign({
+      sub: u.id,
+      role: u.role,
+      sid: sessionId,
+      inst: u.institution_id,
+      dist: u.district_id,
+    });
+    return res.json({
+      token,
+      role: u.role,
+      user_id: u.id,
+      institution_id: u.institution_id,
+      district_id: u.district_id,
+      force_password_change: u.force_password_change,
+    });
   }
 
-  const sessionId = newSessionId();
-  await pool.query(`UPDATE platform_users SET last_login_at = clock_timestamp() WHERE id = $1`, [
-    u.id,
-  ]);
-  const token = sign({
+  // Not yet enrolled → issue a restricted `tp` token. verifyJWT blocks it from
+  // everything except the TOTP-enrolment endpoints; the client sends the user
+  // to /staff/setup-2fa, which finishes enrolment and swaps it for a full token.
+  const setupToken = sign({
     sub: u.id,
     role: u.role,
     sid: sessionId,
     inst: u.institution_id,
     dist: u.district_id,
+    tp: true,
   });
-  res.json({
-    token,
-    role: u.role,
-    user_id: u.id,
-    institution_id: u.institution_id,
-    district_id: u.district_id,
-    totp_required: !u.totp_enabled,
-    force_password_change: u.force_password_change,
-  });
+  return res.json({ token: setupToken, role: u.role, user_id: u.id, totp_setup_required: true });
 });
 
 // ── POST /auth/institutional/setup-totp ──────────────────────────────────
@@ -361,15 +402,72 @@ router.post('/institutional/confirm-totp', verifyJWT, async (req, res) => {
 
   const secret = encryption.decrypt(r.rows[0].totp_secret);
   if (!(await totp.verifyCode(secret, parsed.data.totp_code))) {
-    return res.status(401).json({ error: 'invalid_totp' });
+    // 400 (not 401): the enrolment token is still valid — the *code* was wrong.
+    // A 401 would trip the client's auth-expired interceptor and log them out
+    // mid-enrolment.
+    return res.status(400).json({ error: 'invalid_totp' });
   }
 
   await pool.query(
     `UPDATE platform_users SET totp_enabled = TRUE, totp_verified_at = NOW() WHERE id = $1`,
     [req.user.userId],
   );
-  res.json({ status: 'totp_enabled' });
+
+  // Enrolment complete — swap the restricted `tp` token for a full session so
+  // the user goes straight into the app instead of logging in again.
+  const sessionId = newSessionId();
+  const token = sign({
+    sub: req.user.userId,
+    role: req.user.role,
+    sid: sessionId,
+    inst: req.user.institutionId,
+    dist: req.user.districtId,
+  });
+  res.json({
+    status: 'totp_enabled',
+    token,
+    role: req.user.role,
+    user_id: req.user.userId,
+    institution_id: req.user.institutionId,
+    district_id: req.user.districtId,
+  });
 });
+
+// ── POST /auth/institutional/reset-2fa ───────────────────────────────────
+// ngo_admin / super_admin clears a staff member's authenticator enrolment
+// (lost / changed phone). Their TOTP secret is wiped and the account is
+// unlocked; on their next login they're routed back through 2FA enrolment.
+// Does NOT reset the password — that's reset-password. Identifies by username.
+router.post(
+  '/institutional/reset-2fa',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const schema = z.object({ username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const r = await pool.query(
+      `UPDATE platform_users
+          SET totp_secret = NULL,
+              totp_enabled = FALSE,
+              totp_verified_at = NULL,
+              is_locked = FALSE,
+              locked_until = NULL,
+              failed_login_attempts = 0
+        WHERE username = $1
+          AND role IN ('hospital','blood_bank','ngo_admin','super_admin','dho')
+      RETURNING id, username, role`,
+      [parsed.data.username],
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'user_not_found' });
+    logger.warn(
+      { by: req.user.userId, target: r.rows[0].id, username: r.rows[0].username },
+      'Admin reset 2FA for staff account',
+    );
+    res.json({ status: 'reset', username: r.rows[0].username, role: r.rows[0].role });
+  },
+);
 
 // ── POST /auth/institutional/reset-password ──────────────────────────────
 // ngo_admin / super_admin triggers a magic-link password reset for a staff

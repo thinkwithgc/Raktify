@@ -28,10 +28,12 @@ function ttlForRole(role) {
 }
 
 function sign(payload) {
-  return jwt.sign(payload, env.jwt.secret, {
-    expiresIn: ttlForRole(payload.role),
-    algorithm: 'HS256',
-  });
+  // A `tp` (TOTP-pending) token is a restricted, short-lived credential that
+  // may ONLY reach the TOTP-enrolment endpoints (enforced in verifyJWT). It's
+  // issued when a staff member logs in with a valid password but hasn't set
+  // up their authenticator yet.
+  const expiresIn = payload.tp ? '15m' : ttlForRole(payload.role);
+  return jwt.sign(payload, env.jwt.secret, { expiresIn, algorithm: 'HS256' });
 }
 
 function verify(token) {
