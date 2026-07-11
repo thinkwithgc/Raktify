@@ -39,10 +39,10 @@ export function Footer({ variant = 'full' }) {
         {/* ── Top: tagline band ────────────────────────────────────── */}
         <div className="pb-10 text-center">
           <p className="font-display text-lg font-semibold tracking-tight text-rk-700 sm:text-xl">
-            A mission-critical operating system for India&rsquo;s bloodstream.
+            An AI-powered digital infrastructure for India&rsquo;s blood ecosystem.
           </p>
           <p className="mt-1 text-sm italic text-stone-500">
-            An operating system, not an app.
+            Free for every donor, hospital and blood bank — always.
           </p>
         </div>
 
@@ -77,6 +77,12 @@ export function Footer({ variant = 'full' }) {
                 <Link to="/register" className="text-stone-700 hover:text-rk-700">
                   Become a donor
                 </Link>
+              </li>
+              <li>
+                {/* Static page (outside the SPA) — full navigation */}
+                <a href="/donate" className="font-semibold text-rk-700 hover:text-rk-800">
+                  Support us — donate
+                </a>
               </li>
               <li>
                 <Link to="/onboarding/apply" className="text-stone-700 hover:text-rk-700">

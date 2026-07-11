@@ -39,6 +39,7 @@ export default defineConfig(({ mode }) => {
             /^\/privacy(\.html)?$/,
             /^\/terms(\.html)?$/,
             /^\/data-deletion(\.html)?$/,
+            /^\/donate(\.html)?$/,
           ],
           // Network-first for API calls; precache the app shell.
           runtimeCaching: [
