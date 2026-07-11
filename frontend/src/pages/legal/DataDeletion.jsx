@@ -4,7 +4,7 @@ import { LegalPage } from './LegalPage.jsx';
 
 export function DataDeletion() {
   return (
-    <LegalPage title="Data Deletion Instructions" lastUpdated="21 May 2026" version="v1">
+    <LegalPage title="Data Deletion Instructions" lastUpdated="11 July 2026" version="v2">
       <p>
         This page explains how to ask <strong>Raktify</strong> (operated by Choudhari
         EduHealth India Foundation) to delete your personal data, what we will delete, what
@@ -22,9 +22,10 @@ export function DataDeletion() {
         <li>Sign in at <a href="https://raktify.choudhari.ngo/login">raktify.choudhari.ngo/login</a>.</li>
         <li>Open the donor dashboard.</li>
         <li>
-          A self-service "Delete my account" link is on our Q3 2026 roadmap. Until it ships,
-          use Option B or Option C — we&rsquo;ll process the request manually within the same
-          30-day window.
+          A self-service &ldquo;Delete my account&rdquo; button is coming soon. In the
+          meantime, use Option B or Option C — an authorised NGO administrator now processes
+          verified requests with a one-step erasure tool, usually well within the 30-day
+          window.
         </li>
       </ol>
 
@@ -60,8 +61,9 @@ export function DataDeletion() {
 
       <h2>2. What we will delete</h2>
       <ul>
-        <li>Your name, date of birth, gender, address fields (village / taluka / district / pincode).</li>
-        <li>Your encrypted mobile number from active tables.</li>
+        <li>Your name, date of birth, address fields (village / taluka / district / pincode), and precise location.</li>
+        <li>Your mobile number — overwritten with a non-identifying placeholder so it can never be linked back to you — plus your ABHA ID, Aadhaar-last-4, and any alternate numbers.</li>
+        <li>Your login is permanently disabled (one-time passwords can no longer reach you).</li>
         <li>Your email address (institutional users).</li>
         <li>Self-reported blood group, preferred language, community affiliation.</li>
         <li>Pre-screening declarations made during registration.</li>
@@ -90,10 +92,11 @@ export function DataDeletion() {
           traceability rules. Anonymised, not deleted.
         </li>
         <li>
-          <strong>Audit log entries.</strong> Raktify&rsquo;s audit log is a hash-chained,
-          tamper-evident record. Breaking the chain would compromise the audit integrity
-          for every other user. We null out your PII fields within the log entries, but
-          preserve the hash chain.
+          <strong>Audit log entries.</strong> Raktify&rsquo;s audit log is an append-only,
+          hash-chained, tamper-evident record. By design it cannot be edited or deleted —
+          altering a single entry would break the integrity guarantee that protects every
+          other user. These entries are tightly access-restricted, are never shown to
+          hospitals or other users, and are purged in full 7 years after they are written.
         </li>
         <li>
           <strong>Aggregate, non-identifying statistics.</strong> "We had 2,300 donors in
@@ -128,11 +131,14 @@ export function DataDeletion() {
       </ul>
       <p>Include proof of your relationship or authority with your request.</p>
 
-      <h2>7. If we deny or partially fulfil your request</h2>
+      <h2>7. If we deny, defer, or partially fulfil your request</h2>
       <p>
-        In rare cases we may refuse a deletion request — for example, if your account is
-        under active investigation for fraud or if law-enforcement has placed a legal hold.
-        In such cases:
+        In rare cases we may need to defer or refuse a deletion request — for example, if an
+        open <strong>blood-safety investigation</strong> (a reactive infection-marker
+        lookback) still needs your record, if your account is under active investigation for
+        fraud, or if law-enforcement has placed a legal hold. A blood-safety deferral is
+        temporary: we complete the erasure automatically once the investigation closes. In
+        any of these cases:
       </p>
       <ul>
         <li>We will tell you why, in writing.</li>

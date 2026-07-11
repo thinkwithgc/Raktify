@@ -36,6 +36,7 @@ const scheduler = require('../services/scheduler');
 const { sendNotification } = require('../services/notifications');
 const logger = require('../config/logger');
 const setupSvc = require('../services/users/setup');
+const { eraseDonor } = require('../services/donors/erasure');
 
 const router = express.Router();
 
@@ -379,6 +380,26 @@ router.post(
     res
       .status(501)
       .json({ error: 'not_implemented', detail: 'see services/donors/merge.js design notes' });
+  },
+);
+
+// ── Donor erasure — DPDP §12 (right to erasure) ──────────────────────────
+// Admin-initiated on a verified donor request (app button, WhatsApp, phone).
+// Anonymises the donor + auth row, keeps the de-identified clinical record.
+// Blocked while an open lookback references the donor (services/donors/erasure.js).
+router.post(
+  '/donors/:id/erase',
+  verifyJWT,
+  requireRole('ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const result = await withRlsContext(req, (c) => eraseDonor(c, req.params.id), {
+      change_reason: 'dpdp_erasure',
+    });
+    if (!result.ok) {
+      const code = result.error === 'donor_not_found' ? 404 : 409;
+      return res.status(code).json(result);
+    }
+    res.json(result);
   },
 );
 

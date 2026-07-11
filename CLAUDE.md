@@ -332,7 +332,7 @@ have data to widen. Existing HMAC-signature enforcement is unchanged.
 
 **Scheduler** (`services/scheduler/`):
 - `node-cron` registration; `SCHEDULER_ENABLED=true` to enable in dev (default off so smoke tests don't fight a parallel tick)
-- 6 jobs implemented: `auto_expire`, `stale_reservation_release`, `planned_request_upgrade`, `eligibility_reminder`, `escalate_overdue`, `bot_session_cleanup`
+- 7 jobs implemented: `auto_expire`, `stale_reservation_release`, `planned_request_upgrade`, `eligibility_reminder`, `escalate_overdue`, `bot_session_cleanup`, `data_retention_purge` (DPDP §8(7) — scrubs `notification_log` PII older than `PII_LOG_RETENTION_DAYS`, default 90)
 - Manual run via `POST /admin/jobs/run` (super_admin) for ops + tests
 
 **WhatsApp bot** (`services/whatsapp/bot.js`):

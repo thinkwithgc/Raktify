@@ -24,6 +24,11 @@ const env = {
   // channel. MUST be false (unset) in real production.
   otpEcho: optional('OTP_ECHO', 'false') === 'true',
 
+  // DPDP §8(7) retention: the data_retention_purge job scrubs PII payload
+  // (template_variables, external mobile) from notification_log rows older than
+  // this many days. The log row itself is kept for audit/analytics counts.
+  piiLogRetentionDays: parseInt(optional('PII_LOG_RETENTION_DAYS', '90'), 10),
+
   jwt: {
     secret: required('JWT_SECRET'),
     expiresIn: optional('JWT_EXPIRES_IN', '8h'),
