@@ -13,9 +13,10 @@
  *   - Step 2 (personal details) → POST /donors/register
  *   - Step 4 (consent) → POST /donors/:id/consent
  *   - Step 1 (pre-screening permanent) and Step 3 (temporary deferrals)
- *     are pending medical advisor sign-off — see services/donors/eligibility.js
- *     The questions can be served via GET /donors/eligibility/questions which
- *     returns the DRAFT bank for the frontend to render.
+ *     use the medically signed-off question bank (see services/donors/eligibility.js;
+ *     Medical Review 10-Jul-2026). The questions are served via
+ *     GET /donors/eligibility/questions for the frontend to render. This
+ *     pre-screen is a soft, donor-facing filter — the binding gate is the DB.
  */
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -112,8 +113,8 @@ const registerSchema = z.object({
   referred_by_community_leader_id: z.string().uuid().optional(),
   registration_source: z.enum(['QRC', 'WAB', 'WEB', 'APP', 'BBK', 'CAM']).default('WEB'),
   registration_camp_id: z.string().uuid().optional(),
-  // Pre-screening answers (Step 1) — accepted but NOT yet evaluated against
-  // the DRAFT eligibility bank. See services/donors/eligibility.js.
+  // Pre-screening answers (Step 1) — soft-checked against the signed-off
+  // eligibility bank (informational). See services/donors/eligibility.js.
   prescreening_answers: z.record(z.string(), z.enum(['YES', 'NO'])).optional(),
 });
 
@@ -166,7 +167,7 @@ router.post('/register', registerLimiter, async (req, res) => {
     }
   }
 
-  // Quick eligibility soft-check using the DRAFT bank — informational only.
+  // Quick eligibility soft-check using the signed-off bank — informational only.
   const screening = data.prescreening_answers
     ? eligibility.evaluate(data.prescreening_answers)
     : null;
@@ -816,7 +817,7 @@ router.post(
     }
     const data = parsed.data;
 
-    // Pre-screening evaluation against the DRAFT bank — same as web register.
+    // Pre-screening evaluation against the signed-off bank — same as web register.
     if (data.prescreening_answers) {
       const verdict = eligibility.evaluate(data.prescreening_answers);
       if (!verdict.eligible) {

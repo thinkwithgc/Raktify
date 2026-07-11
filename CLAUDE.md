@@ -259,7 +259,7 @@ have data to widen. Existing HMAC-signature enforcement is unchanged.
 1. **WhatsApp bot registration** (`registration_source='WAB'`) — needs MSG91 DLT templates + bot conversation state machine. Defer to Phase 6 (notifications) since both depend on MSG91.
 2. **QR-code camp registration** (`registration_source='QRC'`) — wire `registration_camp_id` → look up camp + pre-fill location. Schema is already there, only the route handler is missing.
 3. **Donor merge** (`POST /donors/merge`) — `services/donors/merge.js` documents the design. Blocked on medical-advisor confirmation of deferral merge semantics (worst-case vs strictest deferral_until).
-4. **Pre-screening enforcement** — `services/donors/eligibility.js` has the DRAFT bank but `/donors/register` only soft-checks. Wire into the live decline path AFTER medical advisor signs off the question text + temporary deferral days.
+4. **Pre-screening enforcement** — `services/donors/eligibility.js` is now medically signed off (`DRAFT_PENDING_REVIEW=false`, 10-Jul-2026) and `/donors/register` soft-checks it (returns `soft_decline` on a permanent block). Deliberately kept as a soft, donor-facing filter — the binding gate is the DB (component gap via the gender-aware trigger, Hb/deferral in `validate.js`). A hard decline path is optional, not required.
 5. ~~**Donor mobile re-verification**~~ — ✅ done in `auth.js` POST /auth/otp/verify (Phase 4 batch).
 
 ## Phase 4 status (core done, deferrable items remain)
@@ -294,7 +294,7 @@ have data to widen. Existing HMAC-signature enforcement is unchanged.
 - `POST /coordinator/requests/:id/thread` + `GET /coordinator/requests/:id/thread`
 
 **Matching engine (`services/matching`):**
-- compatibility lookup pulls allowed donor groups from `compatibility_matrix` (DRAFT until medical advisor signs off — see Phase 1)
+- compatibility lookup pulls allowed donor groups from `compatibility_matrix` (medically signed off 10-Jul-2026 — confirmed as-drawn, see `docs/medical-review/`)
 - inventory selection: same-group preferred → fallback group → FIFO by expiry
 - bag reservation under `RE` status with `reserved_for_request_id`
 - donor alert creation when inventory insufficient AND `donor_activation_required=TRUE`
@@ -448,7 +448,7 @@ have data to widen. Existing HMAC-signature enforcement is unchanged.
 5. **Adverse transfusion reactions table** — referenced in spec §10 hemovigilance; not in the schema yet. Hemovigilance report returns `{ reported: 0, note: 'adverse_reaction_table_pending' }` so the DHO PDF template can render the section.
 6. **Merge endpoint** for duplicate donors — still 501; design notes in `services/donors/merge.js`. Blocked on medical-advisor confirmation of deferral merge semantics (worst-case vs strictest `deferral_until`).
 7. **WebSocket live queue** + **Workbox BackgroundSync** + **Devanagari design pass** — carried over from Phase 7 deferrables.
-8. **Medical-advisor + legal-advisor sign-offs** — clinical reference data still `_DRAFT_PENDING_REVIEW`; MoU template still pending legal review.
+8. ~~**Medical-advisor sign-off**~~ — ✅ done 10-Jul-2026 (haematologist; answers transcribed in `docs/medical-review/Raktify_Clinical_Questions_Answers.md`, applied via migration 297 + seeds 002b/002c + `eligibility.js`). **Only the legal review of the MoU template now remains** before onboarding institutions. Clinical follow-ups surfaced by the review (non-blocking): model leukodepleted/irradiated/CMV-neg as separately-licensed products (Q5/Q6), SDP ≤2/week + ≤4/month rate cap (Q3), weight→draw-volume 45 kg/350 ml at the chair (Q1), seed KEM-Mumbai rare-blood reference lab (Q19a), MTP uncrossmatched-release acknowledgement toggle (Q14).
 
 ## Source of truth
 The single, complete spec is `docs/Raktify_Master_Prompt.md`. The 8 phases (0 → 8) are independent specs. **Each phase is meant to be executed in a fresh agent session.** Do not skip phases. Do not invent fields, tables, statuses, or workflow steps that are not in the spec — if you find a gap, surface it; do not paper over it.
@@ -460,7 +460,7 @@ The single, complete spec is `docs/Raktify_Master_Prompt.md`. The 8 phases (0 �
 3. **Donor PII is masked from hospitals.** Mobile numbers are never returned to the hospital role. All donor↔hospital comms are mediated by the platform.
 4. **Self-reported blood group is never used in matching.** `donors.blood_group_self_reported` is display-only with an "Unverified" badge. Only `donors.blood_group_verified` (writable solely by `blood_bank` role) is queried during matching.
 5. **Migrations are immutable once applied.** The runner refuses to re-apply a migration whose checksum has changed. To alter a previous migration, write a new one.
-6. **Clinical reference data (compatibility matrix, TTI deferrals, component shelf life, eligibility) is `_DRAFT_PENDING_REVIEW` until the haematologist signs off.** Never seed real values from anywhere except the medical advisor's signed document.
+6. **Clinical reference data (compatibility matrix, TTI deferrals, component shelf life, eligibility) is now MEDICALLY SIGNED OFF (haematologist, 10-Jul-2026 — see `docs/medical-review/`).** The values live in `002b_seed_blood_components.sql`, `002c_seed_compatibility_matrix.sql`, and `services/donors/eligibility.js`, promoted on the running DB by migration 297. The rule still stands for any FUTURE change: never seed or alter a clinical value from anywhere except the medical advisor's signed document, and record the change in the Q&A doc.
 
 ## Repository structure
 

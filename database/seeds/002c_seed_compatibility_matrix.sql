@@ -1,10 +1,10 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- ⚠ DRAFT — PENDING MEDICAL ADVISOR SIGN-OFF ⚠
+-- Compatibility matrix — MEDICALLY SIGNED OFF (10-Jul-2026).
 --
 -- This is a PATIENT SAFETY artefact. The matrix below determines which donor
 -- blood is permitted for which recipient. An error here can kill a patient.
--- It MUST be confirmed in writing by a qualified haematologist before this
--- seed is loaded into staging or production.
+-- Confirmed AS-DRAWN by the reviewing haematologist (Medical Review Document,
+-- Q7 — the PRBC/whole-blood 8×8 grid was ticked with no cell changed).
 --
 -- Conventions:
 --   PRBC (component 2): standard ABO+Rh compatibility, O- universal donor
@@ -14,10 +14,11 @@
 --
 -- This is the FULL matrix for PRBC and FFP and a representative subset for
 -- platelets. Cryo and SDP follow plasma conventions for ABO matching.
--- The medical advisor needs to confirm:
---   (1) Whether platelet matching should remain ABO-preferred-not-required
---   (2) Whether Rh matters for platelets in our population context
---   (3) The is_preferred ordering for fallback selection
+-- Advisor confirmations (Q8/Q9): platelet matching stays ABO-preferred (not
+-- required); Rh IS considered for platelets and for repeated-transfusion
+-- plasma; the is_preferred ordering below drives fallback selection. Anti-D
+-- cover for Rh-incompatible platelets is the treating physician's call — the
+-- platform does not prompt it.
 --
 -- Notation in INSERT rows:
 --   (component_id, donor_group_id, recipient_group_id, is_compatible, is_preferred, note)
