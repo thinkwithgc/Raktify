@@ -22,9 +22,10 @@ export function Footer({ variant = 'full' }) {
             <span className="hidden sm:inline">Choudhari EduHealth India Foundation</span>
           </div>
           <nav className="flex items-center gap-4">
-            <Link to="/privacy" className="hover:text-rk-700">Privacy</Link>
-            <Link to="/terms" className="hover:text-rk-700">Terms</Link>
-            <Link to="/data-deletion" className="hover:text-rk-700">Data deletion</Link>
+            {/* Static pages (outside the SPA) — use <a> for a full navigation */}
+            <a href="/privacy" className="hover:text-rk-700">Privacy</a>
+            <a href="/terms" className="hover:text-rk-700">Terms</a>
+            <a href="/data-deletion" className="hover:text-rk-700">Data deletion</a>
             <span className="text-stone-400">© {year}</span>
           </nav>
         </div>
@@ -111,21 +112,22 @@ export function Footer({ variant = 'full' }) {
                 +91 98505 41412
               </a>
             </address>
+            {/* Static pages (outside the SPA) — use <a> for a full navigation */}
             <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
               <li>
-                <Link to="/privacy" className="hover:text-rk-700">
+                <a href="/privacy" className="hover:text-rk-700">
                   Privacy policy
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/terms" className="hover:text-rk-700">
+                <a href="/terms" className="hover:text-rk-700">
                   Terms of service
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/data-deletion" className="hover:text-rk-700">
+                <a href="/data-deletion" className="hover:text-rk-700">
                   Data deletion
-                </Link>
+                </a>
               </li>
             </ul>
           </div>

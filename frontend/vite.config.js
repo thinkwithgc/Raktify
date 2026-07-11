@@ -31,7 +31,15 @@ export default defineConfig(({ mode }) => {
           // navigation fallback — without this, a repeat visitor (service
           // worker installed) navigating to /how-raktify-works.html would be
           // served index.html and React Router would render a blank page.
-          navigateFallbackDenylist: [/^\/how-raktify-works\.html/],
+          // /privacy, /terms, /data-deletion are static HTML (public/*.html),
+          // served at clean URLs via staticwebapp.config.json rewrites — the SW
+          // must let them hit the network, not the SPA shell.
+          navigateFallbackDenylist: [
+            /^\/how-raktify-works\.html/,
+            /^\/privacy(\.html)?$/,
+            /^\/terms(\.html)?$/,
+            /^\/data-deletion(\.html)?$/,
+          ],
           // Network-first for API calls; precache the app shell.
           runtimeCaching: [
             {

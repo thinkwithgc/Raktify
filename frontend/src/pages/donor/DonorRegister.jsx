@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
@@ -501,24 +501,24 @@ function StepConsent({ consent, setConsent, pending, onBack, onSubmit, error }) 
           and their erasure rights BEFORE they consent. */}
       <p className="text-sm text-slate-600">
         Before you agree, please read our{' '}
-        <Link
-          to="/privacy"
+        <a
+          href="/privacy"
           target="_blank"
           rel="noopener noreferrer"
           className="font-medium text-rk-700 underline"
         >
           Privacy Policy
-        </Link>{' '}
+        </a>{' '}
         — it explains what we collect, why, and your rights under India&apos;s DPDP Act 2023.
         You can withdraw or{' '}
-        <Link
-          to="/data-deletion"
+        <a
+          href="/data-deletion"
           target="_blank"
           rel="noopener noreferrer"
           className="font-medium text-rk-700 underline"
         >
           delete your data
-        </Link>{' '}
+        </a>{' '}
         any time.
       </p>
       <label className="flex items-start gap-3 rounded-md bg-rk-50 p-3 ring-1 ring-rk-100">
@@ -530,14 +530,14 @@ function StepConsent({ consent, setConsent, pending, onBack, onSubmit, error }) 
         />
         <span className="text-sm text-rk-900">
           I have read the{' '}
-          <Link
-            to="/privacy"
+          <a
+            href="/privacy"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium underline"
           >
             Privacy Policy
-          </Link>{' '}
+          </a>{' '}
           and consent to my details being used to match me with blood donation requests.
         </span>
       </label>

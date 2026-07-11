@@ -17,9 +17,9 @@ import { SetupPassword } from './pages/onboarding/SetupPassword.jsx';
 import { HostCamp } from './pages/camps/HostCamp.jsx';
 import { CampOrganizerDashboard } from './pages/camps/CampOrganizerDashboard.jsx';
 import { PublicCampPage } from './pages/camps/PublicCampPage.jsx';
-import { PrivacyPolicy } from './pages/legal/PrivacyPolicy.jsx';
-import { TermsOfService } from './pages/legal/TermsOfService.jsx';
-import { DataDeletion } from './pages/legal/DataDeletion.jsx';
+// /privacy, /terms, /data-deletion are static HTML in frontend/public/ (served
+// by staticwebapp.config.json rewrites) — better SEO/crawlability + one source
+// of truth. They are intentionally NOT React routes.
 import { DhoDashboard } from './pages/dho/DhoDashboard.jsx';
 import { CommunityLeaderDashboard } from './pages/communityLeader/CommunityLeaderDashboard.jsx';
 import { CommunityCreate } from './pages/communityLeader/CommunityCreate.jsx';
@@ -66,9 +66,6 @@ export default function App() {
       <Route path="/community/:slug" element={<PublicCommunity />} />
       <Route path="/alert/:token" element={<DonorAlertResponse />} />
       <Route path="/help/community-leader" element={<CommunityLeaderHelpPage />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<TermsOfService />} />
-      <Route path="/data-deletion" element={<DataDeletion />} />
 
       <Route
         path="/donor"
