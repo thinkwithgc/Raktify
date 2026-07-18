@@ -22,11 +22,13 @@ commit/deploy cycles — get it right the first time by following these:
   colours (those are status-only: green=ok, amber=warning, red=danger).
 - **Typography: Inter + Noto Sans Devanagari fallback, one family.** No
   serif, no second display font. Weight/size make hierarchy.
-- **Wordmark: "Rakt" RED, "ify" BLACK — never reversed.** In HTML the red
-  span wraps "Rakt": `<span class="accent">Rakt</span>ify`. In React use
-  `<Wordmark/>`, never hand-typed.
-- **Icon: red rounded square + white droplet ONLY. No letters/monogram
-  ("R" was added once and removed — never re-add). Edit `app-icon.svg`
+- **Wordmark: "Rakt" RED, "ify" BLACK — never reversed.** `<Wordmark/>` renders
+  the finalized SVG vector (`docs/trademark/`); static HTML uses `/wordmark-tm.svg`.
+  Mark is filed/pending → **™ not ®** (opt-in `tm` prop, public/hero only). In
+  React use `<Wordmark/>`, never hand-typed.
+- **Icon (unified 16-Jul-2026): ONE flat brand-red square + white
+  wordmark-droplet + red cell-dot, identical in `icon.svg` + `app-icon.svg`.
+  Flat only — no gradient/rings/gloss; no letters/monogram. Edit `app-icon.svg`
   then `npm run og:build`; never hand-edit the PNG. Favicons point at
   `/icon.svg`.**
 - Reuse `.rk-button*/.rk-card/.rk-input/.rk-label/.rk-legal` — don't

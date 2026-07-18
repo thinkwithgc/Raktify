@@ -71,16 +71,18 @@ variable, it must equal `#b8231a`.
 ## 3. The wordmark
 
 **Canonical component: `frontend/src/components/Wordmark.jsx`. Use it in
-React — never hand-type the wordmark in JSX.**
+React — never hand-type the wordmark in JSX.** It renders the **finalized SVG
+vector** (`docs/trademark/raktify-wordmark-color.svg`), so letterforms + the
+droplet gap are pixel-exact and never drift with the rendering font. Static HTML
+pages use the shared asset **`/wordmark-tm.svg`** (`<img>`).
 
-The rule, in words (for non-React surfaces — HTML docs, email, PPT):
+The rule, in words:
 
 - **"Rakt"** → brand red (`rk-700` / `#b8231a`)
 - **"ify"** → warm near-black (`stone-900` / `#1a1a1a`)
 - The dot of the **i** is a **blood droplet** in `rk-600`. (In the React
-  component this is a dotless‑ı with an SVG droplet as the tittle. In
-  plain-HTML fallbacks you may simplify to two-tone text without the
-  droplet, but the colour split is mandatory.)
+  component this is a dotless‑ı with an SVG droplet as the tittle. For static
+  HTML pages, use the shared `/wordmark-tm.svg` (`<img>`) — never simplified text.)
 
 **LOCKED — the single most-repeated mistake:**
 > **"Rakt" is RED. "ify" is BLACK. Never the reverse.**
@@ -90,35 +92,43 @@ The rule, in words (for non-React surfaces — HTML docs, email, PPT):
 Never: all-red, all-black, gradient text, outline, drop-shadow, or a
 different colour split.
 
+**Trademark (™):** the mark is **filed but PENDING**, so use **™ — never ®**
+(® before registration is a §107 offence). In `<Wordmark>` the ™ is an **opt-in
+`tm` prop** (ink-black superscript, top-right). Show it on **public / marketing
+surfaces + the landing hero only**; authenticated portal chrome stays clean.
+See `docs/RAKTIFY---{42,44} TMA.pdf`.
+
 ---
 
 ## 4. The app icon / logo mark
 
-**Canonical files:**
+**Canonical files (ONE design, two sizes — unified 16-Jul-2026):**
 - `frontend/public/icon.svg` — 512², the favicon + PWA manifest icon.
 - `frontend/public/app-icon.svg` — 1024², store/social. Rendered to
   `app-icon.png` via `npm run og:build` (sharp). **Edit the SVG, then
   rebuild the PNG — never hand-edit the PNG.**
+- Both files are the **identical** design (app-icon is icon.svg at 2×).
 
-**The mark is: a red rounded-square with a white blood droplet. Nothing
-else.**
+**The mark is: a flat brand-red rounded square + the white wordmark droplet
++ a brand-red cell-dot punched in the droplet's bulb.**
 
-- Background: brand-red rounded square (radial gradient `rk-600 → rk-700
-  → rk-900`), corner radius ≈ 21% (Apple/Android convention).
-- Foreground: a single **white droplet**, centred.
-- Optional subtle detail already in the 1024 version: three faint white
-  concentric rings behind the droplet (opacity 0.08) + a soft inner
-  highlight on the droplet. Keep these subtle or omit — never loud.
+- Background: **flat** brand red `#b8231a` (no gradient), corner radius
+  ≈ 22.3% (`rx` 114/512, 228/1024 — Apple/Android convention).
+- Foreground: a single **white droplet** — the SAME shape as the wordmark's
+  droplet tittle (`M12 2.5c…`) — centred.
+- **Cell-dot:** a brand-red circle (`#b8231a`, matching the bg so it reads as
+  negative space) in the droplet's lower bulb. It reads cleanly **only on the
+  flat background** — never place it on a gradient.
+- No rings, no gloss / inner-highlight, no drop shadow (all removed from the
+  old app-icon).
 
 **LOCKED:**
 > **No letters on the icon.** No "R", no "Raktify" text, no monogram.
-> The droplet IS the mark. (An "R" was added once and removed — do not
-> re-add it or any glyph.)
-> Icon stays flat/subtle — no heavy shadows, no 3D, no photographic
-> textures.
+> The droplet + cell-dot IS the mark. (An "R" was added once and removed —
+> do not re-add it or any glyph.)
+> Icon stays **flat** — no gradient, rings, gloss, 3D, or photographic textures.
 
-Every page's `<link rel="icon">` should point at **`/icon.svg`** (the
-clean droplet), for consistency.
+Every page's `<link rel="icon">` should point at **`/icon.svg`**, for consistency.
 
 ---
 
@@ -190,3 +200,9 @@ explainer docs — not part of the product UI palette.
   wordmark colour split (Rakt=red / ify=black), droplet-only icon
   (removed the "R" overlay). Tokens sourced from the live
   tailwind.config.js + index.css + Wordmark.jsx.
+- 2026-07-16 — `<Wordmark>` now renders the finalized SVG vector
+  (`docs/trademark/`); added an opt-in ™ (public/hero only, ™ not ®). Static
+  pages use `/wordmark-tm.svg`. Icon UNIFIED into one flat design (red square +
+  wordmark droplet + red cell-dot) across icon.svg + app-icon.svg — removed the
+  gradient / rings / gloss. OG card redesigned (clean, real droplet, AI-powered
+  tagline). Commit `6aa0618`.
