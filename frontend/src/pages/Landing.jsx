@@ -136,7 +136,7 @@ export function Landing() {
           {/* Cluster 1 — brand + orientation link */}
           <div className="flex items-center gap-4">
             <Link to="/" className="flex items-center" aria-label="Raktify home">
-              <Wordmark className="text-2xl" />
+              <Wordmark tm className="text-2xl" />
             </Link>
             {/* First-time visitors (esp. via search) need "what is this?" up
                 front — a quiet, always-visible link into the full explainer.
@@ -395,6 +395,7 @@ export function Landing() {
           {/* Left — copy */}
           <div>
             <Wordmark
+              tm
               className="block animate-fade-up pt-6 text-6xl sm:text-7xl"
               style={{ animationDelay: '0ms' }}
             />

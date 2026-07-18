@@ -51,7 +51,7 @@ export function Footer({ variant = 'full' }) {
         {/* ── Middle: three columns ────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-8 pt-10 sm:grid-cols-3">
           <div>
-            <Wordmark className="text-2xl" />
+            <Wordmark tm className="text-2xl" />
             <p className="mt-3 text-xs leading-relaxed text-stone-600">
               A free, life-critical platform connecting voluntary blood donors,
               hospitals, blood banks and camp organisers across India. An initiative

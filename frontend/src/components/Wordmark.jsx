@@ -1,45 +1,67 @@
-// Raktify wordmark.
+// Raktify wordmark — the finalized vector artwork.
 //
-// Two-tone, teaching the bilingual root: "Rakt" (रक्त = blood) in brand red,
-// "ify" in warm near-black. The tittle of the lowercase i is a blood droplet —
-// the dotless ı (U+0131) carries the stem so the droplet is the only dot.
+// Source of truth: docs/trademark/raktify-wordmark-color.svg (the signed-off mark).
+// "Rakt" in brand red (#b8231a) · a dotless-ı whose tittle is a red blood droplet
+// (#dc2f1d) · "fy" in warm near-black (#1c1917). We render the exact vector rather
+// than re-creating it from text, so the droplet gap can never drift with the
+// rendering font (a text approximation did — see the design-system lock).
 //
-// Everything scales with the inherited font-size (the droplet is sized in em),
-// so the same component works from a 14px footer credit to a 96px hero. Style
-// it via `className` — pass font-size, and optionally override weight/tracking.
+// It scales with the inherited font-size (height is set in `em`), so one component
+// works from a 13px credit to a 96px hero. Size it via `className` (font-size):
 //
-//   <Wordmark className="text-2xl" />            — nav
-//   <Wordmark className="text-7xl sm:text-8xl" /> — hero
+//   <Wordmark className="text-2xl" />        — nav / portal chrome (clean)
+//   <Wordmark className="text-7xl" tm />      — hero / public / marketing (adds ™)
 //
-// `title` keeps it accessible (the ı + svg would otherwise read oddly to SR).
+// `tm` adds the ink-black ™ (superscript, top-right). Use it ONLY on public +
+// marketing surfaces and the landing hero — never inside authenticated portal
+// chrome (keeps it uncluttered). The mark is filed but PENDING, so it is ™, never
+// ® (docs/trademark + design-system lock).
 
-export function Wordmark({ className = '', style, title = 'Raktify' }) {
+// Outlined glyph paths, lifted verbatim from the finalized SVG.
+const RAKT =
+  'M113.247 420L60.513 420L60.513 201.818L150.641 201.818Q175.143 201.818 192.988 210.607Q210.832 219.396 220.527 235.749Q230.222 252.102 230.222 274.474Q230.222 297.166 220.314 312.987Q210.406 328.807 192.189 337.063Q173.972 345.320 149.043 345.320L92.047 345.320L92.047 303.771L139.241 303.771Q151.173 303.771 159.217 300.629Q167.260 297.486 171.415 291.040Q175.570 284.595 175.570 274.474Q175.570 264.354 171.415 257.695Q167.260 251.037 159.163 247.681Q151.067 244.325 139.241 244.325L113.247 244.325L113.247 420M126.884 320.284L183.347 320.284L237.679 420L180.151 420L126.884 320.284M305.222 422.770Q289.561 422.770 277.469 417.496Q265.378 412.223 258.400 401.516Q251.422 390.810 251.422 374.616Q251.422 360.980 256.216 351.605Q261.010 342.230 269.426 336.371Q277.842 330.511 288.815 327.475Q299.788 324.439 312.253 323.374Q326.209 322.095 334.732 320.657Q343.254 319.219 347.143 316.502Q351.031 313.786 351.031 308.778L351.031 308.246Q351.031 300.043 345.385 295.568Q339.739 291.094 330.151 291.094Q319.817 291.094 313.531 295.568Q307.246 300.043 305.541 307.926L257.494 306.222Q259.625 291.307 268.521 279.535Q277.416 267.763 293.023 260.998Q308.631 254.233 330.577 254.233Q346.237 254.233 359.447 257.908Q372.658 261.584 382.459 268.562Q392.260 275.540 397.640 285.661Q403.020 295.781 403.020 308.778L403.020 420L354.014 420L354.014 397.202L352.736 397.202Q348.368 405.511 341.603 411.264Q334.838 417.017 325.729 419.893Q316.621 422.770 305.222 422.770M321.308 388.679Q329.724 388.679 336.489 385.270Q343.254 381.861 347.303 375.842Q351.351 369.822 351.351 361.832L351.351 346.278Q349.114 347.450 345.971 348.409Q342.828 349.368 339.099 350.220Q335.371 351.072 331.429 351.712Q327.487 352.351 323.865 352.884Q316.514 354.055 311.347 356.506Q306.180 358.956 303.464 362.844Q300.747 366.733 300.747 372.060Q300.747 380.156 306.553 384.418Q312.359 388.679 321.308 388.679M512.111 340.313L481.749 377.067L481.962 314.957L489.206 314.957L535.229 256.364L594.249 256.364L525.854 340.313L512.111 340.313M486.862 420L434.767 420L434.767 201.818L486.862 201.818L486.862 420M596.592 420L536.401 420L493.574 352.031L527.878 315.064L596.592 420M602.132 256.364L705.364 256.364L705.364 294.716L602.132 294.716L602.132 256.364M623.759 374.297L623.759 217.159L675.854 217.159L675.854 368.544Q675.854 373.338 677.398 376.268Q678.943 379.197 681.926 380.423Q684.909 381.648 689.064 381.648Q692.047 381.648 695.403 381.062Q698.759 380.476 700.463 380.050L708.347 417.656Q704.618 418.722 697.853 420.320Q691.088 421.918 681.713 422.344Q663.389 423.196 650.339 418.029Q637.288 412.862 630.417 401.889Q623.545 390.916 623.759 374.297';
+const I_STEM = 'M780.092 420L727.997 420L727.997 256.364L780.092 256.364';
+const FY =
+  'M796.866 256.364L902.122 256.364L902.122 294.716L796.866 294.716L796.866 256.364M870.908 420L818.813 420L818.813 248.054Q818.813 229.091 825.950 216.573Q833.088 204.055 845.766 197.823Q858.443 191.591 875.063 191.591Q885.929 191.591 895.570 193.242Q905.212 194.893 909.899 196.172L901.589 234.311Q898.713 233.352 894.612 232.713Q890.510 232.074 886.888 232.074Q877.726 232.074 874.317 236.122Q870.908 240.170 870.908 247.202L870.908 420M959.118 481.364Q949.743 481.364 941.433 479.925Q933.124 478.487 927.158 476.143L938.663 438.324Q946.334 440.881 952.566 441.307Q958.798 441.733 963.326 439.336Q967.854 436.939 970.304 430.866L972.328 425.966L914.161 256.364L968.706 256.364L998.855 373.125L1000.560 373.125L1031.135 256.364L1086 256.364L1024.317 435.661Q1019.842 449.084 1011.692 459.364Q1003.543 469.645 990.705 475.504Q977.868 481.364 959.118 481.364';
+const DROPLET = 'M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z';
+
+export function Wordmark({ className = '', style, title = 'Raktify', tm = false }) {
+  // viewBox cropped tight to the ink (the finalized file carries generous padding) so the
+  // lockup sits like the old text wordmark; widen the right edge for the ™ so it isn't clipped.
+  const vbWidth = tm ? 1185 : 1033;
+  const vbHeight = 378;
+  const heightEm = 1.25; // cap-height lands ≈ 0.72em, matching the old Inter text wordmark
   return (
-    <span
-      className={`font-display font-extrabold leading-none tracking-tight ${className}`}
-      style={style}
+    <svg
+      className={className}
+      style={{
+        height: `${heightEm}em`,
+        width: `${(heightEm * vbWidth) / vbHeight}em`,
+        verticalAlign: '-0.22em',
+        ...style,
+      }}
+      viewBox={`57 107 ${vbWidth} ${vbHeight}`}
       role="img"
       aria-label={title}
     >
-      <span aria-hidden="true" className="text-rk-700">
-        Rakt
-      </span>
-      <span aria-hidden="true" className="relative inline-block">
-        {/* dotless i — the stem only; the droplet below is the tittle */}
-        <span className="text-stone-900">ı</span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-          className="absolute left-1/2 -translate-x-1/2 text-rk-600"
-          style={{ width: '0.46em', height: '0.46em', top: '-0.32em' }}
+      <path d={RAKT} fill="#b8231a" />
+      <path d={I_STEM} fill="#1c1917" />
+      <path d={FY} fill="#1c1917" />
+      <g transform="translate(676.04 94.36) scale(6.5)">
+        <path d={DROPLET} fill="#dc2f1d" />
+      </g>
+      {tm ? (
+        <text
+          x="1089"
+          y="246"
+          fontFamily="Inter, system-ui, sans-serif"
+          fontWeight="700"
+          fontSize="135"
+          fill="#1c1917"
         >
-          <path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" />
-        </svg>
-      </span>
-      <span aria-hidden="true" className="text-stone-900">
-        fy
-      </span>
-    </span>
+          ™
+        </text>
+      ) : null}
+    </svg>
   );
 }
