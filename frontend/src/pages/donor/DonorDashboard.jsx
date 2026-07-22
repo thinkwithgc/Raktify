@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
@@ -89,6 +90,14 @@ export function DonorDashboard() {
       <Header subtitle={donor?.full_name || ''} />
       <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6">
         <RoleSwitcher from="donor" />
+        <Link
+          to="/donor/raise"
+          className="flex items-center justify-between rounded-lg border border-rk-200 bg-rk-50 p-3 text-sm hover:bg-rk-100"
+        >
+          <span className="font-semibold text-rk-800">
+            Need blood for a patient? Raise a request →
+          </span>
+        </Link>
         {outboxPending > 0 ? (
           <div className="flex items-center justify-between rounded-md bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
             <span>

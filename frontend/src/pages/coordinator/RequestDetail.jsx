@@ -88,6 +88,19 @@ export function RequestDetail() {
     },
   });
 
+  // Custody chain: coordinator confirms receipt on the requestor's behalf
+  // (after verifying by phone), and can mark transfused on behalf of a
+  // non-onboarded requestor who has no hospital login.
+  const confirmReceived = useMutation({
+    mutationFn: () =>
+      apiRequest('POST', `/coordinator/requests/${id}/confirm-received`, { verified_with: 'PR' }),
+    onSuccess: refresh,
+  });
+  const confirmTransfused = useMutation({
+    mutationFn: () => apiRequest('POST', `/coordinator/requests/${id}/confirm-transfused`, {}),
+    onSuccess: refresh,
+  });
+
   const isLoading = requestQuery.isLoading;
   const apiError = requestQuery.error?.response?.data?.error;
 
@@ -130,6 +143,18 @@ export function RequestDetail() {
                 verify.error?.response?.data?.error ||
                 rematch.error?.response?.data?.error ||
                 closeReq.error?.response?.data?.error ||
+                null
+              }
+            />
+
+            <CustodyActions
+              r={r}
+              onReceived={() => confirmReceived.mutate()}
+              onTransfused={() => confirmTransfused.mutate()}
+              busy={confirmReceived.isPending || confirmTransfused.isPending}
+              lastError={
+                confirmReceived.error?.response?.data?.error ||
+                confirmTransfused.error?.response?.data?.error ||
                 null
               }
             />
@@ -199,6 +224,57 @@ function Row({ label, value }) {
       <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
       <dd className="text-sm text-slate-900">{value}</dd>
     </>
+  );
+}
+
+// Custody-chain actions for the coordinator: confirm receipt on the requestor's
+// behalf (after verifying by phone), and — for non-onboarded requestors — mark
+// transfused on their behalf. Only shown when there are bags at the relevant
+// stage, so it stays out of the way until the BB has issued.
+function CustodyActions({ r, onReceived, onTransfused, busy, lastError }) {
+  const issued = r.units_issued || 0;
+  const received = r.units_received || 0;
+  const transfused = r.units_transfused || 0;
+  if (issued === 0 && received === 0 && transfused === 0) return null;
+
+  return (
+    <section className="rk-card">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Custody &amp; receipt
+      </h2>
+      <p className="text-xs text-slate-500">
+        {issued} in transit · {received} received · {transfused} transfused
+      </p>
+      {lastError ? <p className="mt-2 text-sm text-rk-700">{lastError}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {issued > 0 ? (
+          <button
+            type="button"
+            onClick={onReceived}
+            disabled={busy}
+            className="rk-button-primary"
+            title="Confirm with the patient's relative, the hospital, or the community leader that the units arrived"
+          >
+            {busy ? '…' : `Confirm ${issued} unit${issued !== 1 ? 's' : ''} received`}
+          </button>
+        ) : null}
+        {issued + received > 0 ? (
+          <button
+            type="button"
+            onClick={onTransfused}
+            disabled={busy}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            title="Only for requestors with no hospital login (guest / community / citizen)"
+          >
+            Mark transfused (on behalf)
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-2 text-xs text-slate-400">
+        Confirm receipt only after verifying by phone. Transfused-on-behalf is for requestors with
+        no hospital login.
+      </p>
+    </section>
   );
 }
 

@@ -7,6 +7,7 @@ import { Footer } from '../../components/Footer.jsx';
 import { RoleSwitcher } from '../../components/RoleSwitcher.jsx';
 import { apiRequest } from '../../lib/api.js';
 import { CommunityLeaderHelpDrawer } from '../help/CommunityLeaderHelpDrawer.jsx';
+import { LeaderMobilise } from './LeaderMobilise.jsx';
 
 /**
  * Community-leader dashboard (Phase 1 — placeholder).
@@ -90,6 +91,8 @@ export function CommunityLeaderDashboard() {
               <StatCard label="Donations facilitated" value={profile.donations_facilitated} />
               <StatCard label="Camps hosted" value={profile.camps_hosted} />
             </section>
+
+            {profile.suspended_at ? null : <LeaderMobilise communities={communities} />}
 
             <section className="rk-card">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">

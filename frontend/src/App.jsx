@@ -4,6 +4,7 @@ import { Landing } from './pages/Landing.jsx';
 import { DonorLogin } from './pages/donor/DonorLogin.jsx';
 import { DonorRegister } from './pages/donor/DonorRegister.jsx';
 import { DonorDashboard } from './pages/donor/DonorDashboard.jsx';
+import { DonorRaiseRequest } from './pages/donor/DonorRaiseRequest.jsx';
 import { StaffLogin } from './pages/staff/StaffLogin.jsx';
 import { StaffSetup2FA } from './pages/staff/StaffSetup2FA.jsx';
 import { CoordinatorPortal } from './pages/coordinator/CoordinatorPortal.jsx';
@@ -27,6 +28,7 @@ import { CommunityDetail } from './pages/communityLeader/CommunityDetail.jsx';
 import { PublicCommunity } from './pages/community/PublicCommunity.jsx';
 import { DonorAlertResponse } from './pages/donor/DonorAlertResponse.jsx';
 import { CommunityLeaderHelpPage } from './pages/help/CommunityLeaderHelpPage.jsx';
+import { CaseDetailPage } from './components/CaseDetailPage.jsx';
 import { RequireAuth } from './auth/RequireAuth.jsx';
 import { useAuth } from './auth/AuthContext.jsx';
 
@@ -76,6 +78,14 @@ export default function App() {
         }
       />
       <Route
+        path="/donor/raise"
+        element={
+          <RequireAuth roles={['donor']}>
+            <DonorRaiseRequest />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/coordinator"
         element={
           <RequireAuth roles={['coordinator', 'ngo_admin', 'super_admin']}>
@@ -100,10 +110,26 @@ export default function App() {
         }
       />
       <Route
+        path="/hospital/requests/:id"
+        element={
+          <RequireAuth roles={['hospital']}>
+            <CaseDetailPage backTo="/hospital" backLabel="Back to my requests" subtitle="Request" />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/bb"
         element={
           <RequireAuth roles={['blood_bank', 'ngo_admin', 'super_admin']}>
             <BloodBankPortal />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/bb/requests/:id"
+        element={
+          <RequireAuth roles={['blood_bank', 'ngo_admin', 'super_admin']}>
+            <CaseDetailPage backTo="/bb" backLabel="Back to blood bank" subtitle="Request" />
           </RequireAuth>
         }
       />
@@ -136,6 +162,18 @@ export default function App() {
         element={
           <RequireAuth roles={['community_leader']}>
             <CommunityLeaderDashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/community-leader/requests/:id"
+        element={
+          <RequireAuth roles={['community_leader']}>
+            <CaseDetailPage
+              backTo="/community-leader"
+              backLabel="Back to my communities"
+              subtitle="Request"
+            />
           </RequireAuth>
         }
       />

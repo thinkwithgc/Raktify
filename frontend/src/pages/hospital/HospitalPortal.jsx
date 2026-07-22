@@ -1,18 +1,30 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
 import { HospitalActiveRequests } from './HospitalActiveRequests.jsx';
+import { HospitalAwaitingConfirmation } from './HospitalAwaitingConfirmation.jsx';
 import { HospitalDashboard } from './HospitalDashboard.jsx';
 import { HospitalRaiseRequest } from './HospitalRaiseRequest.jsx';
+import { apiRequest } from '../../lib/api.js';
 import { useT } from '../../i18n/useT.js';
 
 export function HospitalPortal() {
   const { t } = useT();
   const [tab, setTab] = useState('dashboard');
+  // Badge the "Confirm" tab so a hospital notices a citizen-raised request even
+  // if they're on another tab (in-app notification, not a WhatsApp nudge).
+  const awaitingQ = useQuery({
+    queryKey: ['hospital', 'awaiting-confirmation'],
+    queryFn: () => apiRequest('GET', '/requests/awaiting-confirmation'),
+    refetchInterval: 30_000,
+  });
+  const awaitingCount = awaitingQ.data?.count || 0;
   const TABS = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'mine', label: t('my_requests') },
+    { id: 'confirm', label: 'Confirm', badge: awaitingCount },
     { id: 'raise', label: t('raise_new') },
   ];
 
@@ -36,12 +48,18 @@ export function HospitalPortal() {
               }
             >
               {tt.label}
+              {tt.badge ? (
+                <span className="ml-1.5 rounded-full bg-rk-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {tt.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </nav>
 
         {tab === 'dashboard' ? <HospitalDashboard onRaise={() => setTab('raise')} /> : null}
         {tab === 'mine' ? <HospitalActiveRequests /> : null}
+        {tab === 'confirm' ? <HospitalAwaitingConfirmation /> : null}
         {tab === 'raise' ? <HospitalRaiseRequest /> : null}
       </main>
       <Footer variant="compact" />

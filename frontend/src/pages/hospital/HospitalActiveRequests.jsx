@@ -1,7 +1,10 @@
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiRequest } from '../../lib/api.js';
+import { errorMessage } from '../../lib/errorMessage.js';
 import { useT } from '../../i18n/useT.js';
+import { useUnreadThreads } from '../../lib/useUnreadThreads.js';
 
 const URGENCY = {
   CR: { label: 'Critical', cls: 'bg-rk-700 text-white' },
@@ -37,6 +40,7 @@ function fmtTime(iso, lang) {
 export function HospitalActiveRequests() {
   const { lang } = useT();
   const qc = useQueryClient();
+  const { unreadByRequest } = useUnreadThreads();
 
   const listQ = useQuery({
     queryKey: ['hospital', 'requests'],
@@ -63,7 +67,7 @@ export function HospitalActiveRequests() {
 
       {listQ.error ? (
         <div className="rk-card text-rk-700">
-          {listQ.error?.response?.data?.error || 'load_failed'}
+          {errorMessage(listQ.error, 'load your requests')}
         </div>
       ) : null}
 
@@ -127,7 +131,7 @@ export function HospitalActiveRequests() {
                   </button>
                   {confirm.error ? (
                     <p className="mt-1 text-xs text-rk-700">
-                      {confirm.error?.response?.data?.error}
+                      {errorMessage(confirm.error, 'confirm the crossmatch')}
                     </p>
                   ) : null}
                 </div>
@@ -136,6 +140,20 @@ export function HospitalActiveRequests() {
                   ✓ Crossmatch confirmed at {fmtTime(r.crossmatch_confirmed_at, lang)}
                 </div>
               ) : null}
+
+              <div className="flex items-center gap-2 border-t border-slate-100 pt-2">
+                <Link
+                  to={`/hospital/requests/${r.id}`}
+                  className="text-sm font-medium text-rk-700 hover:underline"
+                >
+                  Open case chat →
+                </Link>
+                {unreadByRequest[r.id] ? (
+                  <span className="rounded-full bg-rk-700 px-2 py-0.5 text-xs font-bold text-white">
+                    {unreadByRequest[r.id]} new
+                  </span>
+                ) : null}
+              </div>
             </li>
           );
         })}

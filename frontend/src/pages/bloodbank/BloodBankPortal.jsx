@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Header } from '../../components/Header.jsx';
 import { Footer } from '../../components/Footer.jsx';
 import { apiRequest } from '../../lib/api.js';
+import { errorMessage } from '../../lib/errorMessage.js';
 import { donationSchema, openingStockSchema, zodFlatten } from '../../lib/schemas.js';
 import { useT } from '../../i18n/useT.js';
 import { DonorBulkUpload, ActivateImportButton } from '../../components/donors/DonorBulkUpload.jsx';
@@ -16,6 +18,7 @@ function tabsFor(t) {
   return [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'incoming', label: 'Open requests' },
+    { id: 'committed', label: 'My commitments' },
     { id: 'donors_in', label: 'Incoming donors' },
     { id: 'inventory', label: t('inventory') },
     { id: 'record', label: t('record_donation') },
@@ -54,6 +57,7 @@ export function BloodBankPortal() {
 
         {tab === 'dashboard' ? <BBDashboard /> : null}
         {tab === 'incoming' ? <OpenRequestsPanel /> : null}
+        {tab === 'committed' ? <MyCommitmentsPanel /> : null}
         {tab === 'donors_in' ? <IncomingDonorsPanel /> : null}
         {tab === 'inventory' ? <InventoryView /> : null}
         {tab === 'record' ? <RecordDonation /> : null}
@@ -105,7 +109,7 @@ function BBDashboard() {
   if (q.error)
     return (
       <div className="rk-card text-rk-700">
-        {q.error?.response?.data?.error || 'load_failed'}
+        {errorMessage(q.error, 'load this page')}
       </div>
     );
 
@@ -118,8 +122,13 @@ function BBDashboard() {
   return (
     <section className="space-y-4">
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiCard label="Available units" value={k.available_units ?? 0} tone="text-green-700" />
+        <KpiCard
+          label="Expired — dispose"
+          value={k.expired_units ?? 0}
+          tone={k.expired_units ? 'text-rk-700' : 'text-slate-900'}
+        />
         <KpiCard
           label="Expiring <48h"
           value={k.expiring_48h ?? 0}
@@ -255,6 +264,13 @@ function fmtAge(mins) {
   const m = Math.floor(mins);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
+  // Past a day, keep reading in days — "960h 33m ago" is unreadable at a glance,
+  // and this sits next to a Critical badge where age drives triage.
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const remH = h % 24;
+    return remH === 0 ? `${d}d ago` : `${d}d ${remH}h ago`;
+  }
   const rem = m % 60;
   return rem === 0 ? `${h}h ago` : `${h}h ${rem}m ago`;
 }
@@ -271,7 +287,7 @@ function OpenRequestsPanel() {
   if (q.error)
     return (
       <div className="rk-card text-rk-700">
-        {q.error?.response?.data?.error || 'load_failed'}
+        {errorMessage(q.error, 'load this page')}
       </div>
     );
 
@@ -406,6 +422,17 @@ function OpenRequestCard({ r }) {
             {iOfferedAny ? 'Your offer already recorded' : 'No further units to offer'}
           </span>
         )}
+        {/* A BB only becomes a party to the case once it has committed stock
+            (offering sets matched_blood_bank_id), which is also what the
+            backend thread guard checks — so only surface chat after an offer. */}
+        {iOfferedAny ? (
+          <Link
+            to={`/bb/requests/${r.id}`}
+            className="text-xs font-semibold text-rk-700 hover:underline"
+          >
+            Open case chat →
+          </Link>
+        ) : null}
       </div>
 
       {modalOpen ? (
@@ -444,7 +471,7 @@ function DeclineModal({ r, onClose, onDone }) {
     mutationFn: (body) =>
       apiRequest('POST', `/inventory/open-requests/${r.id}/decline`, body),
     onSuccess: onDone,
-    onError: (e) => setErr(e?.response?.data?.error || 'decline_failed'),
+    onError: (e) => setErr(errorMessage(e, 'record that you cannot fulfil this')),
   });
 
   const REASONS = [
@@ -559,7 +586,7 @@ function OfferModal({ r, onClose, onDone }) {
     mutationFn: (body) =>
       apiRequest('POST', `/inventory/open-requests/${r.id}/offer`, body),
     onSuccess: onDone,
-    onError: (e) => setErr(e?.response?.data?.error || 'offer_failed'),
+    onError: (e) => setErr(errorMessage(e, 'record this offer')),
   });
 
   const submit = () => {
@@ -670,6 +697,172 @@ function OfferModal({ r, onClose, onDone }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// My commitments — cases this BB has committed bags to.
+//
+// "Open requests" drops a case the moment it is fully committed, so without
+// this tab the BB loses the case it just accepted, and with it the only route
+// into the case chat. Shows what was promised, what is still reserved vs
+// transfused, and any replacement obligation still running.
+// ────────────────────────────────────────────────────────────────────────────
+const REQ_STATUS = {
+  OP: { label: 'Open', cls: 'bg-amber-100 text-amber-800' },
+  MT: { label: 'Matched', cls: 'bg-blue-100 text-blue-800' },
+  AS: { label: 'Assigned', cls: 'bg-blue-100 text-blue-800' },
+  PF: { label: 'Partly filled', cls: 'bg-amber-100 text-amber-800' },
+  FU: { label: 'Fulfilled', cls: 'bg-green-100 text-green-800' },
+  CL: { label: 'Closed', cls: 'bg-slate-200 text-slate-700' },
+  CA: { label: 'Cancelled', cls: 'bg-slate-200 text-slate-600' },
+};
+
+function MyCommitmentsPanel() {
+  const q = useQuery({
+    queryKey: ['bb', 'my-commitments'],
+    queryFn: () => apiRequest('GET', '/inventory/my-commitments'),
+    refetchInterval: 20_000,
+  });
+
+  if (q.isLoading) return <div className="rk-card text-center text-slate-500">…</div>;
+  if (q.error)
+    return <div className="rk-card text-rk-700">{errorMessage(q.error, 'load your commitments')}</div>;
+
+  const rows = q.data?.commitments || [];
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Cases you have committed units to
+        </h2>
+        <span className="text-xs text-slate-400">Auto-refresh every 20s</span>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="rk-card py-6 text-center text-sm text-slate-500">
+          You haven&apos;t committed units to any case yet. Offer units from{' '}
+          <span className="font-medium">Open requests</span> and the case will appear here.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {rows.map((r) => (
+            <CommitmentCard key={r.id} r={r} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// One dot per custody stage, so a BB can see at a glance where its units are.
+function ChainPips({ r }) {
+  const stages = [
+    { n: r.units_reserved, label: 'reserved', cls: 'bg-slate-400' },
+    { n: r.units_issued, label: 'issued', cls: 'bg-blue-500' },
+    { n: r.units_received, label: 'received', cls: 'bg-indigo-500' },
+    { n: r.units_transfused, label: 'transfused', cls: 'bg-green-600' },
+  ].filter((s) => s.n > 0);
+  if (stages.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+      {stages.map((s) => (
+        <span key={s.label} className="inline-flex items-center gap-1">
+          <span className={`inline-block h-2 w-2 rounded-full ${s.cls}`} />
+          {s.n} {s.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CommitmentCard({ r }) {
+  const qc = useQueryClient();
+  const [err, setErr] = useState(null);
+  const st = REQ_STATUS[r.status] || { label: r.status, cls: 'bg-slate-100 text-slate-700' };
+  const u = URG[r.urgency_tier] || URG.PL;
+  const owesReplacement =
+    r.replacement_units_target != null && r.replacement_units_fulfilled < r.replacement_units_target;
+
+  const issue = useMutation({
+    mutationFn: () => apiRequest('POST', `/inventory/requests/${r.id}/issue`, {}),
+    onSuccess: () => {
+      setErr(null);
+      qc.invalidateQueries({ queryKey: ['bb', 'my-commitments'] });
+      qc.invalidateQueries({ queryKey: ['bb', 'open-requests'] });
+    },
+    onError: (e) => setErr(errorMessage(e, 'issue these units')),
+  });
+
+  return (
+    <li className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${u.cls}`}>{u.label}</span>
+        <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${st.cls}`}>{st.label}</span>
+        <span className="font-mono text-[11px] text-slate-500">{r.request_number}</span>
+        <span className="ml-auto text-xs text-slate-500">{fmtAge(r.mins_since_raised)}</span>
+      </div>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        <div>
+          <div className="text-xs uppercase text-slate-500">Requesting</div>
+          <div className="text-sm font-semibold text-slate-900">{r.hospital_name}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-slate-500">Required</div>
+          <div className="text-sm font-semibold text-slate-900">
+            {r.blood_group} · {r.component}
+          </div>
+          <div className="text-xs text-slate-500">
+            {r.units_committed_total} of {r.units_required} committed in total
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-slate-500">Your {r.units_i_committed} unit
+            {r.units_i_committed !== 1 ? 's' : ''}</div>
+          <ChainPips r={r} />
+        </div>
+      </div>
+
+      {owesReplacement ? (
+        <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+          Replacement donors: {r.replacement_units_fulfilled} of {r.replacement_units_target} by{' '}
+          {new Date(r.replacement_deadline).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+          })}
+        </p>
+      ) : null}
+
+      {err ? <p className="mt-2 text-xs text-rk-700">{err}</p> : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-2">
+        {r.units_reserved > 0 ? (
+          <button
+            type="button"
+            onClick={() => issue.mutate()}
+            disabled={issue.isPending}
+            className="rounded bg-rk-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rk-800 disabled:opacity-50"
+          >
+            {issue.isPending
+              ? 'Issuing…'
+              : `Mark ${r.units_reserved} unit${r.units_reserved !== 1 ? 's' : ''} issued →`}
+          </button>
+        ) : null}
+        <Link
+          to={`/bb/requests/${r.id}`}
+          className="text-xs font-semibold text-rk-700 hover:underline"
+        >
+          Open case chat →
+        </Link>
+        {r.closed_at ? (
+          <span className="text-xs text-slate-400">
+            Closed {new Date(r.closed_at).toLocaleDateString('en-IN')}
+          </span>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Incoming donors — V2 donor-BB routing (spec §5).
 // Donors who accepted alerts and chose THIS BB show up here so staff can
 // plan intake. Actions: Arrived → No-show → Deferred at intake.
@@ -686,7 +879,7 @@ function IncomingDonorsPanel() {
   if (q.error)
     return (
       <div className="rk-card text-rk-700">
-        {q.error?.response?.data?.error || 'load_failed'}
+        {errorMessage(q.error, 'load this page')}
       </div>
     );
 
@@ -837,7 +1030,7 @@ function DeferModal({ choiceId, onClose, onDone }) {
     mutationFn: (body) =>
       apiRequest('POST', `/inventory/incoming-donors/${choiceId}/deferred`, body),
     onSuccess: onDone,
-    onError: (e) => setErr(e?.response?.data?.error || 'defer_failed'),
+    onError: (e) => setErr(errorMessage(e, 'defer this donor')),
   });
   return (
     <div
@@ -1029,7 +1222,7 @@ function RecordDonation() {
     },
     onError: (err) => {
       setDonorPreview(null);
-      setLookupError(err?.response?.data?.error || 'lookup_failed');
+      setLookupError(errorMessage(err, 'look up this donor'));
     },
   });
 
@@ -1452,7 +1645,7 @@ function ScreeningEntry() {
       ) : null}
       {detailQ.error ? (
         <div className="rk-card text-rk-700">
-          {detailQ.error?.response?.data?.error || 'load_failed'}
+          {errorMessage(detailQ.error, 'load this donation')}
         </div>
       ) : null}
 
@@ -1821,7 +2014,7 @@ function OpeningStock() {
 
         {submit.error ? (
           <p className="text-sm text-rk-700">
-            {submit.error?.response?.data?.error || 'submit_failed'}
+            {errorMessage(submit.error, 'save this')}
           </p>
         ) : null}
       </div>

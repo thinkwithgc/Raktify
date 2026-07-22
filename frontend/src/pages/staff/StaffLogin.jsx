@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { Header } from '../../components/Header.jsx';
 import { apiRequest } from '../../lib/api.js';
+import { errorMessage } from '../../lib/errorMessage.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useT } from '../../i18n/useT.js';
 
@@ -40,7 +41,9 @@ export function StaffLogin() {
     };
     const parsed = loginSchema.safeParse(payload);
     if (!parsed.success) {
-      setError('invalid_input');
+      setError(
+        'Enter both your username and password. Usernames are all lowercase, for example “irwin-hospital_admin”.',
+      );
       return;
     }
     setPending(true);
@@ -67,13 +70,8 @@ export function StaffLogin() {
                   : '/';
       navigate(dest, { replace: true });
     } catch (err) {
-      const code = err?.response?.data?.error;
-      if (code === 'totp_required') {
-        setNeedTotp(true);
-        setError('totp_required');
-      } else {
-        setError(code || 'login_failed');
-      }
+      if (err?.response?.data?.error === 'totp_required') setNeedTotp(true);
+      setError(errorMessage(err, 'sign in'));
     } finally {
       setPending(false);
     }

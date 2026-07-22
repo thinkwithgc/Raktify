@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => {
         '/inventory': apiTarget,
         '/requests': apiTarget,
         '/coordinator': apiTarget,
+        '/community-leader': apiTarget,
+        '/dho': apiTarget,
         '/lookback': apiTarget,
         '/institutions': apiTarget,
         '/onboarding': apiTarget,
