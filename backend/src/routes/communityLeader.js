@@ -422,12 +422,12 @@ router.get(
       const donors = await c.query(
         `SELECT d.id,
                 d.full_name AS display_name,
-                bg_v.display_name AS blood_group_verified,
-                bg_s.display_name AS blood_group_self,
+                bg_v.code AS blood_group_verified,
+                bg_s.code AS blood_group_self,
                 d.total_donations,
                 d.is_available,
                 d.created_at,
-                (SELECT MAX(dh.donation_date)
+                (SELECT MAX(dh.collection_date)
                    FROM donation_history dh
                   WHERE dh.donor_id = d.id) AS last_donation_date
            FROM donors d
@@ -693,6 +693,200 @@ publicRouter.get('/:slug', async (req, res) => {
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'not_found' });
   res.json({ community: r.rows[0] });
+});
+
+// ── GET /community-leader/served-districts ───────────────────────────────
+// The districts this leader helps serve: their home district (always) plus any
+// they've opted into. Multi-district opt-in so a leader isn't boxed into one
+// area when they can mobilise donors more widely.
+router.get('/served-districts', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'not_found' });
+  const rows = await withRlsContext(req, (c) =>
+    c.query(
+      `SELECT d.id, d.name, TRUE AS is_home
+         FROM community_leaders cl JOIN districts d ON d.id = cl.district_id
+        WHERE cl.id = $1 AND cl.district_id IS NOT NULL
+        UNION
+       SELECT d.id, d.name, FALSE AS is_home
+         FROM community_leader_served_districts s JOIN districts d ON d.id = s.district_id
+        WHERE s.community_leader_id = $1
+          AND s.district_id <> COALESCE(
+                (SELECT district_id FROM community_leaders WHERE id = $1), -1)
+     ORDER BY is_home DESC, name`,
+      [leaderId],
+    ),
+  );
+  res.json({ districts: rows.rows });
+});
+
+const servedDistrictSchema = z.object({ district_id: z.number().int().positive() });
+
+// ── POST /community-leader/served-districts ──────────────────────────────
+router.post('/served-districts', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const parsed = servedDistrictSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'not_found' });
+  await withRlsContext(
+    req,
+    (c) =>
+      c.query(
+        `INSERT INTO community_leader_served_districts (community_leader_id, district_id)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [leaderId, parsed.data.district_id],
+      ),
+    { change_reason: 'community_leader opts into district' },
+  );
+  res.json({ ok: true });
+});
+
+// ── DELETE /community-leader/served-districts/:districtId ─────────────────
+// Removes an opt-in. The home district isn't in this table, so it can't be
+// removed here (a leader always serves home).
+router.delete(
+  '/served-districts/:districtId',
+  verifyJWT,
+  requireRole('community_leader'),
+  async (req, res) => {
+    const leaderId = await resolveLeaderId(req.user.userId);
+    if (!leaderId) return res.status(404).json({ error: 'not_found' });
+    await withRlsContext(
+      req,
+      (c) =>
+        c.query(
+          `DELETE FROM community_leader_served_districts
+            WHERE community_leader_id = $1 AND district_id = $2`,
+          [leaderId, Number(req.params.districtId)],
+        ),
+      { change_reason: 'community_leader opts out of district' },
+    );
+    res.json({ ok: true });
+  },
+);
+
+// ── GET /community-leader/open-requests ──────────────────────────────────
+// Requests in the leader's served district(s) that the blood-bank path could
+// NOT fill and are now seeking donors: active, still short, donor-activation on,
+// and past the BB-exclusive window (a fired/elapsed pending_donor_alerts row).
+// This is the mobilise-only surface — NO patient PII (leaders never get it), no
+// hospital name; district-level only. Unadopted requests plus any this leader's
+// communities have already adopted (so they keep the case-chat link).
+router.get('/open-requests', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'not_found' });
+  const rows = await withRlsContext(req, (c) =>
+    c.query(
+      `WITH served AS (
+           SELECT district_id FROM community_leaders WHERE id = $1 AND district_id IS NOT NULL
+           UNION
+           SELECT district_id FROM community_leader_served_districts WHERE community_leader_id = $1
+         ),
+         my_communities AS (
+           SELECT id FROM communities WHERE owner_community_leader_id = $1
+           UNION
+           SELECT community_id FROM community_moderators WHERE community_leader_id = $1
+         )
+       SELECT br.id, br.request_number, br.urgency_tier,
+              bg.code AS blood_group, bc.code AS component,
+              br.units_required, br.needed_by, br.raised_at,
+              d.name AS district_name,
+              br.attributed_community_id,
+              COALESCE(br.attributed_community_id IN (SELECT id FROM my_communities), FALSE) AS adopted_by_me,
+              GREATEST(br.units_required - COALESCE(cm.n, 0), 0)::int AS units_short
+         FROM blood_requests br
+         JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+         JOIN blood_components bc ON bc.id = br.component_id
+    LEFT JOIN districts d ON d.id = br.requesting_hospital_district_id
+    LEFT JOIN LATERAL (
+              SELECT COUNT(*)::int AS n FROM blood_inventory bi
+               WHERE COALESCE(bi.reserved_for_request_id, bi.fulfilled_request_id) = br.id
+                 AND bi.status IN ('RE','IS','RV','TR')
+            ) cm ON TRUE
+        WHERE br.requesting_hospital_district_id IN (SELECT district_id FROM served)
+          AND br.status IN ('OP','MT','AS','PF')
+          AND br.donor_activation_required = TRUE
+          AND br.units_required > COALESCE(cm.n, 0)
+          AND EXISTS (
+                SELECT 1 FROM pending_donor_alerts pda
+                 WHERE pda.request_id = br.id
+                   AND pda.scheduled_fire_at <= NOW()
+                   AND pda.held_at IS NULL)
+          AND (br.attributed_community_id IS NULL
+               OR br.attributed_community_id IN (SELECT id FROM my_communities))
+     ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+              br.raised_at ASC
+        LIMIT 50`,
+      [leaderId],
+    ),
+  );
+  res.json({ requests: rows.rows, count: rows.rows.length });
+});
+
+// ── POST /community-leader/requests/:id/adopt ────────────────────────────
+// The leader picks up a district request for one of their communities. Sets
+// attributed_community_id, which (a) unlocks the case chat for them (the party
+// check already honours fn_actor_leads_community) and (b) gives that community's
+// donors first-alert priority. Mobilise-only — no clinical authority is implied.
+router.post('/requests/:id/adopt', verifyJWT, requireRole('community_leader'), async (req, res) => {
+  const parsed = z.object({ community_id: z.string().uuid() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+  const leaderId = await resolveLeaderId(req.user.userId);
+  if (!leaderId) return res.status(404).json({ error: 'not_found' });
+
+  const result = await withRlsContext(
+    req,
+    async (c) => {
+      // Leader must actually lead the chosen community.
+      const leads = await c.query(`SELECT fn_actor_leads_community($1) AS ok`, [
+        parsed.data.community_id,
+      ]);
+      if (leads.rows[0]?.ok !== true) {
+        throw Object.assign(new Error('not_your_community'), { status: 403 });
+      }
+
+      // Request must be seeking help, in a served district, and not already taken.
+      const reqRow = (
+        await c.query(
+          `WITH served AS (
+               SELECT district_id FROM community_leaders WHERE id = $2 AND district_id IS NOT NULL
+               UNION
+               SELECT district_id FROM community_leader_served_districts WHERE community_leader_id = $2
+             )
+           SELECT br.id, br.status, br.donor_activation_required, br.attributed_community_id,
+                  (br.requesting_hospital_district_id IN (SELECT district_id FROM served)) AS in_served
+             FROM blood_requests br WHERE br.id = $1`,
+          [req.params.id, leaderId],
+        )
+      ).rows[0];
+      if (!reqRow || !reqRow.in_served) {
+        throw Object.assign(new Error('not_found_or_out_of_area'), { status: 404 });
+      }
+      if (reqRow.attributed_community_id) {
+        throw Object.assign(new Error('already_adopted'), { status: 409 });
+      }
+      if (!['OP', 'MT', 'AS', 'PF'].includes(reqRow.status) || !reqRow.donor_activation_required) {
+        throw Object.assign(new Error('not_seeking_donors'), { status: 409 });
+      }
+
+      // Attribute under the system actor (side-effect write, mirrors auto-assign).
+      const prior = (await c.query(`SELECT current_setting('raktify.actor_role', TRUE) AS r`))
+        .rows[0].r;
+      await c.query(`SELECT set_config('raktify.actor_role', 'system', TRUE)`);
+      try {
+        await c.query(
+          `UPDATE blood_requests SET attributed_community_id = $2
+            WHERE id = $1 AND attributed_community_id IS NULL`,
+          [req.params.id, parsed.data.community_id],
+        );
+      } finally {
+        await c.query(`SELECT set_config('raktify.actor_role', $1, TRUE)`, [prior || '']);
+      }
+      return { request_id: req.params.id, adopted_by_community: parsed.data.community_id };
+    },
+    { change_reason: 'community_leader adopts a district request' },
+  );
+  res.json(result);
 });
 
 module.exports = router;

@@ -114,8 +114,8 @@ async function evaluateAndFire(client, requestId) {
     await client.query(
       `SELECT COUNT(*)::int AS n
          FROM blood_inventory
-        WHERE reserved_for_request_id = $1
-          AND status IN ('RE','IS','TR')`,
+        WHERE COALESCE(reserved_for_request_id, fulfilled_request_id) = $1
+          AND status IN ('RE','IS','RV','TR')`,
       [requestId],
     )
   ).rows[0].n;

@@ -17,6 +17,7 @@ const { withRlsContext } = require('../middleware/rlsContext');
 const { verifyJWT, requireRole } = require('../middleware/auth');
 const { runMatch } = require('../services/matching');
 const { triggerNow, holdAlert } = require('../services/donor-alert-gate');
+const { fulfilIfAllTransfused } = require('../services/requests/fulfilment');
 
 const router = express.Router();
 
@@ -350,12 +351,16 @@ router.post('/requests/:id/close', verifyJWT, requireRole('coordinator'), async 
   const result = await withRlsContext(
     req,
     async (c) => {
-      // Mark bags as TR (transfused) — terminal happy state.
+      // Mark bags as TR (transfused) — terminal happy state. Only ISSUED or
+      // RECEIVED bags can be transfused; a still-RESERVED bag was never issued,
+      // so RE→TR is (correctly) rejected by the state machine now. This is the
+      // administrative fallback close; the primary path is the confirm-received
+      // / confirm-transfused endpoints below.
       await c.query(
         `UPDATE blood_inventory
             SET status = 'TR',
                 status_changed_by = $2
-          WHERE id = ANY($1) AND status IN ('IS','RE')`,
+          WHERE id = ANY($1) AND status IN ('IS','RV')`,
         [parsed.data.bag_ids, req.user.userId],
       );
       const r = await c.query(
@@ -380,6 +385,81 @@ router.post('/requests/:id/close', verifyJWT, requireRole('coordinator'), async 
   );
   res.json(result);
 });
+
+// ── POST /coordinator/requests/:id/confirm-received ──────────────────────
+// The coordinator has verified — by phone with the patient's relative, the
+// requesting hospital, or the community leader — that the issued units actually
+// reached the requestor. Marks the request's issued bags RV (received) on their
+// behalf. This is a custody-integrity attestation; it deliberately does NOT
+// gate transfusion (an onboarded hospital can mark transfused directly).
+router.post(
+  '/requests/:id/confirm-received',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const schema = z.object({
+      bag_ids: z.array(z.string().uuid()).min(1).max(50).optional(),
+      verified_with: z.enum(['PR', 'RQ', 'CL', 'OT']).default('PR'),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        const bagIds = parsed.data.bag_ids ?? null;
+        const r = await c.query(
+          `UPDATE blood_inventory
+              SET status = 'RV',
+                  received_by = $2,
+                  received_verified_with = $3,
+                  status_changed_by = $2
+            WHERE fulfilled_request_id = $1
+              AND status = 'IS'
+              AND ($4::uuid[] IS NULL OR id = ANY($4))`,
+          [req.params.id, req.user.userId, parsed.data.verified_with, bagIds],
+        );
+        if (r.rowCount === 0) {
+          throw Object.assign(new Error('no_issued_bags_to_confirm'), { status: 409 });
+        }
+        return { request_id: req.params.id, units_received: r.rowCount };
+      },
+      { change_reason: 'coordinator confirms receipt on behalf of requestor' },
+    );
+    res.json(result);
+  },
+);
+
+// ── POST /coordinator/requests/:id/confirm-transfused ────────────────────
+// Coordinator-on-behalf transfusion confirmation, for NON-onboarded requestors
+// (guest hospital / community / citizen) who have no hospital login to mark it
+// themselves. Onboarded hospitals use POST /requests/:id/confirm-transfused.
+router.post(
+  '/requests/:id/confirm-transfused',
+  verifyJWT,
+  requireRole('coordinator', 'ngo_admin', 'super_admin'),
+  async (req, res) => {
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        const r = await c.query(
+          `UPDATE blood_inventory
+              SET status = 'TR', status_changed_by = $2
+            WHERE fulfilled_request_id = $1
+              AND status IN ('IS','RV')`,
+          [req.params.id, req.user.userId],
+        );
+        if (r.rowCount === 0) {
+          throw Object.assign(new Error('no_bags_to_transfuse'), { status: 409 });
+        }
+        await fulfilIfAllTransfused(c, req.params.id);
+        return { request_id: req.params.id, units_transfused: r.rowCount };
+      },
+      { change_reason: 'coordinator confirms transfusion on behalf of requestor' },
+    );
+    res.json(result);
+  },
+);
 
 // ── POST /coordinator/requests/:id/thread ────────────────────────────────
 const threadPostSchema = z.object({
@@ -486,10 +566,12 @@ router.get(
                 AND bi.component_id = $3
            ),
            offers AS (
+             -- reserved_for_request_id is nulled at issue; fulfilled_request_id
+             -- carries the link from IS onward (see migration 301).
              SELECT blood_bank_id, COUNT(*)::int AS units_offered
                FROM blood_inventory
-              WHERE reserved_for_request_id = $4
-                AND status IN ('RE','IS','TR')
+              WHERE COALESCE(reserved_for_request_id, fulfilled_request_id) = $4
+                AND status IN ('RE','IS','RV','TR')
               GROUP BY blood_bank_id
            ),
            declines AS (
@@ -550,8 +632,8 @@ router.get(
         await c.query(
           `SELECT COUNT(*)::int AS n
              FROM blood_inventory
-            WHERE reserved_for_request_id = $1
-              AND status IN ('RE','IS','TR')`,
+            WHERE COALESCE(reserved_for_request_id, fulfilled_request_id) = $1
+              AND status IN ('RE','IS','RV','TR')`,
           [requestId],
         )
       ).rows[0].n;

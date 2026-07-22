@@ -50,7 +50,8 @@ async function loadDispatchContext(client, requestId) {
        JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
        JOIN blood_components bc ON bc.id = br.component_id
   LEFT JOIN districts d ON d.id = br.requesting_hospital_district_id
-  LEFT JOIN community_leaders cl ON cl.id = br.attributed_community_id
+  LEFT JOIN communities cm ON cm.id = br.attributed_community_id
+  LEFT JOIN community_leaders cl ON cl.id = cm.owner_community_leader_id
       WHERE br.id = $1`,
     [requestId],
   );
@@ -76,9 +77,9 @@ async function loadDonor(client, donorId) {
 async function findClosestBB(client, { districtId, donorLat, donorLng }) {
   if (donorLat == null || donorLng == null) return null;
   const r = await client.query(
-    `SELECT i.id, i.name, i.latitude, i.longitude
+    `SELECT i.id, i.display_name AS name, i.latitude, i.longitude
        FROM institutions i
-      WHERE i.type = 'BB'
+      WHERE i.kind = 'BB'
         AND i.is_active = TRUE
         AND i.district_id = $1
         AND i.latitude IS NOT NULL

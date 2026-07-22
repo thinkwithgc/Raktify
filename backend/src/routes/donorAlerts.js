@@ -67,7 +67,7 @@ router.get('/public/:token', async (req, res) => {
                   br.component_id, br.patient_blood_group_id,
                   bg.code AS blood_group, bc.code AS component,
                   d.name AS district_name,
-                  COALESCE(rh.name, br.guest_hospital_name) AS hospital_name,
+                  COALESCE(rh.display_name, br.guest_hospital_name) AS hospital_name,
                   dnr.full_name AS donor_name,
                   dnr.preferred_language AS donor_language
              FROM donor_alerts da
@@ -95,7 +95,7 @@ router.get('/public/:token', async (req, res) => {
                 AND expires_at > NOW()
            )
            SELECT DISTINCT i.id AS blood_bank_id,
-                  i.name AS bb_name,
+                  i.display_name AS bb_name,
                   i.latitude, i.longitude,
                   COALESCE(i.address_line, '') AS address,
                   CASE
@@ -383,7 +383,7 @@ router.get('/mine', verifyJWT, requireRole('donor'), async (req, res) => {
               bg.code AS blood_group, bc.code AS component,
               dac.id AS choice_id, dac.chosen_blood_bank_id, dac.status AS choice_status,
               dac.deadline_at,
-              i.name AS chosen_bb_name
+              i.display_name AS chosen_bb_name
          FROM donor_alerts da
          JOIN blood_requests br ON br.id = da.request_id
          JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
@@ -426,7 +426,7 @@ router.get('/:id', verifyJWT, requireRole('donor'), async (req, res) => {
                 br.component_id, br.patient_blood_group_id,
                 bg.code AS blood_group, bc.code AS component,
                 d.name AS district_name,
-                COALESCE(rh.name, br.guest_hospital_name) AS hospital_name
+                COALESCE(rh.display_name, br.guest_hospital_name) AS hospital_name
            FROM donor_alerts da
            JOIN blood_requests br ON br.id = da.request_id
            JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
@@ -454,7 +454,7 @@ router.get('/:id', verifyJWT, requireRole('donor'), async (req, res) => {
               AND expires_at > NOW()
          )
          SELECT DISTINCT i.id AS blood_bank_id,
-                i.name AS bb_name,
+                i.display_name AS bb_name,
                 i.latitude, i.longitude,
                 COALESCE(i.address_line, '') AS address,
                 CASE

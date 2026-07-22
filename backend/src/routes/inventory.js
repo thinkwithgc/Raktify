@@ -219,7 +219,15 @@ router.get('/dashboard', verifyJWT, requireRole('blood_bank'), async (req, res) 
     const kpis = (
       await c.query(
         `SELECT
-           COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE)::int  AS available_units,
+           -- Expiry MUST be part of "available": every other surface (district
+           -- availability, open-requests, matching) excludes expired bags, so
+           -- without it this KPI overstates usable stock — a BB would see units
+           -- it cannot legally issue. Expired-but-still-AV bags are reported
+           -- separately so they are visible for disposal, not silently dropped.
+           COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE
+                            AND expiry_date > CURRENT_DATE)::int                AS available_units,
+           COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE
+                            AND expiry_date <= CURRENT_DATE)::int               AS expired_units,
            COUNT(*) FILTER (WHERE status = 'AV' AND is_recalled = FALSE
                             AND expiry_date > CURRENT_DATE
                             AND expiry_date <= CURRENT_DATE + 2)::int           AS expiring_48h,
@@ -266,7 +274,18 @@ router.get('/dashboard', verifyJWT, requireRole('blood_bank'), async (req, res) 
                JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
                JOIN blood_components bc ON bc.id = br.component_id
               WHERE br.requesting_hospital_district_id = $1
-                AND br.status IN ('OP','MT')
+                -- Same status set as /open-requests: a request that is assigned
+                -- or partly filled still needs units, so it is still an ask.
+                AND br.status IN ('OP','MT','AS','PF')
+                -- A request whose units are fully committed is not an ask any
+                -- more. Without this a BB keeps seeing a case as "incoming"
+                -- after it has itself fulfilled it (status stays 'MT'), which
+                -- reads as an outstanding demand that no longer exists.
+                AND br.units_required > (
+                      SELECT COUNT(*)
+                        FROM blood_inventory bi
+                       WHERE COALESCE(bi.reserved_for_request_id, bi.fulfilled_request_id) = br.id
+                         AND bi.status IN ('RE','IS','RV','TR'))
            ORDER BY CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
                     br.raised_at DESC
               LIMIT 10`,
@@ -330,20 +349,26 @@ router.get('/open-requests', verifyJWT, requireRole('blood_bank'), async (req, r
               AND bi.reserved_for_request_id IS NULL
             GROUP BY bi.blood_group_id, bi.component_id
          ),
+         -- "Committed" = a bag actively fulfilling this request, in ANY custody
+         -- stage. reserved_for_request_id is nulled the instant a bag is issued
+         -- (reserve_consistency), so the durable link becomes fulfilled_request_id
+         -- from IS onward — COALESCE covers both, and RV must be counted too.
          committed AS (
-           SELECT reserved_for_request_id AS request_id, COUNT(*)::int AS units
+           SELECT COALESCE(reserved_for_request_id, fulfilled_request_id) AS request_id,
+                  COUNT(*)::int AS units
              FROM blood_inventory
-            WHERE status IN ('RE','IS','TR')
-              AND reserved_for_request_id IS NOT NULL
-            GROUP BY reserved_for_request_id
+            WHERE status IN ('RE','IS','RV','TR')
+              AND COALESCE(reserved_for_request_id, fulfilled_request_id) IS NOT NULL
+            GROUP BY COALESCE(reserved_for_request_id, fulfilled_request_id)
          ),
          my_committed AS (
-           SELECT reserved_for_request_id AS request_id, COUNT(*)::int AS units
+           SELECT COALESCE(reserved_for_request_id, fulfilled_request_id) AS request_id,
+                  COUNT(*)::int AS units
              FROM blood_inventory bi, me
             WHERE bi.blood_bank_id = me.id
-              AND bi.status IN ('RE','IS','TR')
-              AND bi.reserved_for_request_id IS NOT NULL
-            GROUP BY reserved_for_request_id
+              AND bi.status IN ('RE','IS','RV','TR')
+              AND COALESCE(bi.reserved_for_request_id, bi.fulfilled_request_id) IS NOT NULL
+            GROUP BY COALESCE(reserved_for_request_id, fulfilled_request_id)
          ),
          compat_req AS (
            SELECT br.id AS request_id,
@@ -373,7 +398,7 @@ router.get('/open-requests', verifyJWT, requireRole('blood_bank'), async (req, r
                 (cr.total_compat_units - cr.exact_units)::int AS fallback_units,
                 LEAST(cr.total_compat_units,
                       GREATEST(br.units_required - COALESCE(cmt.units, 0), 0))::int AS units_i_can_offer,
-                COALESCE(ri.name, br.guest_hospital_name) AS hospital_name,
+                COALESCE(ri.display_name, br.guest_hospital_name) AS hospital_name,
                 d.name AS hospital_district,
                 ((SELECT district_id FROM me) = br.requesting_hospital_district_id) AS is_same_district,
                 bg.code AS blood_group,
@@ -458,8 +483,8 @@ router.post(
           await c.query(
             `SELECT COUNT(*)::int AS n
                FROM blood_inventory
-              WHERE reserved_for_request_id = $1
-                AND status IN ('RE','IS','TR')`,
+              WHERE COALESCE(reserved_for_request_id, fulfilled_request_id) = $1
+                AND status IN ('RE','IS','RV','TR')`,
             [requestId],
           )
         ).rows[0];
@@ -540,7 +565,10 @@ router.post(
             await c.query(
               `INSERT INTO replacement_obligations
                  (request_id, blood_bank_id, units_target, deadline_date, created_by)
-               VALUES ($1, $2, $3, CURRENT_DATE + $4, $5)
+               -- $4 MUST be cast: an untyped parameter makes "date + $4"
+               -- ambiguous between date+integer, date+interval and date+time,
+               -- which Postgres rejects as 42725 (operator is not unique).
+               VALUES ($1, $2, $3, CURRENT_DATE + $4::int, $5)
                ON CONFLICT (request_id, blood_bank_id) DO UPDATE
                  SET units_target = replacement_obligations.units_target + EXCLUDED.units_target,
                      deadline_date = LEAST(replacement_obligations.deadline_date,
@@ -665,6 +693,204 @@ router.post(
   },
 );
 
+// ── POST /inventory/requests/:requestId/issue ────────────────────────────
+// Blood bank ISSUES its reserved bags for a request: they physically leave the
+// BB (RE → IS). This is the missing precondition the coordinator close needed —
+// only issued bags can be received/transfused. Sets fulfilled_request_id (the
+// durable link) and issued_to = the requesting institution (NULL for guest /
+// community / citizen tiers, which have no receiving institution — the recipient
+// is a relative or runner). The trigger nulls the reservation link + stamps
+// issued_at. From here the case surfaces in the coordinator queue for receipt
+// confirmation.
+const issueSchema = z.object({
+  bag_ids: z.array(z.string().uuid()).min(1).max(50).optional(),
+});
+router.post(
+  '/requests/:requestId/issue',
+  verifyJWT,
+  requireRole('blood_bank'),
+  async (req, res) => {
+    const bbId = req.user.institutionId;
+    if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+    const parsed = issueSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+    const requestId = req.params.requestId;
+
+    const result = await withRlsContext(
+      req,
+      async (c) => {
+        const reqRow = (
+          await c.query(
+            `SELECT id, status, requesting_institution_id FROM blood_requests WHERE id = $1`,
+            [requestId],
+          )
+        ).rows[0];
+        if (!reqRow) throw Object.assign(new Error('request_not_found'), { status: 404 });
+        if (!['OP', 'MT', 'AS', 'PF'].includes(reqRow.status)) {
+          throw Object.assign(new Error('request_not_open'), { status: 409 });
+        }
+
+        // Only THIS BB's bags reserved for THIS request are eligible. An
+        // explicit bag_ids list narrows it further (partial issue); NULL = all
+        // of them. App-layer scoping — RLS is inert at runtime.
+        const bagIds = parsed.data.bag_ids ?? null;
+        const eligible = (
+          await c.query(
+            `SELECT id FROM blood_inventory
+              WHERE blood_bank_id = $1
+                AND reserved_for_request_id = $2
+                AND status = 'RE'
+                AND ($3::uuid[] IS NULL OR id = ANY($3))
+              FOR UPDATE`,
+            [bbId, requestId, bagIds],
+          )
+        ).rows.map((r) => r.id);
+        if (eligible.length === 0) {
+          throw Object.assign(new Error('no_reserved_bags_to_issue'), { status: 409 });
+        }
+
+        // RE → IS. issued_to may be NULL (guest); fulfilled_request_id is the
+        // enforced link (issue_consistency). Trigger clears the reservation.
+        await c.query(
+          `UPDATE blood_inventory
+              SET status = 'IS',
+                  issued_to_institution_id = $2,
+                  fulfilled_request_id = $3,
+                  status_changed_by = $4
+            WHERE id = ANY($1)`,
+          [eligible, reqRow.requesting_institution_id, requestId, req.user.userId],
+        );
+        return { request_id: requestId, units_issued: eligible.length };
+      },
+      { change_reason: 'blood_bank issues reserved units' },
+    );
+    res.json(result);
+  },
+);
+
+// ── POST /inventory/bags/:bagId/return ───────────────────────────────────
+// A bag was issued but NOT transfused (patient died, bedside crossmatch
+// incompatible, surgery cancelled) and has come back to the BB. If the cold
+// chain held → AV (returns to usable stock, custody chain wiped by the trigger).
+// If spoiled → WA (written off; keeps issued_to/fulfilled_request_id for
+// hemovigilance traceability). Only the owning BB may return its own bag.
+const returnSchema = z.object({
+  disposition: z.enum(['AV', 'WA']),
+  reason: z.string().trim().min(3).max(500),
+});
+router.post('/bags/:bagId/return', verifyJWT, requireRole('blood_bank'), async (req, res) => {
+  const bbId = req.user.institutionId;
+  if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+  const parsed = returnSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+  const result = await withRlsContext(
+    req,
+    async (c) => {
+      const bag = (
+        await c.query(
+          `SELECT id, status FROM blood_inventory
+            WHERE id = $1 AND blood_bank_id = $2 FOR UPDATE`,
+          [req.params.bagId, bbId],
+        )
+      ).rows[0];
+      if (!bag) throw Object.assign(new Error('bag_not_found'), { status: 404 });
+      if (!['IS', 'RV'].includes(bag.status)) {
+        throw Object.assign(new Error('bag_not_returnable'), { status: 409 });
+      }
+      await c.query(
+        `UPDATE blood_inventory
+            SET status = $2, return_reason = $3, status_changed_by = $4
+          WHERE id = $1`,
+        [req.params.bagId, parsed.data.disposition, parsed.data.reason, req.user.userId],
+      );
+      return { bag_id: req.params.bagId, disposition: parsed.data.disposition };
+    },
+    { change_reason: `blood_bank returns bag (${parsed.data.disposition})` },
+  );
+  res.json(result);
+});
+
+// ── GET /inventory/my-commitments ────────────────────────────────────────
+// Every request this BB has committed bags to, whatever the request's status.
+//
+// Without this a BB loses sight of a case the moment it commits: /open-requests
+// drops any request whose units are fully committed, so the case it just
+// accepted vanishes — along with the route to its chat. This is the BB's
+// "what have I promised, and what happens next" view, so it deliberately does
+// NOT filter by request status; a closed case still matters for the audit
+// trail and for any replacement obligation still outstanding.
+router.get('/my-commitments', verifyJWT, requireRole('blood_bank'), async (req, res) => {
+  const bbId = req.user.institutionId;
+  if (!bbId) return res.status(403).json({ error: 'blood_bank_user_missing_institution' });
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+
+  const rows = await withRlsContext(req, async (c) => {
+    const r = await c.query(
+      `WITH mine AS (
+           SELECT COALESCE(reserved_for_request_id, fulfilled_request_id) AS request_id,
+                  COUNT(*)::int AS units_i_committed,
+                  COUNT(*) FILTER (WHERE status = 'RE')::int AS units_reserved,
+                  COUNT(*) FILTER (WHERE status = 'IS')::int AS units_issued,
+                  COUNT(*) FILTER (WHERE status = 'RV')::int AS units_received,
+                  COUNT(*) FILTER (WHERE status = 'TR')::int AS units_transfused,
+                  MIN(expiry_date) FILTER (WHERE status IN ('RE','IS')) AS earliest_expiry
+             FROM blood_inventory
+            WHERE blood_bank_id = $1
+              AND COALESCE(reserved_for_request_id, fulfilled_request_id) IS NOT NULL
+              AND status IN ('RE','IS','RV','TR')
+            GROUP BY COALESCE(reserved_for_request_id, fulfilled_request_id)
+         ),
+         total AS (
+           SELECT COALESCE(reserved_for_request_id, fulfilled_request_id) AS request_id,
+                  COUNT(*)::int AS units_committed_total
+             FROM blood_inventory
+            WHERE COALESCE(reserved_for_request_id, fulfilled_request_id) IS NOT NULL
+              AND status IN ('RE','IS','RV','TR')
+            GROUP BY COALESCE(reserved_for_request_id, fulfilled_request_id)
+         )
+       SELECT br.id,
+              br.request_number,
+              br.status,
+              br.urgency_tier,
+              br.units_required,
+              mine.units_i_committed,
+              mine.units_reserved,
+              mine.units_issued,
+              mine.units_received,
+              mine.units_transfused,
+              mine.earliest_expiry,
+              COALESCE(total.units_committed_total, 0) AS units_committed_total,
+              br.crossmatch_confirmed,
+              br.closed_at,
+              br.raised_at,
+              EXTRACT(EPOCH FROM (NOW() - br.raised_at))/60 AS mins_since_raised,
+              COALESCE(ri.display_name, br.guest_hospital_name) AS hospital_name,
+              bg.code AS blood_group,
+              bc.code AS component,
+              ro.units_target       AS replacement_units_target,
+              ro.units_fulfilled    AS replacement_units_fulfilled,
+              ro.deadline_date      AS replacement_deadline
+         FROM mine
+         JOIN blood_requests br ON br.id = mine.request_id
+    LEFT JOIN total ON total.request_id = br.id
+    LEFT JOIN institutions ri ON ri.id = br.requesting_institution_id
+         JOIN blood_groups bg ON bg.id = br.patient_blood_group_id
+         JOIN blood_components bc ON bc.id = br.component_id
+    LEFT JOIN replacement_obligations ro
+           ON ro.request_id = br.id AND ro.blood_bank_id = $1
+     ORDER BY (br.closed_at IS NOT NULL),
+              CASE br.urgency_tier WHEN 'CR' THEN 0 WHEN 'UR' THEN 1 ELSE 2 END,
+              br.raised_at DESC
+        LIMIT $2`,
+      [bbId, limit],
+    );
+    return r.rows;
+  });
+
+  res.json({ commitments: rows, count: rows.length });
+});
+
 // ── GET /inventory/incoming-donors ───────────────────────────────────────
 // BB sees the donors who accepted alerts and chose this BB for their
 // donation, ordered by expected arrival / deadline. Used to plan phlebotomy
@@ -685,7 +911,7 @@ router.get('/incoming-donors', verifyJWT, requireRole('blood_bank'), async (req,
                 d.blood_group_verified AS donor_blood_group,
                 bg_donor.code AS donor_blood_group_code,
                 br.request_number, br.urgency_tier,
-                COALESCE(rh.name, br.guest_hospital_name) AS hospital_name,
+                COALESCE(rh.display_name, br.guest_hospital_name) AS hospital_name,
                 dist.name AS hospital_district_name,
                 bg.code AS blood_group, bc.code AS component
            FROM donor_alert_choices dac
