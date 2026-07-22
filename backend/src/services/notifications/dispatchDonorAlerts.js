@@ -99,7 +99,7 @@ async function findClosestBB(client, { districtId, donorLat, donorLng }) {
   return best;
 }
 
-async function dispatchOne(client, ctx, alertRow, { attributedCommunityId }) {
+async function dispatchOne(client, ctx, alertRow, { attributedCommunityId, mode }) {
   const donor = await loadDonor(client, alertRow.donor_id);
   if (!donor) {
     logger.warn({ alert_id: alertRow.id }, 'dispatchDonorAlerts: donor missing');
@@ -125,23 +125,40 @@ async function dispatchOne(client, ctx, alertRow, { attributedCommunityId }) {
     urgencyTier: ctx.urgency_tier,
   });
 
+  // Horizon-based template (migration 305). RP (replenish) = honest "help us
+  // restock" framing — the patient is served from tested stock, the donor can't
+  // produce a usable unit in time. FU (fulfil) = come donate for this patient,
+  // split community-first vs BB-routed.
   const community = Boolean(attributedCommunityId);
-  const templateType = community ? 'DONOR_ALERT_COMMUNITY' : 'DONOR_ALERT_BB';
-
-  const variables = community
-    ? {
-        donor_first_name: firstName,
-        leader_name: ctx.leader_name || 'your community leader',
-        blood_group_component: bloodGroupComponent,
-        district: ctx.district_name || '',
-        alert_token: token,
-      }
-    : {
-        blood_group_component: bloodGroupComponent,
-        bb_name: bb?.name || 'a nearby blood bank',
-        distance_km: bb?.distanceKm != null ? String(bb.distanceKm) : '',
-        alert_token: token,
-      };
+  let templateType;
+  let variables;
+  if (mode === 'RP') {
+    templateType = 'DONOR_ALERT_REPLACE';
+    variables = {
+      donor_first_name: firstName,
+      bb_name: bb?.name || 'a nearby blood bank',
+      component_received: bloodGroupComponent,
+      timeframe: 'the next few days',
+      alert_token: token,
+    };
+  } else if (community) {
+    templateType = 'DONOR_ALERT_COMMUNITY';
+    variables = {
+      donor_first_name: firstName,
+      leader_name: ctx.leader_name || 'your community leader',
+      blood_group_component: bloodGroupComponent,
+      district: ctx.district_name || '',
+      alert_token: token,
+    };
+  } else {
+    templateType = 'DONOR_ALERT_BB';
+    variables = {
+      blood_group_component: bloodGroupComponent,
+      bb_name: bb?.name || 'a nearby blood bank',
+      distance_km: bb?.distanceKm != null ? String(bb.distanceKm) : '',
+      alert_token: token,
+    };
+  }
 
   try {
     await sendNotification({
@@ -163,7 +180,7 @@ async function dispatchOne(client, ctx, alertRow, { attributedCommunityId }) {
 
 async function dispatchDonorAlertsFromGate(
   client,
-  { requestId, alertRows, attributedCommunityId },
+  { requestId, alertRows, attributedCommunityId, mode },
 ) {
   if (!alertRows || alertRows.length === 0) return;
   const ctx = await loadDispatchContext(client, requestId);
@@ -172,7 +189,8 @@ async function dispatchDonorAlertsFromGate(
     return;
   }
   for (const row of alertRows) {
-    await dispatchOne(client, ctx, row, { attributedCommunityId });
+    // Prefer the mode stamped on the alert row; fall back to the batch mode.
+    await dispatchOne(client, ctx, row, { attributedCommunityId, mode: row.alert_mode || mode });
   }
 }
 

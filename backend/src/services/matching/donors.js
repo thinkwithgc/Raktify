@@ -42,32 +42,37 @@ async function findActivatableDonors(client, { districtId, compatibleGroupIds, l
   return r.rows;
 }
 
-async function createAlerts(client, { requestId, donors, channelDefault = 'WA' }) {
+// mode = horizon-based purpose (migration 305): 'FU' fulfil / 'RP' replenish.
+// Defaults to 'RP' (the conservative "restock" framing) for callers that don't
+// compute a horizon — e.g. geographic escalation, where by the time it widens
+// the search the need is almost always too near for a donor to fulfil.
+async function createAlerts(client, { requestId, donors, channelDefault = 'WA', mode = 'RP' }) {
   if (donors.length === 0) return 0;
 
   const values = [];
   const placeholders = donors
     .map((d, i) => {
-      const base = i * 4;
+      const base = i * 5;
       values.push(
         requestId,
         d.id,
         d.preferred_contact_channel || channelDefault,
         `score=${d.reliability_score}`,
+        mode,
       );
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
     })
     .join(', ');
 
-  // `placeholders` is a generated list of `($N, $N+1, $N+2, $N+3)` tuples
-  // produced row-by-row above. Every value flows through `values[]` — only
-  // the parameter-placeholder syntax is interpolated.
+  // `placeholders` is a generated list of `($N…$N+4)` tuples produced row-by-row
+  // above. Every value flows through `values[]` — only the parameter-placeholder
+  // syntax is interpolated.
   const r = await client.query(
     // eslint-disable-next-line no-restricted-syntax
-    `INSERT INTO donor_alerts (request_id, donor_id, channel, match_reason)
+    `INSERT INTO donor_alerts (request_id, donor_id, channel, match_reason, alert_mode)
      VALUES ${placeholders}
      ON CONFLICT (request_id, donor_id) DO NOTHING
-  RETURNING id, donor_id, channel`,
+  RETURNING id, donor_id, channel, alert_mode`,
     values,
   );
   // Return the inserted rows so callers can dispatch WhatsApp per-alert.

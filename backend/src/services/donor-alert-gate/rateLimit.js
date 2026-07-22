@@ -50,7 +50,7 @@ async function selectDonorPool(
        SELECT donor_id,
               COUNT(*)::int AS alerts_7d,
               MAX(created_at) AS last_alert_at,
-              BOOL_OR(status = 'AC') AS any_accepted_recently
+              BOOL_OR(donor_response = 'AC') AS any_accepted_recently
          FROM donor_alerts
         WHERE created_at > NOW() - INTERVAL '7 days'
         GROUP BY donor_id

@@ -154,6 +154,17 @@ const env = {
     // BBs get an exclusive window to offer voluntarily before donors get pinged.
     donorAlertWindowCrMin: parseInt(optional('DONOR_ALERT_WINDOW_CR_MIN', '3'), 10),
     donorAlertWindowUrMin: parseInt(optional('DONOR_ALERT_WINDOW_UR_MIN', '30'), 10),
+    // PLANNED requests now DO fire donor alerts (migration 305 horizon reframe):
+    // a planned need days out is the one case a donor can genuinely FULFIL (time
+    // to donate → TTI-test → release). BBs still get an exclusive head-start; no
+    // minute-rush, so the window is longer.
+    donorAlertWindowPlMin: parseInt(optional('DONOR_ALERT_WINDOW_PL_MIN', '120'), 10),
+
+    // Horizon boundary between a donor FULFILLING a request vs only REPLENISHING
+    // (donate → screen → TTI test → release). needed_by >= this ⇒ 'FU'; sooner
+    // ⇒ 'RP'. Operational value (lab TTI turnaround), founder-set; NOT a clinical
+    // constant. Default 24h.
+    donationUsableLeadHours: parseInt(optional('DONATION_USABLE_LEAD_HOURS', '24'), 10),
 
     // Donor-fatigue caps. Rate-limits per donor to protect against "crying
     // wolf" alert-fatigue that kills voluntary-donation platforms.

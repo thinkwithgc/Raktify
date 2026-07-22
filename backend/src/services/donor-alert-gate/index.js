@@ -43,11 +43,10 @@ const { areAllEligibleBBsDeclined } = require('./cascade');
  *                 'CT' coord-triggered, 'AD' admin-manual
  */
 async function schedulePendingAlert(client, { request, actorUserId, source = 'AT', shortfall }) {
+  // PLANNED now schedules too (migration 305 horizon reframe) — a planned need
+  // with lead time is exactly when a donor can FULFIL it. The old "planned never
+  // fires" skip is gone.
   const windowMin = pickWindowMin(request.urgency_tier);
-  if (windowMin === null && source === 'AT') {
-    // PLANNED — never auto-fires; planned_request_upgrade job handles it.
-    return { skipped: true, reason: 'planned_never_fires' };
-  }
 
   // Minutes-until-fire: for AT (auto-timer) use the urgency window; for
   // BD/CT/AD (bypass sources) use 0 so the scheduler picks it up next tick.
@@ -79,7 +78,16 @@ async function schedulePendingAlert(client, { request, actorUserId, source = 'AT
 function pickWindowMin(urgencyTier) {
   if (urgencyTier === 'CR') return env.matching.donorAlertWindowCrMin;
   if (urgencyTier === 'UR') return env.matching.donorAlertWindowUrMin;
-  return null; // PLANNED
+  return env.matching.donorAlertWindowPlMin; // PLANNED — now fires (migration 305)
+}
+
+// Horizon-based alert mode (migration 305). needed_by far enough out that a
+// donation can be tested + released in time ⇒ 'FU' (donor can fulfil); sooner ⇒
+// 'RP' (donor replenishes; the patient is served from tested stock).
+function alertModeForNeededBy(neededBy) {
+  if (!neededBy) return 'RP';
+  const hoursUntil = (new Date(neededBy).getTime() - Date.now()) / 3_600_000;
+  return hoursUntil >= env.matching.donationUsableLeadHours ? 'FU' : 'RP';
 }
 
 /**
@@ -94,7 +102,7 @@ async function evaluateAndFire(client, requestId) {
       `SELECT br.id, br.status, br.urgency_tier, br.units_required, br.units_fulfilled,
               br.donor_activation_required, br.requesting_hospital_district_id,
               br.component_id, br.patient_blood_group_id,
-              br.attributed_community_id
+              br.attributed_community_id, br.needed_by
          FROM blood_requests br
         WHERE br.id = $1`,
       [requestId],
@@ -153,16 +161,21 @@ async function evaluateAndFire(client, requestId) {
     return { fired: false, skip_reason: 'no_eligible_donors_in_pool' };
   }
 
-  const alertRows = await createAlerts(client, { requestId, donors: pool });
+  // Horizon decides the alert's purpose: FULFIL (donor can produce a tested unit
+  // in time) vs REPLENISH (patient served from stock; donor restocks).
+  const mode = alertModeForNeededBy(reqRow.needed_by);
+
+  const alertRows = await createAlerts(client, { requestId, donors: pool, mode });
   const alertsCreated = alertRows.length;
 
   await client.query(
     `UPDATE pending_donor_alerts
         SET fired_at = clock_timestamp(),
             fired_alert_count = $2,
-            evaluated_at = clock_timestamp()
+            evaluated_at = clock_timestamp(),
+            alert_mode = $3
       WHERE request_id = $1`,
-    [requestId, alertsCreated],
+    [requestId, alertsCreated, mode],
   );
 
   logger.info(
@@ -170,33 +183,27 @@ async function evaluateAndFire(client, requestId) {
       request_id: requestId,
       alerts_created: alertsCreated,
       pool_size: pool.length,
+      alert_mode: mode,
     },
     'donor-alert-gate: alerts fired',
   );
 
-  // Dispatch WhatsApp notifications for the freshly-created alerts. The
-  // dispatcher no-ops silently when the template env var isn't set (Meta
-  // hasn't approved yet) so this is safe to leave in place from day 1.
-  // Failures are logged but do NOT roll back the DB writes above — the alert
-  // rows are the source of truth; a missed WA send is recoverable via the
-  // /alert/:token URL surfaced elsewhere.
-  if (alertsCreated > 0) {
-    try {
-      const { dispatchDonorAlertsFromGate } = require('../notifications/dispatchDonorAlerts');
-      await dispatchDonorAlertsFromGate(client, {
-        requestId,
-        alertRows,
-        attributedCommunityId: reqRow.attributed_community_id,
-      });
-    } catch (err) {
-      logger.error(
-        { err: err.message, request_id: requestId },
-        'donor-alert-gate: WA dispatch failed (alerts persisted)',
-      );
-    }
-  }
-
-  return { fired: true, alerts_created: alertsCreated, pool_size: pool.length };
+  // Do NOT dispatch here. The caller runs inside a transaction that hasn't
+  // committed yet — dispatching now would (a) risk WhatsApp-ing a donor for an
+  // alert that later rolls back, and (b) fail the notification_log.related_alert
+  // _id write, since sendNotification uses a separate connection that can't see
+  // the uncommitted alert. We return the payload and let the scheduler dispatch
+  // AFTER commit.
+  return {
+    fired: true,
+    alerts_created: alertsCreated,
+    pool_size: pool.length,
+    alert_mode: mode,
+    dispatch:
+      alertsCreated > 0
+        ? { requestId, alertRows, attributedCommunityId: reqRow.attributed_community_id, mode }
+        : null,
+  };
 }
 
 async function markSkip(client, requestId, reason) {
@@ -276,4 +283,5 @@ module.exports = {
   evaluateCascade,
   holdAlert,
   triggerNow,
+  alertModeForNeededBy,
 };
