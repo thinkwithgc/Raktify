@@ -1318,3 +1318,68 @@ so the existing `fn_notif_propagate_opt_out` trigger auto-flips
 others (`131047` re-engagement, `131056` rate limit) stay as `FA` until we
 have data to widen. Existing HMAC-signature enforcement is unchanged.
 
+---
+
+## Deploy skew: the SPA goes live ~1 minute before the API
+
+One push, three workflows, and they do **not** land together — `raktify-web`
+finishes in roughly 2m30s, `raktify-api` in roughly 3m30s. **Every release
+therefore has a ~60–90 second window in which the new SPA is live against the old
+API**, so a button shipped in that release calls a route prod does not have yet
+and the user gets a 404 from the Express catch-all. That is exactly how the
+staff-contact editor was reported broken on 2026-08-28: the record was fine, the
+route was 65 seconds from existing, and it cost hours because the catch-all
+answered the same bare `not_found` a dozen handlers use for a missing row.
+
+**When a 404 is reported right after a deploy, suspect skew before reading any
+handler.** `gh run list --branch main --limit 3` for the timings, then probe prod:
+
+| Probe result | Means |
+|---|---|
+| `{"error":"missing_token"}` | The route **exists** (`verifyJWT` is per-route). Not skew |
+| `{"error":"route_not_found"}` | The route is **not deployed yet**. Skew — tell the user to hard-reload |
+| `{"error":"not_found"}` | A handler ran and could not find the **row** |
+| `route_not_found` that answers `200` minutes later with **no redeploy** | The **App Service was restarting**. Re-probe once before concluding anything about stale code |
+
+**Never give "endpoint missing" and "row missing" the same code again** —
+`app.js`'s catch-all answers `route_not_found`, `institutionErrorText`
+(`frontend/src/components/institution/ReasonDialog.jsx`) gives the three cases
+three distinct sentences, and `smoke_test_phase2.js` section 22 asserts they
+differ.
+
+---
+
+## smoke:camps' two standing LIMIT failures
+
+Moved out of `CLAUDE.md` on 2 October 2026. The short form stayed behind in
+the gates table there; this is the measurement behind it.
+
+**`smoke:camps` reports 154/2 on a well-used Neon dev DB, and NEITHER failure is a
+regression.** Both are the same shape — a freshly-seeded row sorts off the end of a
+`LIMIT`ed list because the dev district is full of previous smoke runs — and both are
+**also real product drift**: the truncation is silent, with no search and no total in
+either payload. Measured on Neon dev 2026-09-03:
+
+| Failing assertion | The LIMIT | Dev state |
+|---|---|---|
+| *"the public picker needs NO token and lists active onboarded BBs"* | `GET /camps/blood-bank-options`, `ORDER BY i.display_name LIMIT 25` | district 501 holds **72** active onboarded BBs, so the 2 just-seeded ones sort off the page |
+| *"the partnered blood bank sees the camp in its collectable list"* | `GET /camps/collectable`, `ABS(scheduled_date - $1) <= 2`, `ORDER BY ABS(diff) ASC, scheduled_date DESC LIMIT 20` | **46** camps in the ±2-day window, **38 of them on offset 1** — the exact day the fixture uses |
+
+**The collectable one is INTERMITTENT, and the tie is why.** Those 38 offset-1 camps
+tie on **both** ORDER BY keys, so Postgres returns them in arbitrary order and whether
+the fixture lands in the first 20 is a coin flip — identical code passes some runs and
+fails others. Do not read a flip as a regression, and **do not chase it by re-running
+until it passes**: count first. Both counts only grow with each smoke run, so both lines
+drift **toward** failing, never away. `smoke:camps` is **not in CI**, so this misleads a
+developer at the terminal but can never flake a deploy. Both LIMITs are logged,
+deliberately not fixed.
+
+```sql
+-- collectable competitors (LIMIT 20)
+SELECT ABS(scheduled_date - CURRENT_DATE) AS off, COUNT(*) FROM donation_camps
+ WHERE status IN ('PL','LV','CO') AND ABS(scheduled_date - CURRENT_DATE) <= 2
+   AND district_id = 501 GROUP BY 1 ORDER BY 1;
+-- picker competitors (LIMIT 25)
+SELECT COUNT(*) FROM institutions
+ WHERE kind='BB' AND is_active=TRUE AND onboarding_status='AC' AND district_id=501;
+```
