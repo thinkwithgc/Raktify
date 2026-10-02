@@ -94,6 +94,15 @@ const ROUTES = [
     title: 'Community Leader Guide | Raktify',
     description:
       'How community leaders use Raktify to mobilise voluntary blood donors in their district - adopting unfilled requests, coordinating with blood banks, and following a case through to transfusion.',
+    // TWO levels, not three, and that is a constraint rather than a choice:
+    // every breadcrumb item except the last needs a URL that resolves, and
+    // there is no /help index route - only a /help/ path segment. A trail
+    // through a non-existent /help would point Google at the 404 page. If a
+    // real /help hub is ever built, add it here as the middle item.
+    breadcrumbs: [
+      { name: 'Raktify', item: '/' },
+      { name: 'Community Leader Guide' },
+    ],
   },
   {
     route: '/login',
@@ -164,6 +173,24 @@ function buildHead(entry) {
     // follow, not nofollow: the links out of a login form are the public pages
     // we do want crawled, and there is no reason to dead-end a crawler here.
     lines.push('    <meta name="robots" content="noindex, follow" />');
+  }
+  if (entry.breadcrumbs && entry.breadcrumbs.length) {
+    // The last item is the current page and may omit `item` per Google's
+    // reference; every earlier one must carry a URL that actually resolves.
+    const crumbs = entry.breadcrumbs.map((c, i) => {
+      const node = { '@type': 'ListItem', position: i + 1, name: c.name };
+      if (c.item) node.item = ORIGIN + c.item;
+      return node;
+    });
+    // JSON, so JSON-encode - esc() is for attribute values and would corrupt
+    // this. `<` is escaped because a literal </script> inside an inline JSON-LD
+    // block would end the script element early.
+    const json = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: crumbs,
+    }).split('<').join('\u003c');
+    lines.push('    <script type="application/ld+json">' + json + '</script>');
   }
   lines.push(
     '    <meta property="og:url" content="' + esc(url) + '" />',
@@ -244,6 +271,18 @@ for (const entry of ROUTES) {
   }
   if (html.includes(PLACEHOLDER)) {
     fail(entry.route + ': ' + PLACEHOLDER + ' was never stamped');
+  }
+  if (entry.breadcrumbs) {
+    const m = html.match(/<script type="application\/ld\+json">(\{"@context[^<]*BreadcrumbList[^<]*)<\/script>/);
+    if (!m) fail(entry.route + ': breadcrumbs were requested but no BreadcrumbList was emitted');
+    try {
+      const parsed = JSON.parse(m[1]);
+      if (parsed.itemListElement.length !== entry.breadcrumbs.length) {
+        fail(entry.route + ': BreadcrumbList has the wrong number of items');
+      }
+    } catch (err) {
+      fail(entry.route + ': BreadcrumbList is not valid JSON (' + err.message + ')');
+    }
   }
   // The shell's module script must have survived, or this is a blank page.
   if (!/<script[^>]+src="[^"]+\.js"/i.test(html)) {

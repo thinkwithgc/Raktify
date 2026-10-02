@@ -23,6 +23,7 @@ export function Footer({ variant = 'full' }) {
           </div>
           <nav className="flex items-center gap-4">
             {/* Static pages (outside the SPA) — use <a> for a full navigation */}
+            <a href="/learn" className="hover:text-rk-700">Learn</a>
             <a href="/privacy" className="hover:text-rk-700">Privacy</a>
             <a href="/terms" className="hover:text-rk-700">Terms</a>
             <a href="/data-deletion" className="hover:text-rk-700">Data deletion</a>
@@ -72,6 +73,19 @@ export function Footer({ variant = 'full' }) {
                 {/* Static page (outside the SPA) — crawlable deep-dive for new visitors */}
                 <a href="/how-raktify-works.html" className="text-stone-700 hover:text-rk-700">
                   How Raktify works
+                </a>
+              </li>
+              <li>
+                {/* Static HTML from frontend/scripts/build_learn.js, so <a> for a
+                    full navigation. THIS IS THE ONLY INTERNAL LINK INTO THE
+                    KNOWLEDGE CENTER - without it /learn is an orphan page that
+                    Google can only reach via sitemap.xml, which is how it came
+                    to report "URL is unknown to Google" while /learn/faq (which
+                    the hub links to) was indexed the same day. The footer is on
+                    every public page, so one entry here fixes discovery
+                    site-wide. Do not remove without adding a link elsewhere. */}
+                <a href="/learn" className="text-stone-700 hover:text-rk-700">
+                  Learn about blood donation
                 </a>
               </li>
               <li>
