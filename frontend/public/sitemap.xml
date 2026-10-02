@@ -21,6 +21,16 @@
        public communities, referenced from this file via <sitemapindex>.
     b) Static-prerender + commit one entry per community.
   Both can land when community count is large enough to matter.
+
+  THE KNOWLEDGE CENTER URLS ARE NOT IN THIS FILE, AND THAT IS CORRECT.
+  /learn and /learn/<slug> are appended to the dist/ copy at build time by
+  frontend/scripts/build_learn.js, which is the only thing that knows which
+  articles are status: published and what each one lastReviewed date is -
+  and <lastmod> is taken from that date, not from the build clock, so it is
+  an honest freshness signal. Do not hand-add them here: a draft article
+  listed in a sitemap is a 404 submitted to Google, and a duplicated entry
+  would ship twice. Check dist/sitemap.xml after a build to see the real
+  submitted file.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>

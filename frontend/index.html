@@ -6,14 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#b8231a" />
 
-    <!-- ── Page metadata ────────────────────────────────────────────────── -->
-    <!--
-      SEO-friendly title (≤60 chars) — leads with the brand + the literal
-      keyword phrase Google users actually type. The previous poetic title
-      ("mission-critical operating system") was beautiful but invisible to
-      anyone searching "blood donor network". Foundation name stays in the
-      title; Amravati (the geographic root) drops to the description.
-    -->
+    <!-- ── Page metadata · docs/seo/Raktify_Head_And_Metadata.md §1 ─────── -->
     <title>Raktify — Blood Donor Network by Choudhari Foundation</title>
     <meta
       name="description"
@@ -54,15 +47,12 @@
     <meta name="twitter:image" content="https://raktify.choudhari.ngo/og-image.png" />
     <meta name="twitter:image:alt" content="Raktify wordmark — Blood donor network by Choudhari Foundation" />
 
-    <!-- ── Structured data (NGO Organization schema) ──────────────────────
-         Drives the Google Knowledge Panel + "About this result" snippets.
-         Updates here flow through to Google within days of next crawl. Add
-         sameAs URLs (Facebook page, Instagram, LinkedIn, foundation site)
-         as soon as we have them — they bind the brand to verified profiles. -->
+    <!-- ── Structured data · docs/seo/Raktify_Head_And_Metadata.md §4 ───── -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "NGO",
+        "@id": "https://raktify.choudhari.ngo/#organization",
         "name": "Raktify",
         "alternateName": "Raktify Blood Donor Network",
         "legalName": "Choudhari EduHealth India Foundation",
@@ -73,6 +63,12 @@
         "foundingDate": "2025",
         "founder": { "@type": "Organization", "name": "Choudhari EduHealth India Foundation" },
         "areaServed": { "@type": "Country", "name": "India" },
+        "sameAs": [
+          "https://choudhari.ngo",
+          "https://www.facebook.com/choudhari.ngo/",
+          "https://www.instagram.com/choudhari.ngo/",
+          "https://www.linkedin.com/company/choudharingo"
+        ],
         "address": {
           "@type": "PostalAddress",
           "addressLocality": "Amravati",
@@ -97,27 +93,48 @@
       }
     </script>
 
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://raktify.choudhari.ngo/#website",
+        "name": "Raktify",
+        "alternateName": "Raktify Blood Donor Network",
+        "url": "https://raktify.choudhari.ngo",
+        "description": "Free voluntary blood donation network connecting donors with hospitals and blood banks across India.",
+        "inLanguage": ["en-IN", "mr-IN", "hi-IN"],
+        "publisher": { "@id": "https://raktify.choudhari.ngo/#organization" },
+        "dateModified": "__BUILD_DATE__"
+      }
+    </script>
+
     <!-- ── Fonts ────────────────────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Loaded non-blocking: media="print" means the browser fetches this
+      without holding up first paint, and onload flips it to all once it has
+      arrived. display=swap in the URL is what makes that invisible - text
+      paints immediately in the fallback face and swaps to Inter after. The
+      noscript copy is the normal blocking link, because with JS off nothing
+      would ever flip the media attribute. Weights are all genuinely used;
+      see docs/seo/Raktify_Head_And_Metadata.md §5 before trimming any.
+    -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'; this.onload=null;"
     />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    </noscript>
   </head>
   <body class="bg-rk-50 text-slate-900 antialiased">
     <div id="root"></div>
 
-    <!--
-      Static crawler-friendly fallback. Visible to:
-       • Search engines on first crawl (before they execute the SPA JS)
-       • Users who have JavaScript disabled (rare but exists)
-       • Accessibility scrapers + indexers that don't run JS at all
-      The SPA mounts into #root above and visually replaces this content;
-      the fallback never appears for users on a modern browser. Keep this
-      keyword-rich + factually correct — it's what Google's first-pass
-      ranking uses for queries like "Raktify", "blood donor India", etc.
-    -->
+    <!-- Crawler fallback · docs/seo/Raktify_Head_And_Metadata.md §2.
+         Every link below must resolve: this is the only crawlable content. -->
     <noscript>
       <main style="max-width: 720px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; line-height: 1.6;">
         <h1>Raktify — Blood Donor Network by Choudhari Foundation</h1>
@@ -139,7 +156,7 @@
           <li>
             <strong>Host a blood donation camp</strong> for your community,
             college, or company — apply at
-            <a href="https://raktify.choudhari.ngo/host-camp">raktify.choudhari.ngo/host-camp</a>.
+            <a href="https://raktify.choudhari.ngo/camps/host">raktify.choudhari.ngo/camps/host</a>.
           </li>
           <li>
             <strong>For hospitals and blood banks</strong> — onboard your
