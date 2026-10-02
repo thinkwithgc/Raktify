@@ -3,6 +3,7 @@ title: How Raktify matches donors to patients
 slug: how-raktify-matches-donors
 category: basics
 summary: What happens between a hospital raising a blood request and a donor getting a WhatsApp message — which donors are contacted, which are deliberately not, and why stock is always checked before anyone is messaged.
+metaDescription: What happens between a hospital raising a blood request and a donor getting a message, and which donors are deliberately not contacted.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

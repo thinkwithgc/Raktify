@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>How Raktify Works — Blood in Minutes, Not Hours | Raktify</title>
-<meta name="description" content="How Raktify finds blood for a patient — from the hospital's request, through blood-bank fridges and verified donors, to transfusion. Explained step by step for anyone, with diagrams. Free platform by Choudhari EduHealth India Foundation, Amravati." />
+<meta name="description" content="How Raktify finds blood for a patient — from a hospital request, through blood-bank stock and verified donors, to transfusion. Step by step, with diagrams." />
 <link rel="canonical" href="https://raktify.choudhari.ngo/how-raktify-works.html" />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <meta property="og:type" content="article" />
@@ -48,6 +48,11 @@
   }
   h2 .q { color: #fbbf24; font-weight: 400; font-size: 15px; display: block; margin-top: 2px; }
   h3 { font-size: 16px; margin: 22px 0 8px; }
+  /* Renders exactly like the H3 it replaced (see the note in the commit): a
+     lead-in label under the H1, deliberately NOT a heading, because an H3
+     there skipped a level and an H2 there would become a dark banner and gain
+     a printed page break. Overrides the 14.5px p rule. */
+  p.leadlabel { font-size: 16px; font-weight: 700; margin: 22px 0 8px; }
   p { font-size: 14.5px; }
   .story { font-size: 15px; margin: 12px 0; }
   .fixed-points { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 22px 0; }
@@ -116,7 +121,7 @@
 
 <div class="oneliner">When a hospital needs blood, Raktify finds it — first from blood-bank fridges, then from living donors — automatically, in minutes instead of hours.</div>
 
-<h3>The problem today (without Raktify)</h3>
+<p class="leadlabel">The problem today (without Raktify)</p>
 <p class="story">A patient needs blood. The hospital's blood bank doesn't have that group. The family starts running — calling relatives, posting in WhatsApp groups, begging strangers outside blood banks. Nobody knows which fridge in the city actually has the blood, or which healthy donor is 2&nbsp;km away and willing. Hours pass. Sometimes the patient doesn't have hours.</p>
 <p class="story">Raktify replaces that panic with a system. Everything below explains how.</p>
 

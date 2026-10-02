@@ -3,6 +3,7 @@ title: Blood donation glossary
 slug: blood-donation-glossary
 category: basics
 summary: Plain-English definitions of the words you will hear at a blood bank or on a camp day — component, crossmatch, deferral, apheresis, TTI screening, lookback, and the rest.
+metaDescription: Plain-English definitions of the words you will meet when you donate blood or read a blood-bank report.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

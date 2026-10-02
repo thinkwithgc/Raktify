@@ -3,6 +3,7 @@ title: Questions about using Raktify
 slug: faq
 category: faq
 summary: How Raktify works for donors, camp organisers, hospitals and blood banks — what it costs, how the WhatsApp alerts work, how to stop them, and who can see your details.
+metaDescription: Common questions about using Raktify: what it costs, how WhatsApp alerts work, how to stop them, and who can see your details.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

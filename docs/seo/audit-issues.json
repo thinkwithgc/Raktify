@@ -1,0 +1,249 @@
+[
+  {
+    "severity": "info",
+    "issueType": "heading-order-skip",
+    "issue": "Heading levels skip",
+    "url": "https://raktify.choudhari.ngo/developers",
+    "details": null,
+    "howToFix": "Adjust heading levels so they descend one step at a time (H1 → H2 → H3) without skipping."
+  },
+  {
+    "severity": "info",
+    "issueType": "heading-order-skip",
+    "issue": "Heading levels skip",
+    "url": "https://raktify.choudhari.ngo/how-raktify-works.html",
+    "details": null,
+    "howToFix": "Adjust heading levels so they descend one step at a time (H1 → H2 → H3) without skipping."
+  },
+  {
+    "severity": "warning",
+    "issueType": "javascript-rendering-suspected",
+    "issue": "Content may require JavaScript",
+    "url": "https://raktify.choudhari.ngo/login",
+    "details": {
+      "wordCount": 0
+    },
+    "howToFix": "If this audit did not render JavaScript, start a new audit with \"Render JavaScript\" enabled to check the loaded content. For reliable crawling, serve important content and navigation in the initial HTML using server-side rendering or prerendering. This warning does not prove that search engines cannot index the page."
+  },
+  {
+    "severity": "warning",
+    "issueType": "javascript-rendering-suspected",
+    "issue": "Content may require JavaScript",
+    "url": "https://raktify.choudhari.ngo/",
+    "details": {
+      "wordCount": 0
+    },
+    "howToFix": "If this audit did not render JavaScript, start a new audit with \"Render JavaScript\" enabled to check the loaded content. For reliable crawling, serve important content and navigation in the initial HTML using server-side rendering or prerendering. This warning does not prove that search engines cannot index the page."
+  },
+  {
+    "severity": "warning",
+    "issueType": "javascript-rendering-suspected",
+    "issue": "Content may require JavaScript",
+    "url": "https://raktify.choudhari.ngo/register",
+    "details": {
+      "wordCount": 0
+    },
+    "howToFix": "If this audit did not render JavaScript, start a new audit with \"Render JavaScript\" enabled to check the loaded content. For reliable crawling, serve important content and navigation in the initial HTML using server-side rendering or prerendering. This warning does not prove that search engines cannot index the page."
+  },
+  {
+    "severity": "warning",
+    "issueType": "javascript-rendering-suspected",
+    "issue": "Content may require JavaScript",
+    "url": "https://raktify.choudhari.ngo/camps/host",
+    "details": {
+      "wordCount": 0
+    },
+    "howToFix": "If this audit did not render JavaScript, start a new audit with \"Render JavaScript\" enabled to check the loaded content. For reliable crawling, serve important content and navigation in the initial HTML using server-side rendering or prerendering. This warning does not prove that search engines cannot index the page."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/developers",
+    "details": {
+      "length": 263
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/how-raktify-works.html",
+    "details": {
+      "length": 247
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/donate",
+    "details": {
+      "length": 242
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/privacy",
+    "details": {
+      "length": 226
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/terms",
+    "details": {
+      "length": 209
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/data-deletion",
+    "details": {
+      "length": 238
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn",
+    "details": {
+      "length": 224
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/blood-donation-glossary",
+    "details": {
+      "length": 170
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/contribute",
+    "details": {
+      "length": 207
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/editorial-policy",
+    "details": {
+      "length": 185
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/faq",
+    "details": {
+      "length": 167
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/how-raktify-matches-donors",
+    "details": {
+      "length": 211
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-long",
+    "issue": "Meta description too long",
+    "url": "https://raktify.choudhari.ngo/learn/what-a-blood-bank-does",
+    "details": {
+      "length": 246
+    },
+    "howToFix": "Trim the description to roughly 70–160 characters while keeping the core message and call to action."
+  },
+  {
+    "severity": "info",
+    "issueType": "noindex-page",
+    "issue": "Page is noindex",
+    "url": "https://raktify.choudhari.ngo/login",
+    "details": {
+      "robotsMeta": "noindex, follow",
+      "xRobotsTag": null
+    },
+    "howToFix": "If this page should rank, remove the noindex directive. If it's intentional (admin, thank-you, filter pages), no action is needed."
+  },
+  {
+    "severity": "info",
+    "issueType": "title-too-long",
+    "issue": "Title too long",
+    "url": "https://raktify.choudhari.ngo/developers",
+    "details": {
+      "length": 77
+    },
+    "howToFix": "Shorten the title to roughly 50–60 characters, front-loading the most important words."
+  },
+  {
+    "severity": "info",
+    "issueType": "title-too-long",
+    "issue": "Title too long",
+    "url": "https://raktify.choudhari.ngo/donate",
+    "details": {
+      "length": 91
+    },
+    "howToFix": "Shorten the title to roughly 50–60 characters, front-loading the most important words."
+  },
+  {
+    "severity": "info",
+    "issueType": "title-too-long",
+    "issue": "Title too long",
+    "url": "https://raktify.choudhari.ngo/privacy",
+    "details": {
+      "length": 86
+    },
+    "howToFix": "Shorten the title to roughly 50–60 characters, front-loading the most important words."
+  },
+  {
+    "severity": "info",
+    "issueType": "title-too-long",
+    "issue": "Title too long",
+    "url": "https://raktify.choudhari.ngo/terms",
+    "details": {
+      "length": 88
+    },
+    "howToFix": "Shorten the title to roughly 50–60 characters, front-loading the most important words."
+  },
+  {
+    "severity": "info",
+    "issueType": "title-too-long",
+    "issue": "Title too long",
+    "url": "https://raktify.choudhari.ngo/data-deletion",
+    "details": {
+      "length": 98
+    },
+    "howToFix": "Shorten the title to roughly 50–60 characters, front-loading the most important words."
+  }
+]

@@ -3,6 +3,7 @@ title: Editorial policy
 slug: editorial-policy
 category: about
 summary: How pages in this library are written, reviewed, dated and corrected — what we will and will not publish, why some finished pages are still unpublished, and how to tell us we are wrong.
+metaDescription: How Raktify writes and reviews its Knowledge Center: sources, named clinical reviewers, review dates and corrections.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

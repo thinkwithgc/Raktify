@@ -874,8 +874,13 @@ function renderArticle(meta, body, published) {
   return [
     head({
       path: path,
+      // metaDescription exists because `summary` has three jobs: this tag, the
+      // visible <p class="summary">, and the hub card. Google truncates around
+      // 155-160 chars while the on-page copy reads better longer, so the two are
+      // separated rather than compromised. articleSchema() keeps the full summary -
+      // JSON-LD has no length limit.
       title: meta.title + ' | Raktify',
-      description: meta.summary,
+      description: meta.metaDescription || meta.summary,
       jsonld: jsonld,
     }),
     '<main class="page" id="main">',
@@ -972,7 +977,7 @@ function renderHub(articles) {
       path: '/learn',
       title: 'Knowledge Center — Blood Donation in India | Raktify',
       description:
-        'A maintained reference library on blood donation in India: who can donate, blood group compatibility, what a blood bank does, and how donors are matched to patients. Free, non-profit, by Choudhari EduHealth India Foundation.',
+        'A maintained reference library on blood donation in India: who can donate, blood group compatibility, what a blood bank does, and how donors are matched.',
       jsonld: [itemList, breadcrumbs('Knowledge Center', '/learn')],
     }),
     '<main class="page" id="main">',
@@ -1307,6 +1312,22 @@ patchLlms(
     })),
   ),
 );
+
+const DESC_MAX = 160;
+const tooLong = published
+  .map((a) => ({ slug: a.meta.slug, n: (a.meta.metaDescription || a.meta.summary).length }))
+  .filter((x) => x.n > DESC_MAX);
+if (tooLong.length) {
+  // A warning, not a failure: an over-long description is suboptimal, not broken -
+  // Google simply truncates the tail. Fix it by adding `metaDescription` to the
+  // front matter rather than by shortening the visible summary.
+  console.warn(
+    'build_learn: WARNING - meta description over ' +
+      DESC_MAX +
+      ' chars (Google truncates): ' +
+      tooLong.map((x) => x.slug + ' (' + x.n + ')').join(', '),
+  );
+}
 
 console.log('build_learn: related reading: ' + relatedLinks + ' sibling links');
 

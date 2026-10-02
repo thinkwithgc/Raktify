@@ -3,6 +3,7 @@ title: What a blood bank actually does
 slug: what-a-blood-bank-does
 category: institutions
 summary: A licensed blood bank does far more than store blood — it screens donors, separates whole blood into components, tests every unit for transfusion-transmissible infections, and keeps each component at its own temperature until a hospital needs it.
+metaDescription: What a licensed blood bank does: screening donors, separating components, testing every unit, and storing each at its own temperature.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

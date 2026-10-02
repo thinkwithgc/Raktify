@@ -79,21 +79,21 @@ const ROUTES = [
     out: 'register.html',
     title: 'Register as a Blood Donor in India | Raktify',
     description:
-      'Register free as a voluntary blood donor. Raktify messages you on WhatsApp only when your blood group is needed by a hospital near you - no fees, no spam, and you can opt out any time. An initiative of Choudhari EduHealth India Foundation, Amravati.',
+      'Register free as a voluntary blood donor. Raktify messages you on WhatsApp only when your blood group is needed nearby - no fees, no spam, opt out any time.',
   },
   {
     route: '/camps/host',
     out: 'camps/host.html',
     title: 'Host a Blood Donation Camp | Raktify',
     description:
-      'Apply to host a blood donation camp for your college, company, housing society or community. Raktify partners a licensed blood bank for the day, collects donor registrations for you, and gives your camp a shareable page. Free for organisers.',
+      'Host a blood donation camp for your college, company or society. Raktify partners a licensed blood bank and collects registrations. Free for organisers.',
   },
   {
     route: '/help/community-leader',
     out: 'help/community-leader.html',
     title: 'Community Leader Guide | Raktify',
     description:
-      'How community leaders use Raktify to mobilise voluntary blood donors in their district - adopting unfilled requests, coordinating with blood banks, and following a case through to transfusion.',
+      'How community leaders mobilise voluntary blood donors in their district - adopting unfilled requests and following a case through to transfusion.',
     // TWO levels, not three, and that is a constraint rather than a choice:
     // every breadcrumb item except the last needs a URL that resolves, and
     // there is no /help index route - only a /help/ path segment. A trail

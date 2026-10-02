@@ -3,6 +3,7 @@ title: Write for the Raktify library
 slug: contribute
 category: about
 summary: We are looking for haematologists, transfusion medicine specialists, blood bank officers and medical writers to author and review pages in this library. What we publish, what we pay, and how to get in touch.
+metaDescription: Write for Raktify's Knowledge Center: what we publish, how clinical review works, and how to propose an article.
 author: Choudhari EduHealth India Foundation
 status: published
 published: 2026-10-02

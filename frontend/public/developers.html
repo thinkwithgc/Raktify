@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Raktify Developer API — Blood Bank Software Vendor Integration | REST Webhook</title>
-<meta name="description" content="Public REST webhook API for Indian blood-bank software vendors (Safetrans, e-RaktKosh, BLIS, RAKT and homegrown) to push donor and donation records into Raktify. HMAC-SHA256 authenticated, idempotent, DPDP-compliant. Built by Choudhari EduHealth India Foundation." />
+<title>Raktify Developer API — Blood Bank Vendor Integration</title>
+<meta name="description" content="REST webhook API for Indian blood-bank software vendors to push donor and donation records into Raktify. HMAC-SHA256 signed, idempotent, DPDP-compliant." />
 <meta name="keywords" content="blood bank software API, donor push webhook, Raktify integration, Safetrans integration, e-RaktKosh integration, blood donor REST API India, HMAC webhook, blood bank software vendor" />
 <meta name="author" content="Choudhari EduHealth India Foundation" />
 <link rel="canonical" href="https://raktify.choudhari.ngo/developers" />
@@ -105,6 +105,23 @@
   h2 { font-size: 22px; margin: 44px 0 10px; padding: 0; border-bottom: 2px solid var(--rk); padding-bottom: 6px; }
   h3 { font-size: 17px; margin: 24px 0 8px; }
   h4 { font-size: 14px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  /* An H2 that LOOKS like the H4 it replaced. "Everything you need, in one
+     place" sat directly under the H1 as an H4, which skips two levels for a
+     screen reader walking the outline. It is a top-level section, so it is now
+     an H2; these overrides keep the small muted label appearance exactly. */
+  h2.label {
+    font-size: 14px; margin: 16px 0 6px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--muted);
+    border-bottom: none; padding-bottom: 0;
+  }
+  /* Visually hidden, still announced. Used for the per-endpoint headings that
+     give the Request body / Response / Error responses H4s an H3 parent - the
+     endpoint name itself is rendered as styled spans in .endpoint-head, so
+     without this the H4s hang directly off H2 Endpoints and skip a level. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 
   p, li { font-size: 15px; }
   code { font-family: 'SF Mono', Consolas, 'Roboto Mono', monospace; font-size: 13px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
@@ -222,7 +239,7 @@
       <strong>One-line pitch for your engineering team:</strong> your software already captures every donor registration and every collection event; a single HMAC-signed HTTPS POST after each event mirrors it into Raktify so donors can be reached for compatible requests in their district. No polling, no scraping, no dual-entry, no BSP.
     </div>
 
-    <h4>Everything you need, in one place</h4>
+    <h2 class="label">Everything you need, in one place</h2>
     <div class="tools-grid">
       <a class="tool-card" href="#interactive-browser">
         <div class="t">Interactive API browser →</div>
@@ -328,6 +345,7 @@ requests.post(
     <p>All request and response bodies are JSON. Successful writes return <code>202 Accepted</code> (the row is stored and the consent flow is enqueued asynchronously).</p>
 
     <div class="endpoint" id="donor-registration">
+      <h3 class="sr-only">POST /webhooks/v1/donor-registration</h3>
       <div class="endpoint-head">
         <span class="method">POST</span>
         <span class="path">/webhooks/v1/donor-registration</span>
@@ -384,6 +402,7 @@ requests.post(
     </div>
 
     <div class="endpoint" id="donation">
+      <h3 class="sr-only">POST /webhooks/v1/donation</h3>
       <div class="endpoint-head">
         <span class="method">POST</span>
         <span class="path">/webhooks/v1/donation</span>
