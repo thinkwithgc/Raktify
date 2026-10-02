@@ -23,6 +23,7 @@ export function Footer({ variant = 'full' }) {
           </div>
           <nav className="flex items-center gap-4">
             {/* Static pages (outside the SPA) — use <a> for a full navigation */}
+            <a href="/about" className="hover:text-rk-700">About</a>
             <a href="/learn" className="hover:text-rk-700">Learn</a>
             <a href="/privacy" className="hover:text-rk-700">Privacy</a>
             <a href="/terms" className="hover:text-rk-700">Terms</a>
@@ -69,6 +70,15 @@ export function Footer({ variant = 'full' }) {
               Get involved
             </h3>
             <ul className="mt-3 space-y-2 text-sm">
+              <li>
+                {/* Static HTML in public/. Same orphan lesson as /learn below: a page
+                    nothing links to is reachable only by typing the URL, and /about
+                    is where the Foundation's registration, 80G and clinical
+                    governance live - the things an institution checks first. */}
+                <a href="/about" className="text-stone-700 hover:text-rk-700">
+                  About Raktify
+                </a>
+              </li>
               <li>
                 {/* Static page (outside the SPA) — crawlable deep-dive for new visitors */}
                 <a href="/how-raktify-works.html" className="text-stone-700 hover:text-rk-700">
