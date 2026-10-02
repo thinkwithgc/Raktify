@@ -356,6 +356,21 @@ export function DonorRegister() {
     <div className="min-h-full">
       <Header subtitle={t('app_name')} />
       <main className="mx-auto max-w-2xl px-4 py-6">
+        {/* This page had NO title element at all - not a wrong heading level, but no
+            h1 anywhere, so the first heading was "Step 1 - Your details" inside the
+            card and anyone arriving from a search for "register as a blood donor"
+            landed on a bare form. Same markup and the same classes as
+            HostCamp.jsx, which is the house pattern for a public conversion page;
+            nothing new is introduced to the design system.
+
+            `t` is DonorRegister's own, from the useT() at the top of THIS
+            component - read the note in StepDetails below before moving this into
+            a sub-component. */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-slate-900">{t('reg_page_title')}</h1>
+          <p className="mt-1 text-sm text-slate-600">{t('reg_page_intro')}</p>
+        </div>
+
         <Stepper
           current={step}
           labels={['Your details', 'Consent']}

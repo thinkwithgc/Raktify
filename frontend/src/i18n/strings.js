@@ -107,6 +107,9 @@ const dict = {
     lp_learn_sub: 'रक्तदात्यांसाठी लिहिलेली सोपी माहिती — प्रकाशित होण्यापूर्वी तपासलेली.',
     lp_learn_note: 'हे लेख सध्या इंग्रजीमध्ये उपलब्ध आहेत.',
     lp_learn_cta: 'नॉलेज सेंटर पहा',
+    reg_page_title: 'रक्तदाता व्हा',
+    reg_page_intro:
+      'विनामूल्य नोंदणी करा. तुम्हाला WhatsApp वर संदेश पाठवतो तेव्हाज, जेव्हा तुम्हांच्या रक्तगटाची जवळपास गरज असेल. तुम्ही केव्हाही थांबवू शकता.',
     lp_how_full_link: 'संपूर्ण प्रवास पहा — विनंतीपासून रक्तसंक्रमणापर्यंत',
     lp_step1_title: 'काही मिनिटांत नोंदणी',
     lp_step1_body:
@@ -283,6 +286,9 @@ const dict = {
     lp_learn_sub: 'रक्तदाताओं के लिए लिखी गई सरल जानकारी — प्रकाशित होने से पहले जाँची गई।',
     lp_learn_note: 'ये लेख वर्तमान में अंग्रेज़ी में हैं।',
     lp_learn_cta: 'नॉलेज सेंटर देखें',
+    reg_page_title: 'रक्तदाता बनें',
+    reg_page_intro:
+      'निःशुल्क पंजीकरण करें। हम WhatsApp पर संदेश तब ही भेजते हैं जब आपके रक्त समूह की आसपास ज़रूरत हो। आप कभी भी रोक सकते हैं।',
     lp_how_full_link: 'पूरी यात्रा देखें — अनुरोध से रक्ताधान तक',
     lp_step1_title: 'मिनटों में पंजीकरण',
     lp_step1_body:
@@ -453,6 +459,9 @@ const dict = {
     lp_learn_sub: 'Plain answers for donors, written carefully and reviewed before they publish.',
     lp_learn_note: 'These guides are currently in English.',
     lp_learn_cta: 'Browse the Knowledge Center',
+    reg_page_title: 'Become a blood donor',
+    reg_page_intro:
+      'Register free. We message you on WhatsApp only when your blood group is needed nearby, and you can opt out any time.',
     lp_how_full_link: 'New here? See the complete journey — from request to transfusion',
     lp_step1_title: 'Register in minutes',
     lp_step1_body:

@@ -1,0 +1,59 @@
+[
+  {
+    "severity": "info",
+    "issueType": "heading-order-skip",
+    "issue": "Heading levels skip",
+    "url": "https://raktify.choudhari.ngo/developers",
+    "details": null,
+    "howToFix": "Adjust heading levels so they descend one step at a time (H1 → H2 → H3) without skipping."
+  },
+  {
+    "severity": "info",
+    "issueType": "meta-description-too-short",
+    "issue": "Meta description too short",
+    "url": "https://raktify.choudhari.ngo/login",
+    "details": {
+      "length": 38
+    },
+    "howToFix": "Expand the description to roughly 70–160 characters that summarize the page and give a reason to click."
+  },
+  {
+    "severity": "warning",
+    "issueType": "missing-h1",
+    "issue": "Missing H1 heading",
+    "url": "https://raktify.choudhari.ngo/register",
+    "details": null,
+    "howToFix": "Add a single H1 that states the page's main topic, consistent with the title tag."
+  },
+  {
+    "severity": "warning",
+    "issueType": "multiple-h1",
+    "issue": "Multiple H1 headings",
+    "url": "https://raktify.choudhari.ngo/developers",
+    "details": {
+      "h1Count": 2
+    },
+    "howToFix": "Keep one H1 for the page's main heading and demote the others to H2/H3 (or unstyled elements for non-headings like logos)."
+  },
+  {
+    "severity": "info",
+    "issueType": "noindex-page",
+    "issue": "Page is noindex",
+    "url": "https://raktify.choudhari.ngo/login",
+    "details": {
+      "robotsMeta": "noindex, follow",
+      "xRobotsTag": null
+    },
+    "howToFix": "If this page should rank, remove the noindex directive. If it's intentional (admin, thank-you, filter pages), no action is needed."
+  },
+  {
+    "severity": "warning",
+    "issueType": "thin-content",
+    "issue": "Thin content",
+    "url": "https://raktify.choudhari.ngo/register",
+    "details": {
+      "wordCount": 91
+    },
+    "howToFix": "Either expand the page with genuinely useful content, noindex it, or consolidate it into a stronger page. If the content exists but is rendered by JavaScript, ensure it is server-rendered or pre-rendered."
+  }
+]

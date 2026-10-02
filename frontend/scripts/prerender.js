@@ -108,7 +108,10 @@ const ROUTES = [
     route: '/login',
     out: 'login.html',
     title: 'Donor Sign In | Raktify',
-    description: 'Sign in to your Raktify donor account.',
+    // Short is fine on a noindex page - nothing ranks here - but a one-line tag 
+    // reads badly if the URL is ever shared, so it says what the page is for.
+    description:
+      'Sign in to your Raktify donor account to update your details, see your donation history, or change which alerts you receive.',
     noindex: true,
   },
 ];
