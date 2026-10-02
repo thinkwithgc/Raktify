@@ -1,6 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/staticwebapp.config.json",
-  "platform": { "apiRuntime": "node:20" },
+  "platform": {
+    "apiRuntime": "node:20"
+  },
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": [
@@ -11,23 +13,77 @@
     ]
   },
   "routes": [
-    { "route": "/c/*", "rewrite": "/api/camp-og" },
-    { "route": "/register", "rewrite": "/register.html" },
-    { "route": "/camps/host", "rewrite": "/camps/host.html" },
-    { "route": "/help/community-leader", "rewrite": "/help/community-leader.html" },
-    { "route": "/login", "rewrite": "/login.html" },
-    { "route": "/learn", "rewrite": "/learn.html" },
-    { "route": "/learn/faq", "rewrite": "/learn/faq.html" },
-    { "route": "/learn/what-a-blood-bank-does", "rewrite": "/learn/what-a-blood-bank-does.html" },
-    { "route": "/learn/how-raktify-matches-donors", "rewrite": "/learn/how-raktify-matches-donors.html" },
-    { "route": "/learn/blood-donation-glossary", "rewrite": "/learn/blood-donation-glossary.html" },
-    { "route": "/learn/contribute", "rewrite": "/learn/contribute.html" },
-    { "route": "/learn/editorial-policy", "rewrite": "/learn/editorial-policy.html" },
-    { "route": "/privacy", "rewrite": "/privacy.html" },
-    { "route": "/terms", "rewrite": "/terms.html" },
-    { "route": "/data-deletion", "rewrite": "/data-deletion.html" },
-    { "route": "/donate", "rewrite": "/donate.html" },
-    { "route": "/developers", "rewrite": "/developers.html" },
+    {
+      "route": "/c/*",
+      "rewrite": "/api/camp-og"
+    },
+    {
+      "route": "/register",
+      "rewrite": "/register.html"
+    },
+    {
+      "route": "/camps/host",
+      "rewrite": "/camps/host.html"
+    },
+    {
+      "route": "/help/community-leader",
+      "rewrite": "/help/community-leader.html"
+    },
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
+    },
+    {
+      "route": "/learn",
+      "rewrite": "/learn.html"
+    },
+    {
+      "route": "/learn/faq",
+      "rewrite": "/learn/faq.html"
+    },
+    {
+      "route": "/learn/what-a-blood-bank-does",
+      "rewrite": "/learn/what-a-blood-bank-does.html"
+    },
+    {
+      "route": "/learn/how-raktify-matches-donors",
+      "rewrite": "/learn/how-raktify-matches-donors.html"
+    },
+    {
+      "route": "/learn/blood-donation-glossary",
+      "rewrite": "/learn/blood-donation-glossary.html"
+    },
+    {
+      "route": "/learn/contribute",
+      "rewrite": "/learn/contribute.html"
+    },
+    {
+      "route": "/learn/editorial-policy",
+      "rewrite": "/learn/editorial-policy.html"
+    },
+    {
+      "route": "/privacy",
+      "rewrite": "/privacy.html"
+    },
+    {
+      "route": "/terms",
+      "rewrite": "/terms.html"
+    },
+    {
+      "route": "/data-deletion",
+      "rewrite": "/data-deletion.html"
+    },
+    {
+      "route": "/donate",
+      "rewrite": "/donate.html"
+    },
+    {
+      "route": "/developers",
+      "rewrite": "/developers.html",
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com; img-src 'self' data: https:; connect-src 'self' https://raktify-api.azurewebsites.net; upgrade-insecure-requests"
+      }
+    },
     {
       "route": "/api-docs",
       "redirect": "/developers#interactive-browser",
@@ -79,35 +135,61 @@
     },
     {
       "route": "/assets/*",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" }
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
     },
     {
       "route": "/index.html",
-      "headers": { "cache-control": "no-cache" }
+      "headers": {
+        "cache-control": "no-cache"
+      }
     },
     {
       "route": "/sw.js",
-      "headers": { "cache-control": "no-cache" }
+      "headers": {
+        "cache-control": "no-cache"
+      }
     },
     {
       "route": "/manifest.webmanifest",
-      "headers": { "cache-control": "no-cache" }
+      "headers": {
+        "cache-control": "no-cache"
+      }
     },
     {
       "route": "/robots.txt",
-      "headers": { "cache-control": "public, max-age=3600", "content-type": "text/plain; charset=utf-8" }
+      "headers": {
+        "cache-control": "public, max-age=3600",
+        "content-type": "text/plain; charset=utf-8"
+      }
     },
     {
       "route": "/sitemap.xml",
-      "headers": { "cache-control": "public, max-age=3600", "content-type": "application/xml; charset=utf-8" }
+      "headers": {
+        "cache-control": "public, max-age=3600",
+        "content-type": "application/xml; charset=utf-8"
+      }
+    },
+    {
+      "route": "/developers.html",
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com; img-src 'self' data: https:; connect-src 'self' https://raktify-api.azurewebsites.net; upgrade-insecure-requests"
+      }
     }
   ],
   "responseOverrides": {
-    "404": { "rewrite": "/index.html", "statusCode": 200 }
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
   },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer"
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://raktify-api.azurewebsites.net; upgrade-insecure-requests"
   },
   "mimeTypes": {
     ".md": "text/markdown; charset=utf-8",

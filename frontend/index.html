@@ -113,18 +113,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!--
       Loaded non-blocking: media="print" means the browser fetches this
-      without holding up first paint, and onload flips it to all once it has
-      arrived. display=swap in the URL is what makes that invisible - text
+      without holding up first paint, and src/main.jsx flips it to all once it
+      has arrived. The flip USED to be an inline onload= attribute; it moved into
+      the bundle so that script-src 'self' in the CSP does not have to be widened
+      to 'unsafe-inline'. See docs/seo/Raktify_Head_And_Metadata.md. display=swap in the URL is what makes that invisible - text
       paints immediately in the fallback face and swaps to Inter after. The
       noscript copy is the normal blocking link, because with JS off nothing
       would ever flip the media attribute. Weights are all genuinely used;
       see docs/seo/Raktify_Head_And_Metadata.md §5 before trimming any.
     -->
     <link
+      id="rk-fonts"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
       rel="stylesheet"
       media="print"
-      onload="this.media='all'; this.onload=null;"
     />
     <noscript>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -174,6 +176,17 @@
           Choudhari EduHealth India Foundation is a not-for-profit registered
           in Amravati, Maharashtra, India (CIN U88900MH2025NPL447942,
           NGO-Darpan MH/2025/0643345). Contact: contact@choudhari.ngo.
+        </p>
+        <h2>Privacy and your data</h2>
+        <p>
+          Raktify is a Data Fiduciary under India's Digital Personal Data
+          Protection Act 2023. Read the
+          <a href="https://raktify.choudhari.ngo/privacy">privacy policy</a>
+          (which names our Grievance Officer and how to reach them), the
+          <a href="https://raktify.choudhari.ngo/terms">terms of service</a>, or
+          request deletion of your data at
+          <a href="https://raktify.choudhari.ngo/data-deletion">raktify.choudhari.ngo/data-deletion</a>.
+          Questions: contact@choudhari.ngo.
         </p>
         <p>
           This site requires JavaScript for the interactive donor portal,
