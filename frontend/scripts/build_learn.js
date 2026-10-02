@@ -94,6 +94,12 @@ const CATEGORIES = [
   ['institutions', 'For hospitals and blood banks'],
   ['faq', 'Questions and answers'],
   ['about', 'About this library'],
+  // Donor stories are a CLUSTER, not a section of the reference library: a
+  // reader who just finished one wants another story, not the glossary. See
+  // relatedBlock() - stories suggest only stories, and no reference article
+  // suggests a story as "related reading". Listed last so the hub reads
+  // reference-first.
+  ['stories', 'Donor stories'],
 ];
 
 function fail(msg) {
@@ -716,9 +722,19 @@ const RELATED_MAX = 3;
  */
 function relatedBlock(meta, published) {
   const isAbout = meta.category === 'about';
-  const pool = published.filter(
-    (a) => a.meta.slug !== meta.slug && (isAbout || a.meta.category !== 'about'),
-  );
+  const isStory = meta.category === 'stories';
+  const pool = published.filter((a) => {
+    if (a.meta.slug === meta.slug) return false;
+    // A story suggests only other stories. Someone who has just read how a
+    // donor in Badnera got a call at 2am wants the next story, and sending them
+    // to the compatibility chart loses them.
+    if (isStory) return a.meta.category === 'stories';
+    // And nothing else ever suggests a story: the reference library stays a
+    // library. Without this, every article's Related reading would drift toward
+    // whichever cluster has the most entries.
+    if (a.meta.category === 'stories') return false;
+    return isAbout || a.meta.category !== 'about';
+  });
   pool.sort((x, y) => {
     const sx = x.meta.category === meta.category ? 0 : 1;
     const sy = y.meta.category === meta.category ? 0 : 1;
