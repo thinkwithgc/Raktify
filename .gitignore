@@ -70,3 +70,11 @@ data/lgd/*.zip
 
 # Claude Code per-user settings
 .claude/settings.local.json
+
+# Competitor research screenshots. NOT committed: this repo is PUBLIC and the
+# captures contain third parties' personal data - names of people who posted
+# blood requests, camp organisers' mobile numbers scraped from eRaktKosh, and
+# the reviewer's own phone and email. Git history is permanent, so a later
+# delete would not undo the publication. Keep them locally; the analysis they
+# support belongs in prose, not in the images.
+docs/thebloodapp/

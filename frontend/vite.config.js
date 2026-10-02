@@ -82,6 +82,7 @@ export default defineConfig(({ mode }) => {
             /^\/learn$/,
             /^\/learn\//,
             /^\/how-raktify-works\.html/,
+            /^\/about(\.html)?$/,
             /^\/privacy(\.html)?$/,
             /^\/terms(\.html)?$/,
             /^\/data-deletion(\.html)?$/,

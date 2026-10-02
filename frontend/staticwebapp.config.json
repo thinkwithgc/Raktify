@@ -62,6 +62,10 @@
       "rewrite": "/learn/editorial-policy.html"
     },
     {
+      "route": "/about",
+      "rewrite": "/about.html"
+    },
+    {
       "route": "/privacy",
       "rewrite": "/privacy.html"
     },

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About Raktify | Choudhari EduHealth India Foundation</title>
+<meta name="description" content="Raktify is a free, non-profit blood donation platform by Choudhari EduHealth India Foundation, a Section 8 company registered in Amravati, Maharashtra." />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<link rel="canonical" href="https://raktify.choudhari.ngo/about" />
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Raktify" />
+<meta property="og:title" content="About Raktify — who builds it and who is accountable" />
+<meta property="og:description" content="A free, non-profit blood donation platform operated by a Section 8 company in Amravati. Who runs it, how clinical data is reviewed, and how your data is handled." />
+<meta property="og:url" content="https://raktify.choudhari.ngo/about" />
+<meta property="og:image" content="https://raktify.choudhari.ngo/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<!-- Entity graph: this page is ABOUT the organisation, so it references the
+     canonical NGO node declared on the home page (#organization) rather than
+     redeclaring it. Note the repo already carries a second id for the same
+     entity (#foundation, on /donate) - pre-existing drift, not added here. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "AboutPage",
+      "@id": "https://raktify.choudhari.ngo/about#page",
+      "url": "https://raktify.choudhari.ngo/about",
+      "name": "About Raktify",
+      "description": "Who builds and operates Raktify, how its clinical reference data is reviewed, and how donor data is protected.",
+      "inLanguage": "en-IN",
+      "mainEntity": { "@id": "https://raktify.choudhari.ngo/#organization" }
+    },
+    {
+      "@type": "NGO",
+      "@id": "https://raktify.choudhari.ngo/#organization",
+      "name": "Choudhari EduHealth India Foundation",
+      "alternateName": "Raktify",
+      "url": "https://raktify.choudhari.ngo/",
+      "logo": "https://raktify.choudhari.ngo/app-icon.png",
+      "foundingDate": "2025-06-09",
+      "identifier": "NGO-DARPAN MH/2025/0643345",
+      "email": "contact@choudhari.ngo",
+      "telephone": "+91-98505-41412",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "54, 2nd Lane, Rathi Nagar, VMV Road",
+        "addressLocality": "Amravati",
+        "addressRegion": "Maharashtra",
+        "postalCode": "444603",
+        "addressCountry": "IN"
+      },
+      "founder": [
+        { "@type": "Person", "name": "Gaurav Choudhari", "jobTitle": "Founder Director" },
+        { "@type": "Person", "name": "Anurag Choudhari", "jobTitle": "Founder Director" }
+      ],
+      "areaServed": "IN"
+    }
+  ]
+}
+</script>
+
+<style>
+  :root{--rk:#b8231a;--rk-dark:#9a1d15;--ink:#1a1a1a;--muted:#64748b;--line:#e2e8f0;--cream:#fdf8f4;--sand:#f5ece4}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:'Segoe UI',system-ui,-apple-system,'Noto Sans Devanagari',sans-serif;color:var(--ink);margin:0;background:var(--cream);line-height:1.62}
+  a{color:var(--rk);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .topbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line)}
+  .topbar-inner{max-width:820px;margin:0 auto;padding:10px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+  /* THE WORDMARK IS THE VECTOR, NEVER TEXT. The other static pages in this
+     folder re-type it as a styled span; that is a known violation of the locked
+     rule (see CLAUDE.md, "Design system"), not a pattern to copy. Sized by
+     height; the 3.135:1 ratio comes from the viewBox. */
+  .wm{height:21px;width:auto;display:block}
+  .topbar-cta{background:var(--rk);color:#fff;font-weight:600;font-size:13.5px;padding:8px 16px;border-radius:999px;white-space:nowrap}
+  .topbar-cta:hover{background:var(--rk-dark);text-decoration:none}
+  .page{max-width:820px;margin:0 auto;padding:34px 22px 72px}
+  .crumbs{font-size:12.5px;color:var(--muted);margin:0 0 14px}
+  .crumbs a{color:var(--muted)}
+  h1{font-size:32px;line-height:1.12;margin:4px 0 10px;letter-spacing:-.02em}
+  .lead{font-size:17.5px;color:#334155;margin:0 0 6px}
+  h2{font-size:21px;margin:42px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--rk);letter-spacing:-.01em}
+  h3{font-size:16.5px;margin:22px 0 4px}
+  p{font-size:15px;margin:10px 0}
+  ul{font-size:15px;padding-left:20px}
+  li{margin:7px 0}
+  .role{font-size:13px;color:var(--rk);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin:0}
+  .person{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#fff;margin:14px 0}
+  .person h3{margin-top:0}
+  .cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-top:14px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#fff}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .card p{font-size:14px;color:#475569;margin:0 0 10px}
+  .card a{font-weight:600;font-size:14px}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;margin:14px 0;background:#fff}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--sand);font-weight:600;white-space:nowrap;width:38%}
+  .note{background:#fff;border:1px solid var(--line);border-left:3px solid var(--rk);border-radius:8px;padding:13px 16px;margin:16px 0;font-size:14.5px;color:#334155}
+  footer{border-top:1px solid var(--line);margin-top:52px;padding:22px 0 0;font-size:13px;color:var(--muted)}
+  .footlinks{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}
+  .footlinks a{color:var(--muted)}
+  /* Owner note: FINE PRINT, not a claim. Last element, below the footer rule,
+     smaller than the footer, no bold on the mark, no prohibition clause. */
+  .tm{margin-top:16px;font-size:11px;color:#94a3b8}
+  @media(max-width:560px){h1{font-size:26px}h2{font-size:19px}.page{padding:26px 18px 56px}th{width:auto}}
+  @media print{.topbar,.topbar-cta{display:none}.page{max-width:none;padding:0}}
+</style>
+</head>
+<body>
+
+<!-- Wordmark, copied VERBATIM from frontend/public/wordmark-tm.svg at build
+     time. Same-document <use> prints exactly as it screens; an external
+     <use href="file.svg#id"> does not, and nor does an <img> once this page
+     is saved or emailed. Locked rule - see CLAUDE.md. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="rk-wordmark" viewBox="57 107 1185 378"><path d="M113.247 420L60.513 420L60.513 201.818L150.641 201.818Q175.143 201.818 192.988 210.607Q210.832 219.396 220.527 235.749Q230.222 252.102 230.222 274.474Q230.222 297.166 220.314 312.987Q210.406 328.807 192.189 337.063Q173.972 345.320 149.043 345.320L92.047 345.320L92.047 303.771L139.241 303.771Q151.173 303.771 159.217 300.629Q167.260 297.486 171.415 291.040Q175.570 284.595 175.570 274.474Q175.570 264.354 171.415 257.695Q167.260 251.037 159.163 247.681Q151.067 244.325 139.241 244.325L113.247 244.325L113.247 420M126.884 320.284L183.347 320.284L237.679 420L180.151 420L126.884 320.284M305.222 422.770Q289.561 422.770 277.469 417.496Q265.378 412.223 258.400 401.516Q251.422 390.810 251.422 374.616Q251.422 360.980 256.216 351.605Q261.010 342.230 269.426 336.371Q277.842 330.511 288.815 327.475Q299.788 324.439 312.253 323.374Q326.209 322.095 334.732 320.657Q343.254 319.219 347.143 316.502Q351.031 313.786 351.031 308.778L351.031 308.246Q351.031 300.043 345.385 295.568Q339.739 291.094 330.151 291.094Q319.817 291.094 313.531 295.568Q307.246 300.043 305.541 307.926L257.494 306.222Q259.625 291.307 268.521 279.535Q277.416 267.763 293.023 260.998Q308.631 254.233 330.577 254.233Q346.237 254.233 359.447 257.908Q372.658 261.584 382.459 268.562Q392.260 275.540 397.640 285.661Q403.020 295.781 403.020 308.778L403.020 420L354.014 420L354.014 397.202L352.736 397.202Q348.368 405.511 341.603 411.264Q334.838 417.017 325.729 419.893Q316.621 422.770 305.222 422.770M321.308 388.679Q329.724 388.679 336.489 385.270Q343.254 381.861 347.303 375.842Q351.351 369.822 351.351 361.832L351.351 346.278Q349.114 347.450 345.971 348.409Q342.828 349.368 339.099 350.220Q335.371 351.072 331.429 351.712Q327.487 352.351 323.865 352.884Q316.514 354.055 311.347 356.506Q306.180 358.956 303.464 362.844Q300.747 366.733 300.747 372.060Q300.747 380.156 306.553 384.418Q312.359 388.679 321.308 388.679M512.111 340.313L481.749 377.067L481.962 314.957L489.206 314.957L535.229 256.364L594.249 256.364L525.854 340.313L512.111 340.313M486.862 420L434.767 420L434.767 201.818L486.862 201.818L486.862 420M596.592 420L536.401 420L493.574 352.031L527.878 315.064L596.592 420M602.132 256.364L705.364 256.364L705.364 294.716L602.132 294.716L602.132 256.364M623.759 374.297L623.759 217.159L675.854 217.159L675.854 368.544Q675.854 373.338 677.398 376.268Q678.943 379.197 681.926 380.423Q684.909 381.648 689.064 381.648Q692.047 381.648 695.403 381.062Q698.759 380.476 700.463 380.050L708.347 417.656Q704.618 418.722 697.853 420.320Q691.088 421.918 681.713 422.344Q663.389 423.196 650.339 418.029Q637.288 412.862 630.417 401.889Q623.545 390.916 623.759 374.297" fill="#b8231a"/>
+  <path d="M780.092 420L727.997 420L727.997 256.364L780.092 256.364" fill="#1c1917"/>
+  <path d="M796.866 256.364L902.122 256.364L902.122 294.716L796.866 294.716L796.866 256.364M870.908 420L818.813 420L818.813 248.054Q818.813 229.091 825.950 216.573Q833.088 204.055 845.766 197.823Q858.443 191.591 875.063 191.591Q885.929 191.591 895.570 193.242Q905.212 194.893 909.899 196.172L901.589 234.311Q898.713 233.352 894.612 232.713Q890.510 232.074 886.888 232.074Q877.726 232.074 874.317 236.122Q870.908 240.170 870.908 247.202L870.908 420M959.118 481.364Q949.743 481.364 941.433 479.925Q933.124 478.487 927.158 476.143L938.663 438.324Q946.334 440.881 952.566 441.307Q958.798 441.733 963.326 439.336Q967.854 436.939 970.304 430.866L972.328 425.966L914.161 256.364L968.706 256.364L998.855 373.125L1000.560 373.125L1031.135 256.364L1086 256.364L1024.317 435.661Q1019.842 449.084 1011.692 459.364Q1003.543 469.645 990.705 475.504Q977.868 481.364 959.118 481.364" fill="#1c1917"/>
+  <g transform="translate(676.04 94.36) scale(6.5)"><path d="M12 2.5c4 4.8 7 8.3 7 11.5a7 7 0 0 1-14 0c0-3.2 3-6.7 7-11.5Z" fill="#dc2f1d"/></g>
+  <text x="1089" y="246" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="135" fill="#1c1917">&#8482;</text></symbol>
+</svg>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a href="/" aria-label="Raktify home"><svg class="wm" role="img" aria-label="Raktify"><use href="#rk-wordmark" /></svg></a>
+    <a class="topbar-cta" href="/register">Become a donor</a>
+  </div>
+</div>
+
+<main class="page">
+  <p class="crumbs"><a href="/">Raktify</a> &rsaquo; About</p>
+
+  <h1>About Raktify</h1>
+  <p class="lead">
+    Raktify is a free, non-profit blood donation platform built and operated by
+    <strong>Choudhari EduHealth India Foundation</strong>, a Section&nbsp;8 company
+    registered in Amravati, Maharashtra. It is free for every donor, every camp
+    organiser and every hospital and blood bank &mdash; and it will stay that way.
+  </p>
+
+  <h2>What Raktify does</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>For donors</h3>
+      <p>Register once. We message you on WhatsApp only when your blood group is
+      needed nearby, and you can stop the messages at any time.</p>
+      <a href="/register">Become a donor &rarr;</a>
+    </div>
+    <div class="card">
+      <h3>For camp organisers</h3>
+      <p>Apply to host a camp for your college, company or society. Raktify
+      partners a licensed blood bank, collects registrations and gives your camp a
+      shareable page.</p>
+      <a href="/camps/host">Host a camp &rarr;</a>
+    </div>
+    <div class="card">
+      <h3>For hospitals &amp; blood banks</h3>
+      <p>Raise and track blood requests, publish camp capacity a month ahead,
+      record donations and screening results, and follow every bag from collection
+      to transfusion.</p>
+      <a href="/onboarding/apply">Onboard your institution &rarr;</a>
+    </div>
+  </div>
+
+  <h2>Who runs it</h2>
+
+  <div class="person">
+    <p class="role">Founder Director</p>
+    <h3>Gaurav Choudhari</h3>
+    <p>
+      Gaurav brings over sixteen years of technology and consulting experience,
+      gained at IBM, into building a technology-driven voluntary blood donation
+      platform. He leads Raktify&rsquo;s strategy, product, technology and AI work,
+      and has built the platform in-house rather than outsourcing it to an agency.
+      His focus is on using technology to make voluntary blood donation more
+      organised, more accessible and more community-driven.
+    </p>
+  </div>
+
+  <div class="person">
+    <p class="role">Founder Director</p>
+    <h3>Anurag Choudhari</h3>
+    <p>
+      Anurag is a technology entrepreneur who has spent twelve years building and
+      running his own software company in Pune. At Raktify he leads the
+      distribution platform and the organisation&rsquo;s digital presence, working on
+      the reach and usability that turn the platform into something people can
+      actually find when they need it.
+    </p>
+  </div>
+
+  <div class="person">
+    <p class="role">Medical Advisor &mdash; Institutional Outreach</p>
+    <h3>Dr. Shrikant Futane</h3>
+    <p>
+      Dr. Futane is a general physician and homeopath in Amravati with more than
+      ten years of clinical practice, holding a BHMS and a Master of Public Health
+      (MPH). He is Head of Administration at PDMMC Hospital and previously managed
+      the Government Super Speciality Hospital, Amravati. At Raktify he advises on
+      clinical practicalities and leads our outreach to hospitals and blood banks
+      across Amravati district.
+    </p>
+  </div>
+
+  <h2>How clinical decisions are governed</h2>
+  <p>
+    Raktify carries clinical reference data &mdash; donor eligibility rules, the
+    blood-group compatibility matrix, component shelf life and
+    transfusion-transmissible-infection deferral periods. None of it is our opinion.
+  </p>
+  <ul>
+    <li>
+      That reference data was reviewed and signed off by an
+      <strong>independent consultant haematologist on 10 July 2026</strong>, and is
+      not changed except from a signed clinical source.
+    </li>
+    <li>
+      The rules live in the database as constraints and triggers rather than in
+      application code, so an application bug cannot quietly bypass a clinical limit.
+    </li>
+    <li>
+      <strong>A self-reported blood group is never used to match a donor to a
+      patient.</strong> Only a blood group verified by a licensed blood bank is,
+      and only a blood bank can record that verification.
+    </li>
+    <li>
+      Nothing clinical is published in our
+      <a href="/learn">Knowledge Center</a> without a named reviewing clinician.
+      That is enforced by the build itself, not by good intentions &mdash; an article
+      marked clinical with no named reviewer will not publish. Our
+      <a href="/learn/editorial-policy">editorial policy</a> sets out how we write
+      and review it.
+    </li>
+  </ul>
+
+  <h2>How we handle your data</h2>
+  <p>
+    Raktify asks donors for a mobile number, a blood group and a location, and
+    asks institutions for clinical records. We treat all of it as something lent to
+    us, not given.
+  </p>
+  <ul>
+    <li>
+      <strong>No advertising, and no data sold or shared for marketing.</strong>
+      There is no commercial model that would make that tempting &mdash; the platform
+      is free and the Foundation is a non-profit.
+    </li>
+    <li>
+      Names, addresses and clinical notes are encrypted at rest. TTI screening
+      results use a <strong>separate encryption key</strong>, so access to the
+      general data does not grant access to screening data.
+    </li>
+    <li>
+      Every change to a donor or clinical record is written to an
+      <strong>append-only audit log</strong>. No administrator can edit or delete
+      an entry in it; there is deliberately no override.
+    </li>
+    <li>
+      Hospitals never see a donor&rsquo;s mobile number. All contact between a
+      hospital and a donor is mediated by the platform.
+    </li>
+    <li>
+      As a Data Fiduciary under India&rsquo;s Digital Personal Data Protection Act
+      2023, we publish a named Grievance Officer in our
+      <a href="/privacy">privacy policy</a>, and you can ask us to erase your data
+      at <a href="/data-deletion">any time</a>.
+    </li>
+  </ul>
+
+  <h2>Who we legally are</h2>
+  <table>
+    <tr><th>Legal name</th><td>Choudhari EduHealth India Foundation</td></tr>
+    <tr><th>Type</th><td>Section 8 company (not-for-profit), incorporated in India</td></tr>
+    <tr><th>Established</th><td>9 June 2025</td></tr>
+    <tr><th>CIN</th><td>U88900MH2025NPL447942</td></tr>
+    <tr><th>NGO-DARPAN</th><td>MH/2025/0643345</td></tr>
+    <tr><th>Tax status</th><td>80G eligible &mdash; donations are tax-deductible in India</td></tr>
+    <tr><th>Registered office</th><td>54, 2nd Lane, Rathi Nagar, VMV Road,<br />Amravati, Maharashtra 444603, India</td></tr>
+    <tr><th>Contact</th><td><a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a> &middot; <a href="tel:+919850541412">+91 98505 41412</a></td></tr>
+  </table>
+
+  <h2>How it is funded</h2>
+  <p>
+    Raktify is self-funded by the Foundation&rsquo;s directors. It costs nothing to
+    use and carries no advertising, which means it has no revenue of its own. If you
+    would like it to reach further, you can
+    <a href="/donate">support the Foundation</a> &mdash; donations are made through
+    give.do and carry an 80G receipt.
+  </p>
+
+  <div class="note">
+    <strong>A note on what we do not claim.</strong> Raktify coordinates; it does not
+    practise medicine. Whether someone may donate is decided by the medical officer
+    at the blood bank on the day, after seeing them. Whether a unit is safe to
+    transfuse is decided by the blood bank&rsquo;s own screening and crossmatch.
+    Nothing on this platform substitutes for either.
+  </div>
+
+  <footer>
+    <div class="footlinks">
+      <a href="/">Home</a>
+      <a href="/how-raktify-works.html">How Raktify works</a>
+      <a href="/learn">Knowledge Center</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="/data-deletion">Data deletion</a>
+    </div>
+    &copy; Choudhari EduHealth India Foundation, Amravati, Maharashtra, India &middot; 80G eligible &middot;
+    <a href="mailto:contact@choudhari.ngo">contact@choudhari.ngo</a>
+    <p class="tm">Raktify&trade; &middot; a trade mark of Choudhari EduHealth India Foundation (application pending)</p>
+  </footer>
+</main>
+
+</body>
+</html>
