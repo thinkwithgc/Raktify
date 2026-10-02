@@ -7,6 +7,11 @@ author: Choudhari EduHealth India Foundation
 status: draft
 clinical: true
 advisory: This page is written and awaiting medical review. It is not published, and it is not linked from the library index, because nothing clinical on this site publishes without a named reviewing clinician.
+reviewNotes:
+  - Please confirm every interval printed here, including the different figures for men and women, against your own practice as well as against the NBTC standard.
+  - The section *Platelets follow a different clock entirely* prints intervals and an annual limit for apheresis platelets. These are the figures we are least confident about for a public page - please check them closely.
+  - *What the interval is counted from* states what the clock runs from. Confirm that is right in all cases, including a donation that was started and abandoned.
+  - Is there anything here a donor could read as encouragement to donate more often than is safe?
 citations:
   - National Blood Transfusion Council (NBTC), Standards for Blood Banks and Blood Transfusion Services
   - Raktify blood component reference data, confirmed by the foundation's medical advisor on 10 July 2026

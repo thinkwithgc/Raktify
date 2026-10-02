@@ -7,6 +7,11 @@ author: Choudhari EduHealth India Foundation
 status: draft
 clinical: true
 advisory: This page is written and awaiting medical review. It is not published, and it is not linked from the library index, because nothing clinical on this site publishes without a named reviewing clinician.
+reviewNotes:
+  - The red cell and plasma tables are generated from the platform's compatibility matrix, which is locked as immutable reference data. Please check the printed tables against your own reference and tell us if any single cell is wrong - a wrong cell here is a patient-safety matter, not a typo.
+  - *Plasma runs the other way* and *Whole blood follows neither rule* are the two places a lay reader most often misreads compatibility. Please confirm both are correct and clearly put.
+  - Platelet compatibility is deliberately excluded (see *Platelets are not covered here*). Confirm that omission is right for a public page rather than a gap.
+  - The page ends by telling donors that compatibility does not make a unit safe without crossmatch and screening. Is that caveat prominent enough?
 citations:
   - National Blood Transfusion Council (NBTC), Standards for Blood Banks and Blood Transfusion Services
   - Raktify platform compatibility matrix, reviewed by the foundation's medical advisor and locked as immutable reference data

@@ -85,6 +85,46 @@ function NavChevron({ open }) {
   );
 }
 
+/**
+ * Knowledge Center articles featured on the home page.
+ *
+ * TITLES ARE ENGLISH AND HARDCODED, on purpose twice over. English, because the
+ * articles themselves are English - the chrome around this grid is translated,
+ * and a Marathi title opening an English page would overpromise. Hardcoded,
+ * because the articles are markdown rendered by frontend/scripts/build_learn.js,
+ * which runs AFTER `vite build`, so there is no manifest this bundle could
+ * import even if one existed.
+ *
+ * THE COUPLING IS GATED, which is what makes it acceptable: build_learn.js reads
+ * this array and FAILS THE BUILD if any slug is not a published article - the
+ * same trick it already uses for the staticwebapp.config.json rewrites. A draft
+ * slug here would put a dead link on the home page, and the drafts are the
+ * CLINICAL articles, which must never be linked from anywhere.
+ *
+ * `blurb` is a deliberately shorter teaser than the article's own `summary`;
+ * only `slug` is load-bearing.
+ */
+const LEARN_FEATURED = [
+  {
+    slug: 'faq',
+    title: 'Questions about using Raktify',
+    blurb:
+      'What it costs, how the WhatsApp alerts work, how to stop them, and who can see your details.',
+  },
+  {
+    slug: 'how-raktify-matches-donors',
+    title: 'How Raktify matches donors to patients',
+    blurb:
+      'What happens between a hospital raising a request and a donor getting a message - and which donors are deliberately not contacted.',
+  },
+  {
+    slug: 'what-a-blood-bank-does',
+    title: 'What a blood bank actually does',
+    blurb:
+      'Screening donors, separating whole blood into components, testing every unit, and holding each one at its own temperature.',
+  },
+];
+
 export function Landing() {
   const { t, lang, setLang, supported } = useT();
 
@@ -548,6 +588,44 @@ export function Landing() {
                 </p>
               </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Knowledge Center ──────────────────────────────── */}
+      {/* /learn is static HTML outside the SPA, so every link here is an <a> for
+          a full navigation, never a <Link>. Same reason as the footer. */}
+      <section className="border-t border-sand bg-white">
+        <div className="mx-auto max-w-6xl px-5 py-16 lg:py-20">
+          <div className="text-center">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-stone-900">
+              {t('lp_learn_title')}
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-stone-500">{t('lp_learn_sub')}</p>
+            {lang !== 'en' && <p className="mt-1 text-xs text-stone-400">{t('lp_learn_note')}</p>}
+          </div>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {LEARN_FEATURED.map((a, i) => (
+              <a
+                key={a.slug}
+                href={`/learn/${a.slug}`}
+                className="animate-fade-up rounded-2xl bg-cream p-6 shadow-soft ring-1 ring-sand transition hover:shadow-lift"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <h3 className="font-bold text-stone-900">{a.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{a.blurb}</p>
+                <span aria-hidden="true" className="mt-3 inline-block font-semibold text-rk-700">
+                  &rarr;
+                </span>
+              </a>
+            ))}
+          </div>
+
+          <div className="mt-10 text-center">
+            <a href="/learn" className="rk-button rk-button-secondary">
+              {t('lp_learn_cta')}
+            </a>
           </div>
         </div>
       </section>

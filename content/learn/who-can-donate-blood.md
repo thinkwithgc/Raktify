@@ -7,6 +7,11 @@ author: Choudhari EduHealth India Foundation
 status: draft
 clinical: true
 advisory: This page is written and awaiting medical review. It is not published, and it is not linked from the library index, because nothing clinical on this site publishes without a named reviewing clinician.
+reviewNotes:
+  - **The minimum donor weight is deliberately not printed on this page.** No weight is stated anywhere in the Raktify platform - not in the eligibility reference data, not as a database constraint - so there is no signed figure to quote. Should a figure be published, and if so what is it?
+  - The age band and the haemoglobin floor are taken from Raktify's own reference data, signed on 10 July 2026. Please confirm both are correct to state publicly, in these words, to a lay reader.
+  - The permanent and temporary exclusion lists come from the same signed reference data. Please confirm nothing is missing, and nothing is stated more absolutely than you would state it.
+  - The page says explicitly that it is not a clearance and that only the blood bank's medical officer decides on the day. Is that framing strong enough?
 citations:
   - National Blood Transfusion Council (NBTC), Standards for Blood Banks and Blood Transfusion Services
   - Raktify donor eligibility reference data, confirmed by the foundation's medical advisor on 10 July 2026

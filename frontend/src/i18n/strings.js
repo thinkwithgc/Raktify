@@ -103,6 +103,10 @@ const dict = {
     lp_card_critical: 'अत्यावश्यक',
     lp_how_title: 'हे कसे चालते',
     lp_how_sub: 'नोंदणीपासून जुळवणीपर्यंत तीन सोप्या पायऱ्या.',
+    lp_learn_title: 'रक्तदानाविषयी जाणून घ्या',
+    lp_learn_sub: 'रक्तदात्यांसाठी लिहिलेली सोपी माहिती — प्रकाशित होण्यापूर्वी तपासलेली.',
+    lp_learn_note: 'हे लेख सध्या इंग्रजीमध्ये उपलब्ध आहेत.',
+    lp_learn_cta: 'नॉलेज सेंटर पहा',
     lp_how_full_link: 'संपूर्ण प्रवास पहा — विनंतीपासून रक्तसंक्रमणापर्यंत',
     lp_step1_title: 'काही मिनिटांत नोंदणी',
     lp_step1_body:
@@ -275,6 +279,10 @@ const dict = {
     lp_card_critical: 'अत्यावश्यक',
     lp_how_title: 'यह कैसे काम करता है',
     lp_how_sub: 'पंजीकरण से मिलान तक तीन आसान चरण.',
+    lp_learn_title: 'रक्तदान के बारे में जानें',
+    lp_learn_sub: 'रक्तदाताओं के लिए लिखी गई सरल जानकारी — प्रकाशित होने से पहले जाँची गई।',
+    lp_learn_note: 'ये लेख वर्तमान में अंग्रेज़ी में हैं।',
+    lp_learn_cta: 'नॉलेज सेंटर देखें',
     lp_how_full_link: 'पूरी यात्रा देखें — अनुरोध से रक्ताधान तक',
     lp_step1_title: 'मिनटों में पंजीकरण',
     lp_step1_body:
@@ -441,6 +449,10 @@ const dict = {
     lp_card_critical: 'Critical',
     lp_how_title: 'How it works',
     lp_how_sub: 'Three simple steps from sign-up to a matched donation.',
+    lp_learn_title: 'Learn about blood donation',
+    lp_learn_sub: 'Plain answers for donors, written carefully and reviewed before they publish.',
+    lp_learn_note: 'These guides are currently in English.',
+    lp_learn_cta: 'Browse the Knowledge Center',
     lp_how_full_link: 'New here? See the complete journey — from request to transfusion',
     lp_step1_title: 'Register in minutes',
     lp_step1_body:

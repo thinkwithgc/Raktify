@@ -81,6 +81,7 @@ const REPO = resolve(ROOT, '..');
 const DIST = join(ROOT, 'dist');
 const SRC = join(REPO, 'content', 'learn');
 const SWA_CONFIG = join(ROOT, 'staticwebapp.config.json');
+const LANDING = join(ROOT, 'src', 'pages', 'Landing.jsx');
 const ORIGIN = 'https://raktify.choudhari.ngo';
 const FOUNDATION = 'Choudhari EduHealth India Foundation';
 
@@ -410,6 +411,8 @@ const CSS = [
   ".card a:hover{text-decoration:underline}",
   ".card p{margin:6px 0 0;font-size:14px;color:var(--ink-2)}",
   ".card .soon{display:inline-block;margin-top:8px;font-size:12px;color:var(--ink-3)}",
+  ".related{margin-top:44px;border-top:1px solid var(--line)}",
+  ".related h2{margin:20px 0 12px}",
   ".sources{font-size:14px;color:var(--ink-2)}",
   "footer{border-top:1px solid var(--line);margin-top:48px;padding-top:18px;",
   "font-size:13px;color:var(--ink-3)}",
@@ -685,7 +688,181 @@ function advisory(meta) {
   return '<div class="draft"><strong>Note.</strong> ' + mdInline(meta.advisory) + '</div>';
 }
 
-function renderArticle(meta, body) {
+/** How many sibling links a reader gets at the foot of an article. */
+const RELATED_MAX = 3;
+
+/**
+ * "Related reading" at the foot of each article.
+ *
+ * WHY THIS EXISTS. Before it, /learn/faq linked to the hub and to
+ * /learn/contribute and to no other article - measured on the deployed pages,
+ * not assumed. The hub pointed at every article and every article pointed back
+ * at the hub, so the library was a STAR, not a cluster: nothing connected two
+ * articles on the same subject. Lateral links are what tell a search engine
+ * that these pages are one body of work on one topic, and they are what a
+ * reader who just finished an article actually wants next.
+ *
+ * SELECTION IS DETERMINISTIC, deliberately. A build that reordered these on
+ * every run would produce a diff with no change of meaning, which is noise in
+ * a repo where the sitemap and llms.txt are generated too. Rules:
+ *   - same category first, then the rest in slug order;
+ *   - self excluded;
+ *   - DRAFTS EXCLUDED - `published` is the only pool, so an unreviewed
+ *     clinical page can never be linked from anywhere (the hub lists drafts
+ *     without a link for the same reason);
+ *   - `about` meta pages (contribute, editorial-policy) are excluded UNLESS
+ *     this article is itself an `about` page, so a reader-facing article never
+ *     recommends the editorial policy as further reading.
+ */
+function relatedBlock(meta, published) {
+  const isAbout = meta.category === 'about';
+  const pool = published.filter(
+    (a) => a.meta.slug !== meta.slug && (isAbout || a.meta.category !== 'about'),
+  );
+  pool.sort((x, y) => {
+    const sx = x.meta.category === meta.category ? 0 : 1;
+    const sy = y.meta.category === meta.category ? 0 : 1;
+    return sx - sy || x.meta.slug.localeCompare(y.meta.slug);
+  });
+  const picks = pool.slice(0, RELATED_MAX);
+  if (!picks.length) return '';
+  return (
+    '<div class="related"><h2 id="related">Related reading</h2><div class="cards">' +
+    picks
+      .map(
+        (a) =>
+          '<div class="card"><a href="/learn/' +
+          a.meta.slug +
+          '">' +
+          esc(a.meta.title) +
+          '</a><p>' +
+          esc(a.meta.summary) +
+          '</p></div>',
+      )
+      .join('') +
+    '</div></div>'
+  );
+}
+
+/**
+ * PRINT CSS for the review pack. Deliberately NOT the web stylesheet and
+ * deliberately NOT Inter: this document is opened offline and printed, where a
+ * Google Fonts link fails silently and the text would render in Times - the
+ * same trap recorded for docs/*.html in CLAUDE.md. System stack only.
+ */
+const REVIEW_CSS = [
+  "@page{size:A4;margin:18mm 16mm 20mm}",
+  "*{box-sizing:border-box}",
+  "body{margin:0;font:15px/1.65 'Segoe UI',system-ui,-apple-system,sans-serif;color:#1c1917}",
+  ".wm{height:11mm;width:auto;display:block}",
+  ".banner{border:2px solid #b8231a;border-radius:8px;padding:12px 14px;margin:14px 0 20px;",
+  "background:#fff5f4}",
+  ".banner h2{margin:0 0 6px;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:#b8231a}",
+  ".banner p{margin:0;font-size:13.5px;color:#44403c}",
+  "h1{font-size:26px;line-height:1.2;margin:0 0 6px}",
+  ".sum{font-size:16px;color:#57534e;margin:0 0 18px}",
+  "h2{font-size:19px;margin:26px 0 8px;padding-top:2px}",
+  "h3{font-size:16px;margin:18px 0 6px}",
+  "p,li{orphans:3;widows:3}",
+  "table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0}",
+  "th,td{border:1px solid #e7e5e4;padding:7px 9px;text-align:left;vertical-align:top}",
+  "th{background:#faf9f8;font-weight:600}",
+  ".meta{font-size:13.5px;background:#faf9f8;border:1px solid #e7e5e4;border-radius:8px;",
+  "padding:10px 12px;margin:0 0 18px}",
+  ".meta dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px}",
+  ".meta dt{color:#78716c}",
+  ".meta dd{margin:0}",
+  ".ask{border-left:3px solid #b8231a;padding:2px 0 2px 12px;margin:14px 0}",
+  ".ask li{margin:4px 0}",
+  ".signoff{page-break-before:always;border:1px solid #d6d3d1;border-radius:8px;padding:16px 18px}",
+  ".signoff h2{margin-top:0}",
+  ".rule{border-bottom:1px solid #a8a29e;height:26px;margin:4px 0 14px}",
+  ".verdict li{margin:10px 0;list-style:none}",
+  ".box{display:inline-block;width:13px;height:13px;border:1.5px solid #57534e;margin-right:8px;",
+  "vertical-align:-2px}",
+  ".fine{margin-top:16px;font-size:11px;color:#78716c}",
+  "footer{margin-top:28px;border-top:1px solid #e7e5e4;padding-top:12px;font-size:12px;color:#78716c}",
+].join('');
+
+/**
+ * One print-ready page per DRAFT article, for the reviewing haematologist.
+ *
+ * WHY A SEPARATE RENDERER AND NOT renderArticle(): that function emits the
+ * public page - nav, canonical, JSON-LD, Related reading - none of which a
+ * clinician signing a clinical claim needs, and some of which (a canonical to a
+ * URL that does not resolve, because the article is unpublished) would be
+ * actively wrong in a PDF. This reuses md(), provenance() and sourcesBlock(),
+ * so the PROSE AND THE NUMBERS are the same renderer the live page uses and
+ * cannot drift from what will publish. Only the framing differs.
+ *
+ * It writes OUTSIDE dist/ and is reachable only via an explicit
+ * --review-pack flag, so no deploy can ever pick up an unreviewed article.
+ */
+function renderReviewPage(meta, body) {
+  const asks = (meta.reviewNotes || []).map((q) => '<li>' + mdInline(q) + '</li>').join('');
+  return [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8" />',
+    '<title>' + esc(meta.title) + ' - for medical review</title>',
+    '<style>' + REVIEW_CSS + '</style>',
+    '</head>',
+    '<body>',
+    wordmarkSprite(),
+    '<svg class="wm" role="img" aria-label="Raktify"><use href="#rk-wordmark" /></svg>',
+    '<div class="banner">',
+    '<h2>Draft for medical review &mdash; not published</h2>',
+    '<p>This article is written but <strong>not live</strong>, and is not linked from ',
+    'anywhere on the site. It cannot publish until a reviewing clinician is named: the ',
+    'build refuses an article marked <code>clinical</code> with no named reviewer, which ',
+    'is why this page exists rather than a live URL. Please read it as the page a donor ',
+    'will see, mark anything that is wrong or that you would word differently, and ',
+    'complete the sign-off on the last page.</p>',
+    '</div>',
+    '<h1>' + esc(meta.title) + '</h1>',
+    '<p class="sum">' + esc(meta.summary) + '</p>',
+    '<div class="meta"><dl>',
+    '<dt>Intended URL</dt><dd>' + ORIGIN + '/learn/' + esc(meta.slug) + '</dd>',
+    '<dt>Written by</dt><dd>' + esc(meta.author || FOUNDATION) + '</dd>',
+    '<dt>Status</dt><dd>' + esc(meta.status) + ' (clinical)</dd>',
+    '<dt>Reviewer</dt><dd>none named &mdash; this is what is being requested</dd>',
+    '</dl></div>',
+    asks ? '<h2>Specific questions for the reviewer</h2><ul class="ask">' + asks + '</ul>' : '',
+    '<h2>The article, as it will publish</h2>',
+    md(body, meta.slug),
+    sourcesBlock(meta),
+    '<div class="signoff">',
+    '<h2>Reviewer sign-off</h2>',
+    '<p>Raktify records the reviewing clinician by name on the published page, with the ',
+    'review date. Nothing below is optional &mdash; an unnamed review cannot be recorded.</p>',
+    '<p><strong>Full name</strong></p><div class="rule"></div>',
+    '<p><strong>Qualification</strong> (e.g. MD Pathology / MD Transfusion Medicine)</p>',
+    '<div class="rule"></div>',
+    '<p><strong>Medical council registration number</strong></p><div class="rule"></div>',
+    '<p><strong>Verdict</strong></p><ul class="verdict">',
+    '<li><span class="box"></span>Approved as written.</li>',
+    '<li><span class="box"></span>Approved with the amendments I have marked on this document.</li>',
+    '<li><span class="box"></span>Not approved &mdash; see my notes.</li>',
+    '</ul>',
+    '<p><strong>Review date</strong></p><div class="rule"></div>',
+    '<p><strong>Next review due</strong> (we default to 12 months unless you say otherwise)</p>',
+    '<div class="rule"></div>',
+    '<p><strong>Signature</strong></p><div class="rule" style="height:34px"></div>',
+    '<p class="fine">Returned sign-offs are filed in <code>docs/medical-review/</code> ',
+    'alongside the reference-data review of 10 July 2026, and the reviewer name is ',
+    'published on the article itself.</p>',
+    '</div>',
+    '<footer>',
+    FOUNDATION + ' &middot; Amravati, Maharashtra &middot; contact@choudhari.ngo',
+    '</footer>',
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
+}
+
+function renderArticle(meta, body, published) {
   const path = '/learn/' + meta.slug;
   const pairs = meta.faq ? faqPairs(body) : [];
   if (meta.faq && pairs.length < 3) {
@@ -711,6 +888,7 @@ function renderArticle(meta, body) {
     advisory(meta),
     md(body, meta.slug),
     sourcesBlock(meta),
+    relatedBlock(meta, published || []),
     footer(meta.lastReviewed || meta.published),
     '</main>',
     '</body>',
@@ -888,6 +1066,39 @@ const published = articles.filter((a) => a.meta.status === 'published');
 if (!published.length) fail('every article is a draft - there is nothing to publish');
 
 /**
+ * REVIEW-PACK MODE - node scripts/build_learn.js --review-pack <outdir>
+ *
+ * Renders every DRAFT article as a print-ready page for the reviewing
+ * haematologist and exits. It runs AFTER validate(), so a malformed draft still
+ * fails loudly rather than reaching a clinician.
+ *
+ * Three properties make this safe to keep in the publishing script:
+ *   - it writes only to <outdir>, never to dist/;
+ *   - it does not touch sitemap.xml, llms.txt or staticwebapp.config.json;
+ *   - it exits before any of the publish work, so `npm run build` - which
+ *     passes no arguments - cannot reach it.
+ */
+const reviewAt = process.argv.indexOf('--review-pack');
+if (reviewAt !== -1) {
+  const outDir = process.argv[reviewAt + 1];
+  if (!outDir || outDir.startsWith('--')) {
+    fail('--review-pack needs an output directory, e.g. --review-pack docs/medical-review/pending');
+  }
+  const drafts = articles.filter((a) => a.meta.status === 'draft');
+  if (!drafts.length) fail('--review-pack: there are no drafts; every article is published');
+  mkdirSync(outDir, { recursive: true });
+  for (const a of drafts) {
+    const out = join(outDir, a.meta.slug + '.html');
+    writeFileSync(out, renderReviewPage(a.meta, a.body), 'utf8');
+    console.log('build_learn: review -> ' + out);
+  }
+  console.log(
+    'build_learn: ' + drafts.length + ' draft(s) rendered for review; dist/ untouched',
+  );
+  process.exit(0);
+}
+
+/**
  * Azure SWA `rewrite` has NO capture groups, so /learn/* cannot be mapped to
  * per-slug files by one rule: every page needs its own route entry. Forgetting
  * one is silent and bad - the clean URL falls through navigationFallback to the
@@ -911,13 +1122,77 @@ if (missing.length) {
   );
 }
 
+/**
+ * The home page hardcodes three article slugs (LEARN_FEATURED in Landing.jsx),
+ * because build_learn.js runs AFTER vite build and so there is no manifest the
+ * bundle could import. That coupling is only acceptable because it is checked
+ * here: a slug that is not published would be a dead link on the busiest page
+ * on the site, and the unpublished articles are the CLINICAL drafts, which must
+ * never be linked from anywhere (hard rule 6).
+ */
+const landing = readFileSync(LANDING, 'utf8');
+const lfAt = landing.indexOf('const LEARN_FEATURED = [');
+if (lfAt === -1) {
+  fail(
+    'Landing.jsx has no LEARN_FEATURED array. Either the home page Knowledge Center ' +
+      'section was removed - in which case delete this check too - or it was renamed, ' +
+      'in which case the home page is no longer verified against published articles.',
+  );
+}
+const lfBlock = landing.slice(lfAt, landing.indexOf('];', lfAt));
+const featured = lfBlock
+  .split("slug: '")
+  .slice(1)
+  .map((chunk) => chunk.slice(0, chunk.indexOf("'")));
+if (!featured.length) fail('Landing.jsx LEARN_FEATURED lists no slugs');
+const unpublishedFeatured = featured.filter(
+  (slug) => !published.some((a) => a.meta.slug === slug),
+);
+if (unpublishedFeatured.length) {
+  fail(
+    'the HOME PAGE features ' +
+      unpublishedFeatured.join(', ') +
+      ', which is not published. Landing.jsx LEARN_FEATURED may only list articles ' +
+      'with status: published - a draft there is a dead link on the home page, and ' +
+      'the drafts are the clinical articles.',
+  );
+}
+console.log('build_learn: home page features ' + featured.length + ' articles, all published');
+
 mkdirSync(join(DIST, 'learn'), { recursive: true });
 writeFileSync(join(DIST, 'learn.html'), renderHub(articles), 'utf8');
 console.log('build_learn: /learn' + ' '.repeat(28) + ' -> dist/learn.html');
 
+const publishedSlugs = new Set(published.map((a) => a.meta.slug));
+let relatedLinks = 0;
+
 for (const a of published) {
   const out = join(DIST, 'learn', a.meta.slug + '.html');
-  writeFileSync(out, renderArticle(a.meta, a.body), 'utf8');
+  const html = renderArticle(a.meta, a.body, published);
+
+  /**
+   * The invariant worth asserting: a Related-reading link must never point at a
+   * draft. relatedBlock() is only ever handed `published`, so it cannot happen
+   * today - which is the point, because the cost of it happening later is a
+   * crawlable link to an unreviewed CLINICAL page, and hard rule 6 is the whole
+   * reason this library has a draft state.
+   */
+  // Bound the slice to the related block itself. Taking everything after the
+  // opening div also swept up the FOOTER, which links /learn/contribute - that
+  // inflated the count from 18 to 24 and would have let a footer link satisfy
+  // (or trip) a check about Related reading. Cards end '</p></div>', so the
+  // first '</div></div>' is the end of .cards plus .related and nothing else.
+  const block = (html.split('<div class="related">')[1] || '').split('</div></div>')[0];
+  if (block) {
+    for (const m of block.matchAll(/href="\/learn\/([a-z0-9-]+)"/g)) {
+      if (!publishedSlugs.has(m[1])) {
+        fail(a.meta.slug + ': Related reading links /learn/' + m[1] + ', which is NOT published');
+      }
+      relatedLinks += 1;
+    }
+  }
+
+  writeFileSync(out, html, 'utf8');
   console.log(
     'build_learn: ' + ('/learn/' + a.meta.slug).padEnd(34) + ' -> dist/learn/' + a.meta.slug + '.html',
   );
@@ -1032,6 +1307,8 @@ patchLlms(
     })),
   ),
 );
+
+console.log('build_learn: related reading: ' + relatedLinks + ' sibling links');
 
 console.log(
   'build_learn: ' +
