@@ -7,6 +7,11 @@ what the site looked like before the change. Do not edit the numbers.
 
 Window: **2026-07-04 → 2026-10-02** (90 days). Property permission: `siteOwner`.
 
+**The work shipped as `de11f35`, pushed to `main` on 2 October 2026**, about an
+hour after this reading was taken. That commit is the boundary: anything before
+it is baseline, anything after is effect. For a like-for-like comparison use
+`compare_search_periods` with this window as Period 2.
+
 ## Totals
 
 | Metric | Value |
