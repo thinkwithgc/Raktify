@@ -315,6 +315,21 @@ touching camps. The invariants that must survive without opening it:
 - **RLS is inert at runtime, so a handler's own `WHERE` IS the security boundary.**
   The roster PII leak (`GET /camps/:id/registrations`, now `403 not_your_camp`) was
   exactly that.
+  **VERIFIED ON PROD 2026-10-03** by a read-only catalog probe, so this is no
+  longer a dev-only inference: on `raktify-db` the app connects as
+  **`raktify_admin`** (never `app_user`), which has **`rolbypassrls = TRUE`** and
+  **owns all 50 tables**, while all **116 policies** target
+  `app_user`/`bb_writer`/`audit_writer`/`audit_reader` - **every one `NOLOGIN`**.
+  `relforcerowsecurity` is **0** everywhere, and because the role holds
+  `BYPASSRLS`, **`FORCE ROW LEVEL SECURITY` would NOT help** - do not propose it.
+  **Isolation is real but is carried by handler `WHERE` clauses, not the DB.**
+  Cheap unused lever: `000:45` already does `GRANT app_user TO current_user`, so
+  `SET LOCAL ROLE app_user` in `withRlsContextRaw` would arm all 116 policies with
+  no infra change - but **60 raw `pool.query` sites bypass `withRlsContext`**, 8
+  tables have no RLS at all, and arming policies makes a wrong one **deny real
+  traffic**. See the memory note before touching it. Migration comments in
+  `302`/`304`/`311`/`313`/`316` are immutable (hard rule 5); `000:41` wrongly says
+  prod is "the RDS app user" - pre-Azure-pivot, ignore it.
 - **`<DateOfBirthInput>`'s three selects are driven by its OWN `{y,m,d}` state,
   never by the `value` prop** - do not "simplify" that away (shipped broken once,
   fixed `c9a8c85`).

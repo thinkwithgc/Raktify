@@ -696,9 +696,10 @@ router.get('/:id', verifyJWT, async (req, res) => {
 
 // ── Case-thread party check ──────────────────────────────────────────────
 // RLS (migrations 299 + 300) is the DESIGNED backstop for thread scoping, but it
-// is currently INERT at runtime: the app connects as a role holding BYPASSRLS,
-// and `app_user` — the role every policy targets — cannot log in. Until that is
-// fixed at the infrastructure level, thread access MUST be enforced here too, or
+// is currently INERT at runtime: `app_user` - the role every policy targets - is
+// NOLOGIN per migration 000, so the policies are never evaluated for ANY
+// connection, on dev or on prod. Until that is fixed at the infrastructure
+// level, thread access MUST be enforced here too, or
 // one institution can read/post on another's case.
 //
 // This mirrors blood_requests' `req_actors` policy plus migration 300's

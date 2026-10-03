@@ -1091,9 +1091,12 @@ router.get('/blood-bank-options', async (req, res) => {
 // binds it to the :id param. Same hazard as apply / mine / collectable /
 // blood-bank-options above.
 //
-// ⚠ RLS IS INERT AT RUNTIME (the app connects as a BYPASSRLS owner; app_user is
-// NOLOGIN). The `WHERE blood_bank_id = <resolved target>` in each handler below
-// IS the security boundary, not migration 316's policies.
+// ⚠ RLS IS INERT AT RUNTIME: every policy targets `app_user`, which migration
+// 000 creates NOLOGIN, so no connection is ever evaluated against them. That is
+// a SCHEMA fact - equally true on Neon dev and on Azure prod, and it does not
+// depend on the connecting role's privileges. The `WHERE blood_bank_id =
+// <resolved target>` in each handler below IS the security boundary, not
+// migration 316's policies.
 // ═════════════════════════════════════════════════════════════════════════
 
 // Longest window any capacity read will serve. A month grid needs ~31 days and

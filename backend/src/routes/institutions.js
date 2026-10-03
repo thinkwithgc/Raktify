@@ -660,8 +660,9 @@ router.get('/:id/audit', verifyJWT, async (req, res) => {
 // only ever touch rows of its own institution_id); the admin/technician split
 // within one institution is enforced here.
 //
-// Because RLS is inert at runtime today (the app connects as an owner role with
-// BYPASSRLS — see the memory note), every handler below ALSO re-checks
+// Because RLS is inert at runtime today - every policy targets `app_user`, which
+// migration 000 creates NOLOGIN, so nothing is ever evaluated against them on
+// dev or prod alike (see the memory note) - every handler below ALSO re-checks
 // institution_id inside its own SQL. The path parameter is never trusted on its
 // own, so a wrong :id cannot reach another hospital's rows even with RLS off.
 
