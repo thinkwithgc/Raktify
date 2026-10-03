@@ -50,17 +50,45 @@ the next new migration is `321`.** Everything `≤320` is immutable (hard rule 5
 | `node scripts/smoke_test_phase2.js` | **186** | Institution onboarding / paper MoU / staff-login editing / the two-404 split / the portal's own-name banner |
 | `node scripts/check_whatsapp_templates.js` | 0 fail, 1 warn | Every `templateType` in `backend/src` must have a handler **and** an env key |
 | `npm run lint && npm run format:check` | — | `format:check` is a hard CI gate in all three workflows, **backend only** |
-| `npm run smoke:frontend` | — | Vite build **plus `build_learn.js` and `prerender.js`**. Frontend has no ESLint config, so this is its only gate. **Run from the repo root** |
+| `npm run smoke:frontend` | — | **TWO** Vite builds (client + the SSR bundle for static bodies) **plus `build_learn.js` and `prerender.js`**. Frontend has no ESLint config, so this is its only gate — and since `prerender.js` now renders four routes, it is also **the frontend's only render-level gate**. **Run from the repo root** |
 | `node scripts/smoke_test_phase3/5/6.js` | — | **Do not run.** Pre-268 staff-auth drift; they fail for unrelated reasons |
 
-**`npm run smoke:frontend` carries FOUR build-failing gates that are easy to
-delete by accident**, all of them in `frontend/scripts/`. `prerender.js` asserts
-seven things per route (canonical injected, no root canonical surviving, exactly
-one `<title>` / canonical / description, the build-date stamped, the module script
-intact). `build_learn.js` refuses to publish a `clinical: true` article with no
-named reviewer (hard rule 6), refuses a `LEARN_FEATURED` slug on the home page
+**`npm run smoke:frontend` carries build-failing gates that are easy to delete by
+accident**, all of them in `frontend/scripts/`. `prerender.js` asserts **eight**
+head things per route (canonical injected, no root canonical surviving, title
+injected, exactly one `<title>` / canonical / description, the build-date stamped,
+the module script intact) — the "seven" this file claimed for a year omitted the
+title check. `build_learn.js` refuses to publish a `clinical: true` article with
+no named reviewer (hard rule 6), refuses a `LEARN_FEATURED` slug on the home page
 that is not published, and refuses a Related-reading link to an unpublished
 article. Each one exists because its failure mode is silent and site-wide.
+
+**`prerender.js` also renders a static `<body>` for four routes, and that half
+has its own gates.** `/`, `/register`, `/camps/host` and `/help/community-leader`
+were serving **0 words and 0 headings** outside `<noscript>` — Googlebot renders
+JS so Search Console never complained, but `GPTBot`/`ClaudeBot`/`PerplexityBot`
+largely do not. They are now rendered from the real React components via
+`src/entry-static.jsx` + `vite.config.ssr.js` (**no new dependency** —
+`renderToStaticMarkup` already ships with react-dom) and injected into `#root`.
+Current output: **494 / 255 / 297 / 645 words**. The invariants:
+
+- **`dist/index.html`'s `#root` must stay EMPTY**, asserted twice. It is what
+  `navigationFallback` *and* `responseOverrides.404` serve, and the fallback's
+  `exclude` list means a **missing** `.txt`/`.json`/`.xml`/`.md`/`.svg` 404s into
+  that override at **HTTP 200** — so content there would serve the whole home page
+  on infinite URLs. The home page goes to `dist/home.html`, with `/` rewritten to
+  it and the **root canonical** left on it to dedupe. Never `Disallow: /home.html`.
+- **The stubs in `prerender.js` are load-bearing and minimal.** `useT()` calls
+  `useLocalLang()` *unconditionally*, so every component touches `localStorage`
+  while rendering — a `LangProvider` with a forced language would not help. Only
+  `localStorage` and `document.documentElement` are stubbed: **never stub
+  `window`** (react-query's `isServer` check flips it to browser mode) and **never
+  assign `navigator`** (getter-only on Node 22 — returning `'en'` from the
+  `localStorage` stub is how English is baked in, per migration 320).
+- **Never catch the `dist-ssr` import or a render throw into a skip.** Both must
+  `exit 1`; degrading to the blank shell is the exact defect this replaced.
+- The `<noscript>` block is deliberately **kept** on the body routes — on
+  `/register` it is ~310 words of prose against ~255 of form labels.
 
 **`smoke:camps` reports 154/2 on a well-used Neon dev DB and NEITHER failure is a
 regression.** Both are freshly-seeded rows sorting off the end of a `LIMIT`ed list
