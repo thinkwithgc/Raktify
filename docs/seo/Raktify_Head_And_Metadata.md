@@ -10,10 +10,11 @@ Canonical code:
 
 | File | Owns |
 |---|---|
-| `frontend/index.html` | the home page's head; the `<noscript>` crawler fallback |
-| `frontend/scripts/prerender.js` | the per-route head for every other public route |
+| `frontend/index.html` | the head served at `/`; the `<noscript>` crawler fallback; **an `#root` that must stay empty** (§2.1) |
+| `frontend/scripts/prerender.js` | the per-route head for every other public route, **and the static `<body>` for the four routes flagged `body: true`** |
+| `frontend/src/entry-static.jsx` | the React tree rendered into those bodies (built by `vite.config.ssr.js`) |
 | `frontend/api/camp-og/index.js` | the per-camp head for `/c/:slug` (request-time) |
-| `frontend/staticwebapp.config.json` | the rewrites that serve the prerendered files |
+| `frontend/staticwebapp.config.json` | the rewrites that serve the prerendered files, **including `/` → `/home.html`** |
 
 ---
 
@@ -40,6 +41,44 @@ Keep it keyword-rich **and factually correct** — it is what a first-pass ranki
 actually reads. It once linked to `/host-camp`, which is not a route
 (`App.jsx` has `/camps/host`), so the only crawlable content on the site was
 feeding Google a dead URL. Every link in that block must resolve.
+
+It is **no longer the only crawlable content**, but it is deliberately **not
+stripped** from the pages that now carry a rendered body. On `/register` it is
+~310 words of curated prose — what Raktify is, the CIN and NGO-Darpan numbers,
+the DPDP Data Fiduciary statement, the Grievance Officer pointer, the legal links
+— against ~255 words that are mostly form labels. Dropping it there would be a
+net content loss on a `priority 0.9` page. The only cost of keeping it is that a
+JS-less client sees two `<h1>`s, which is valid HTML5 and not a ranking problem.
+
+## 2.1 Why `index.html`'s `#root` must stay EMPTY
+
+`geo audit` on 2026-10-03 found `/`, `/register`, `/camps/host` and
+`/help/community-leader` serving **0 words and 0 headings** outside `<noscript>`.
+Googlebot renders JS, so Search Console never complained; `GPTBot`, `ClaudeBot`,
+`PerplexityBot` and `CCBot` largely do not, so those pages could not be cited by
+any AI answer engine. They now ship a real body — but **not via `index.html`**,
+for two independent reasons:
+
+1. **Shell inheritance.** `prerender.js` copies `dist/index.html` as the shell for
+   every route, so home-page content there would give `/register` and
+   `/camps/host` the home page's body.
+2. **Soft-404 amplification**, the worse one. `navigationFallback` serves
+   `/index.html`, and its `exclude` list covers
+   `*.{js,css,svg,png,ico,webmanifest,json,txt,xml,yaml,yml,md}` — so a request
+   for a *missing* file of those extensions skips the fallback, 404s, and lands on
+   `responseOverrides.404 → /index.html` at **statusCode 200**. That is the
+   mechanism behind this audit's phantom `/.well-known/ai.txt found` (see
+   `src/pages/NotFound.jsx`). Content in `index.html` would therefore return the
+   full home page, HTTP 200, for every missing `.txt`/`.json`/`.xml`/`.md`/`.svg`
+   URL on the origin — and those are not navigations, so React's `NotFound`
+   `noindex` never runs.
+
+So the home page is written to `dist/home.html`, `/` is rewritten to it, and
+`prerender.js` asserts — twice, once before the loop and once by re-reading from
+disk afterwards — that `dist/index.html` still contains an empty
+`<div id="root"></div>`. `home.html` carries the **root** canonical, which is what
+dedupes it against `/`; do **not** `Disallow: /home.html` in `robots.txt`, or that
+canonical never gets read.
 
 ## 3. Per-route metadata: the defect and the fix
 
