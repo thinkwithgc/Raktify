@@ -6,7 +6,7 @@ This is a **life-critical** healthcare system. Read this whole file before touch
 > `raktify.*` (e.g. `raktify.actor_role`); the Tailwind/CSS design-system prefix
 > is `rk-*` / `.rk-*`. Use these consistently — no other brand prefix exists.
 
-## Where things stand (updated 2026-10-02) — READ THIS FIRST
+## Where things stand (updated 2026-10-03) — READ THIS FIRST
 
 This section is the resume point: branch state, schema head, the gates, what is
 live, and what is genuinely blocked. Trust it over any older section it
@@ -26,16 +26,13 @@ most recent, and what each one bought:
 
 | Commit | What |
 |---|---|
+| `e8abf5c` | **`/how-raktify-works` moves to the `/about` design language, content byte-identical** — 64,896 bytes of body and all 11 SVG diagrams carried verbatim and asserted so. Diagrams keep blue/purple/green: those are the actor key, stated in words on the cast cards. Printed page count measured before and after (15 → 15) because `h2` carries `page-break-before` |
+| `2d395e5` | **"built in Amravati" was the headline, which reads as the SCOPE** on a national platform. Amravati is provenance — the registered office, the CIN, the footer — never reach. Audited the whole public surface; that headline was the only place it read as a limit |
+| `57da13a`, `00eb601`, `18537f9` | **`/about` — built, orphaned, redesigned.** The trust assets (Section 8, CIN, NGO-Darpan, 80G, clinical governance) had no page to live on. Shipped with a sitemap entry and **zero inbound links**, which is the `d0ec55c` orphan bug repeated three commits later. The redesign is the shared design language: hero, credential chips, warm bands, a dark clinical panel |
+| `ab814fa`, `9d21576`, `3129290` | **Audit follow-through:** 5 titles and 18 descriptions inside Google’s limits, two heading-order skips fixed without touching appearance, `/register` given the page title it never had, and `stories` added as a Knowledge Center cluster |
 | `4a84670` | **Related reading between articles, a Knowledge Center section on the home page, and print-ready review packs for the three clinical drafts.** The home page hardcodes three slugs because `build_learn.js` runs *after* `vite build`; the coupling is gated - a draft slug fails the build (proven, exit 1) |
 | `d0ec55c` | **`/learn` was an orphan** - `grep -rn '/learn' frontend/src` returned nothing, so Google could only reach it via the sitemap, and reported it "unknown" while `/learn/faq` was indexed the same day. Footer (21 pages) + the `<noscript>` block. Also breadcrumbs on `/help/community-leader` |
 | `de11f35` | **Per-route heads, the Knowledge Center, and a real 404.** Every URL used to return byte-identical HTML canonicalised to `/`. Plus `WebSite` JSON-LD, `sameAs`, non-blocking fonts, and the entry chunk 1.09 MB -> 590 kB by splitting at `RequireAuth` |
-| `26d32bf` | **Every magic-link route joins the service-worker denylist** — an invitee tapped Activate and got the password field alone, because the handset ran a precached shell older than `a11192b`. Same bug as `7d1def8`, second membership rule: `/setup/` `/activate/` `/consent/` `/camp/` `/alert/`. Confirmed fixed on the invitee's handset after one reload |
-| `a1d94b9` | **The post-mortems leave CLAUDE.md** for `docs/Raktify_Engineering_Lessons.md` + `docs/Raktify_Phase_History.md`; this file keeps one invariant each. 2374 → 517 lines. Move, don't lose: 0 dangling anchors, 3 homeless facts written to the doc first |
-| `0efa2f1` | The **host institution's own name on the printed QR sheets** — a hospital lending a corridor wall should read as the owner of the sheet. Blank field prints the old sheet exactly; a long name shrinks itself, never the 130mm code |
-| `a11192b` | **Staff pick their OWN username at setup** — activation and invitation are one seam. A failed rename must not burn the token, which holds only because those routes run with no open transaction |
-| `2a969a4` | The **downloaded poster carries a QR** — an image has no hyperlink, so a forwarded card had no path to RSVP. `?poster=1` is one boolean on the same renderer, composite cache key |
-| `7d1def8` | `/c/*` joins the service-worker **navigation-fallback denylist** — a returning handset was running an older build's shell and never reached the function |
-| `c2362a4` | A shared camp URL **previews as the camp card**: per-route CORP override, 3-channel PNG, no blank band. None of the three defects was the renderer |
 
 **Schema head.** **99 migration files, latest `320_default_language_english`;
 the next new migration is `321`.** Everything `≤320` is immutable (hard rule 5).
@@ -107,26 +104,35 @@ self-chosen staff usernames (walked by a real invitee on a real handset,
 2026-09-09). The camp share path **has been exercised end-to-end in prod**
 (2026-09-03, camp `annual-camp-v4x5u`, `status=PL`, `branding_status=AP`).
 
-**Shipped 2026-10-02: the SEO / Knowledge Center batch** (`de11f35`, `d0ec55c`,
-`4a84670`). Every URL used to return byte-identical HTML canonicalised to the site
-root, so six of ten sitemap URLs described themselves as the home page. Now live
-and verified in prod: **per-route heads** (`frontend/scripts/prerender.js`), the
-**Knowledge Center at `/learn`** (`frontend/scripts/build_learn.js`, 6 published +
-3 clinical drafts), **related reading** between articles, a **home-page Knowledge
-Center section**, a real **404 page** replacing the silent redirect to home, the
-`sameAs` profile URLs, and the **entry chunk down from 1.09 MB to 590 kB**
-(286 to 183 kB gzip) by code-splitting at `RequireAuth`.
+**Shipped 2–3 October: the SEO, content and trust layer.** Every URL used to
+return byte-identical HTML canonicalised to the site root. Now live and verified in
+prod: per-route heads (`frontend/scripts/prerender.js`), the Knowledge Center at
+`/learn` (`build_learn.js`, 6 published + 3 clinical drafts, related-reading
+clusters, a `stories` category), `/about`, a real 404, `sameAs`, titles and
+descriptions inside Google's limits, security headers incl. a CSP, and the entry
+chunk down from 1.09 MB to 590 kB by splitting at `RequireAuth`.
 
-Two things that matter more than the feature list. **Search Console reported all
-inspected URLs as "Submitted and indexed" even before the fix**, so the duplicate
-canonical was costing snippet quality and page identity, not inclusion - do not
-repeat the claim that those pages "could not rank". And the **pre-deploy baseline
-is unrepeatable**: it is archived in
-**`docs/seo/Search_Console_Baseline_2026-10-02.md`** (15 clicks / 150 impressions
-over 90 days, and **not one blood-donation query**), which also records that the
-real bottleneck is content and backlinks, not plumbing. Head/metadata rationale is
-in **`docs/seo/Raktify_Head_And_Metadata.md`**; the `gsc` MCP server setup is in
-**`docs/seo/Google_Search_Console_Setup.md`**.
+Four things that matter more than the feature list.
+
+- **Search Console reported every inspected URL as "Submitted and indexed" even
+  BEFORE the canonical fix** — so the duplicate canonical cost snippet quality and
+  page identity, not inclusion. Do not repeat the claim that those pages "could not
+  rank".
+- **The pre-deploy baseline is unrepeatable** and is archived in
+  **`docs/seo/Search_Console_Baseline_2026-10-02.md`**: 15 clicks / 150 impressions
+  over 90 days, **not one blood-donation query**. The bottleneck is content and
+  backlinks, not plumbing.
+- **The competitor is a content business, not an app business** — see
+  **`docs/seo/Raktify_Competitive_Landscape.md`**. ~50 pages and 80+ blog posts
+  against our 6, with a product that has no geographic matching and matches on
+  self-reported blood group. Distribution is the gap; features are not.
+- **ADDING A PAGE MEANS ADDING A LINK TO IT.** `/learn` and then `/about` both
+  shipped orphaned, three commits apart. A sitemap gets a page crawled; it does not
+  make it reachable and it passes no authority.
+
+Reference docs: **`Raktify_Head_And_Metadata.md`** (head/metadata rationale),
+**`Raktify_Security_Headers.md`** (CSP and the false HTTPS warning),
+**`Google_Search_Console_Setup.md`** (the `gsc` MCP server).
 
 **Blocked on other people, not on code:**
 1. **Medical review of the three clinical Knowledge Center articles** -
